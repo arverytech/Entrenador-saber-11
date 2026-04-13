@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ShieldCheck, Key, Clock, LogOut, Save, BadgeCheck, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Key, Clock, LogOut, Save, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
@@ -16,17 +16,17 @@ export default function ProfilePage() {
   const { toast } = useToast();
 
   const handleActivate = () => {
-    if (premiumKey.length < 8) {
+    if (premiumKey.length < 5) {
       toast({
-        title: "Error de Validación",
-        description: "La clave ingresada no es válida. Contacta a tu institución.",
+        title: "Error de Clave",
+        description: "La clave es demasiado corta. Revisa tu código institucional.",
         variant: "destructive",
       });
       return;
     }
     toast({
-      title: "¡Acceso Premium Activado!",
-      description: "Ahora tienes acceso ilimitado a todos los simulacros y misiones de IA.",
+      title: "¡Acceso Total Desbloqueado!",
+      description: "Tu cuenta ahora es Premium. ¡A estudiar, héroe!",
     });
   };
 
@@ -41,15 +41,15 @@ export default function ProfilePage() {
           </Avatar>
           <div className="flex-1 text-center md:text-left">
             <h1 className="text-3xl font-black uppercase tracking-tight">Nicolas Buenaventura</h1>
-            <p className="text-muted-foreground font-bold text-sm uppercase tracking-widest">Estudiante Elite • Nivel 12</p>
+            <p className="text-muted-foreground font-bold text-sm uppercase tracking-widest">Estudiante • Nivel 12</p>
             <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-2">
-              <Badge className="bg-secondary text-white border-none">Periodo de Prueba</Badge>
+              <Badge className="bg-secondary text-white border-none">Prueba Gratuita</Badge>
               <Badge variant="outline" className="border-accent text-accent">5 días restantes</Badge>
             </div>
           </div>
           <Button variant="ghost" className="text-destructive font-bold uppercase text-xs">
             <LogOut className="w-4 h-4 mr-2" />
-            Cerrar Sesión
+            Salir
           </Button>
         </header>
 
@@ -58,61 +58,56 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle className="text-xl font-bold uppercase flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-primary" />
-                Datos del Perfil
+                Mi Cuenta
               </CardTitle>
-              <CardDescription>Actualiza tu identidad de estudiante.</CardDescription>
+              <CardDescription>Configura tus datos de estudiante.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest">Nombre de Usuario</Label>
-                <Input defaultValue="Nicolas Buenaventura" className="rounded-xl border-2" />
+                <Label className="text-xs font-black uppercase tracking-widest">Nombre Completo</Label>
+                <Input defaultValue="Nicolas Buenaventura" className="rounded-xl border-2 h-12" />
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest">Correo Institucional</Label>
-                <Input defaultValue="nicolas@colegio.edu.co" disabled className="rounded-xl border-2 bg-muted/50" />
-              </div>
-              <Button className="w-full game-button bg-primary text-white shadow-lg">
+              <Button className="w-full game-button bg-primary text-white h-12 shadow-lg">
                 <Save className="w-4 h-4 mr-2" />
-                Guardar Cambios
+                Guardar
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="game-card bg-card border-accent/20 glow-accent overflow-visible">
+          <Card className="game-card bg-card border-accent/20 glow-accent">
             <CardHeader>
               <CardTitle className="text-xl font-bold uppercase flex items-center gap-2">
                 <Key className="w-5 h-5 text-accent" />
-                Acceso Premium
+                Validar Acceso
               </CardTitle>
-              <CardDescription>Ingresa tu clave institucional para acceso ilimitado.</CardDescription>
+              <CardDescription>Usa tu clave secreta institucional para seguir estudiando.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="p-4 bg-accent/10 rounded-2xl border border-accent/20 flex gap-3">
                 <Clock className="w-6 h-6 text-accent shrink-0" />
-                <div>
-                  <p className="text-xs font-bold text-accent uppercase">Estado de la Suscripción</p>
-                  <p className="text-sm font-medium leading-tight">Tu periodo de prueba expira en 48 horas. Después de esto, necesitarás una clave.</p>
-                </div>
+                <p className="text-xs font-medium leading-tight text-accent-foreground italic">
+                  Recuerda: Cuando pasen tus 7 días de prueba, el sistema te pedirá una clave para entrar.
+                </p>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest">Clave de Activación</Label>
+                <Label className="text-xs font-black uppercase tracking-widest">Ingresa tu Clave Aquí</Label>
                 <div className="flex gap-2">
                   <Input 
-                    placeholder="INST-2024-XXXX" 
+                    placeholder="Escribe tu clave..." 
                     value={premiumKey}
                     onChange={(e) => setPremiumKey(e.target.value)}
-                    className="rounded-xl border-2 focus:ring-accent font-mono"
+                    className="rounded-xl border-2 focus:ring-accent h-12 font-bold"
                   />
-                  <Button className="game-button bg-accent text-white" onClick={handleActivate}>
+                  <Button className="game-button bg-accent text-white h-12 px-6" onClick={handleActivate}>
                     Validar
                   </Button>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-xl border border-dashed border-muted-foreground/30 text-[10px] font-bold text-muted-foreground uppercase leading-tight italic">
-                <AlertTriangle className="w-4 h-4 text-secondary shrink-0" />
-                El acceso premium desbloquea el Ranking Nacional y el historial de simulacros completo.
+                <AlertCircle className="w-4 h-4 text-secondary shrink-0" />
+                Si no tienes clave, pídela al profesor de tu colegio.
               </div>
             </CardContent>
           </Card>

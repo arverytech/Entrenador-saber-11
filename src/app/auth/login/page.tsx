@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -6,13 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Trophy, ArrowRight, Sparkles, LogIn } from 'lucide-react';
+import { Trophy, LogIn, Sparkles } from 'lucide-react';
 import Image from 'next/image';
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6 relative overflow-hidden">
-      {/* Background Decorative Elements */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-10">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary rounded-full blur-[100px]" />
@@ -24,14 +22,14 @@ export default function LoginPage() {
             <Trophy className="w-8 h-8 text-white" />
           </div>
           <div>
-            <CardTitle className="text-3xl font-black uppercase tracking-tight">¡Bienvenido!</CardTitle>
+            <CardTitle className="text-3xl font-black uppercase tracking-tight text-primary">¡Bienvenido!</CardTitle>
             <CardDescription className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
               Tu entrenamiento al éxito comienza aquí
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Button variant="outline" className="w-full game-button border-2 h-12 font-bold flex items-center justify-center gap-3">
+          <Button variant="outline" className="w-full game-button border-2 h-12 font-bold flex items-center justify-center gap-3 hover:bg-muted">
             <Image src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/smartlock/google.svg" alt="Google" width={20} height={20} />
             Ingresar con Google
           </Button>
@@ -51,10 +49,7 @@ export default function LoginPage() {
               <Input id="email" type="email" placeholder="estudiante@ejemplo.com" className="rounded-xl border-2 h-12" />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="font-bold uppercase text-xs tracking-widest">Contraseña</Label>
-                <Link href="#" className="text-xs font-bold text-primary hover:underline">¿Olvidaste tu contraseña?</Link>
-              </div>
+              <Label htmlFor="password" className="font-bold uppercase text-xs tracking-widest">Contraseña</Label>
               <Input id="password" type="password" className="rounded-xl border-2 h-12" />
             </div>
           </div>

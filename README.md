@@ -3,7 +3,7 @@
 ¡Hola, Campeón! Estás a unos clics de que todo el mundo pueda usar tu aplicación. Sigue estos pasos como si fueran una misión de tu juego favorito:
 
 ## 📍 Paso 1: ¿Dónde está mi código?
-Todo lo que ves en las carpetas de la izquierda es el "cerebro" de tu aplicación. No necesitas mover nada más, ¡yo ya lo dejé listo!
+Todo lo que ves en las carpetas de la izquierda (en la pestaña que dice **"Files"**) es el "cerebro" de tu aplicación. No necesitas mover nada más, ¡yo ya lo dejé listo!
 
 ## 🎒 Paso 2: Tu Mochila Mágica (GitHub)
 1. Entra a [github.com](https://github.com) y crea una cuenta (pide ayuda a un adulto si necesitas un correo).
