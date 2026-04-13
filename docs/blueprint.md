@@ -1,0 +1,32 @@
+# **App Name**: Entrenador Saber 11
+
+## Core Features:
+
+- Gestión de Autenticación de Usuario: Permite a los usuarios registrarse, iniciar sesión con email y contraseña, recuperar contraseñas y acceder mediante su cuenta de Google, facilitando el acceso seguro y diversificado a la plataforma.
+- Sistema de Acceso con Clave: Implementa un mecanismo de acceso adicional o exclusivo mediante una clave, que puede ser utilizada para diferentes niveles de usuario o promociones.
+- Versión de Prueba Gratuita (7 Días): Ofrece a los usuarios que no posean una clave de acceso premium una versión de prueba gratuita de 7 días, permitiéndoles explorar las funcionalidades esenciales de la plataforma antes de considerar una suscripción.
+- Panel de Administración y Monitoreo: Un panel exclusivo para administradores con credenciales de usuario y clave. Incluye dashboards que permiten visualizar el progreso global de los estudiantes y el rendimiento individual, ofreciendo herramientas de evaluación y seguimiento.
+- Personalización de Identidad Institucional (Admin): Permite al administrador editar el logo y el nombre de la institución (ej. IED Nicolas Buenaventura) que se mostrarán en la interfaz de la aplicación.
+- Banco de Preguntas Gamificado: Una extensa base de datos de preguntas de práctica, clasificadas por asignaturas (Matemáticas, Lectura Crítica, Ciencias Sociales, Ciencias Naturales, Inglés) y competencias, con puntos por respuestas correctas.
+- Modos de Práctica Personalizados y Desafíos: Permite a los usuarios seleccionar asignaturas o temas específicos para practicar, generar pruebas aleatorias o participar en desafíos temáticos para ganar recompensas.
+- Simulacros de Examen Completos con Ranking: Ofrece exámenes simulados completos del Saber 11, con temporizador y estructura idéntica al examen real. Los resultados se pueden comparar con otros usuarios en un ranking.
+- Seguimiento de Progreso y Rendimiento con Logros: Registra el desempeño del usuario a lo largo del tiempo, mostrando estadísticas detalladas sobre aciertos, errores, áreas de fortaleza y debilidad, y desbloqueando logros virtuales.
+- Explicaciones Detalladas de Respuestas: Proporciona explicaciones claras y concisas para cada pregunta, tanto para las respuestas correctas como incorrectas, facilitando el aprendizaje y la comprensión.
+- Perfiles de Usuario con Historial y Recompensas: Permite a los usuarios crear perfiles, guardar su progreso, revisar intentos anteriores, acceder a su historial de aprendizaje y visualizar las recompensas y puntos obtenidos.
+- Herramienta de IA para Ruta de Aprendizaje Adaptativa y Misiones: Analiza el rendimiento del usuario y utiliza una herramienta de razonamiento para recomendar preguntas, temas de estudio o simulacros específicos, o para crear 'misiones' personalizadas, optimizando la preparación de manera personalizada y gamificada.
+- Gamificación Avanzada con Comodines y Recompensas: Implementa un sistema de puntos y un ranking global. Al alcanzar ciertos puntajes o hitos, los usuarios pueden obtener y usar comodines (ej. eliminar dos respuestas equivocadas) y otras recompensas virtuales para mejorar su experiencia de estudio.
+- Logros y Medallas: Los usuarios pueden desbloquear diversos logros y medallas virtuales al alcanzar hitos específicos (ej. 'Experto en Matemáticas', 'Dominio de Inglés', '500 Preguntas Resueltas').
+- Minijuegos Educativos y de Pausa Activa: Ofrece una variedad de minijuegos cortos y atractivos que refuerzan conceptos clave de forma lúdica o sirven como pausas activas para combatir la fatiga mental y mantener la concentración.
+- Desafíos Diarios y Trivias Temáticas: Propone desafíos rápidos y preguntas de trivia diarias, tanto académicas como de cultura general, para estimular el aprendizaje continuo y ofrecer momentos de diversión y competencia adicional.
+- Cápsulas Motivacionales y Narrativas de Progreso: Incluye mensajes de ánimo, consejos de estudio y pequeñas narrativas que ilustran el progreso del estudiante y lo mantienen motivado durante su preparación.
+
+## Style Guidelines:
+
+- Color Primario: Azul vibrante (#2196F3) para transmitir confianza y un ambiente de aprendizaje enérgico, evocando instituciones educativas y estabilidad.
+- Color Secundario: Verde esmeralda (#4CAF50) para indicar progreso, aciertos y un ambiente motivador.
+- Color de Fondo: Blanco puro (#FFFFFF) o gris muy claro (#F5F5F5) para maximizar la legibilidad y resaltar el contenido interactivo y gamificado, con fondos más oscuros y relajantes para las pausas activas o minijuegos.
+- Acentos: Naranja brillante (#FF9800) para llamadas a la acción importantes, retroalimentación y elementos de gamificación como puntos, recompensas y comodines, utilizando tonos vibrantes para elementos interactivos de juego.
+- Fuente Principal: 'Roboto' o 'Open Sans' para títulos y cuerpo de texto, debido a su claridad y legibilidad en pantallas digitales, esencial para contenido educativo y la visualización de puntajes. Posible uso de fuentes más lúdicas pero legibles para elementos de gamificación y minijuegos.
+- Uso de iconos de línea modernos y minimalistas para la navegación y conceptos educativos. El logo de la IED Nicolas Buenaventura estará presente en todas las pantallas principales. Complementado con iconos más expresivos y coloridos (trofeos, estrellas, medallas, comodines, avatares personalizables, elementos de juego) para potenciar la interactividad y la experiencia gamificada.
+- Interfaz dinámica y estructurada que evoca la sensación de un videojuego. Secciones claras para preguntas y opciones, con barras de progreso detalladas, paneles de logros visualmente atractivos, tablas de clasificación destacadas, y áreas interactivas para minijuegos y uso de comodines. El diseño es adaptable a dispositivos móviles y de escritorio, con transiciones fluidas y elementos visuales que guían la atención hacia el progreso y las recompensas.
+- Transiciones de pantalla rápidas y fluidas, efectos visuales para retroalimentación instantánea (respuestas correctas/incorrectas), animaciones de 'power-up' al usar comodines, explosiones de confetti o destellos al desbloquear logros y animaciones de celebración al completar desafíos o subir en el ranking, creando una experiencia gratificante y estimulante.
