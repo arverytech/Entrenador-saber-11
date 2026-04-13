@@ -1,22 +1,23 @@
+
 {
   "placeholderImages": [
     {
       "id": "institution-logo",
-      "description": "Logo de la IED Nicolas Buenaventura",
-      "imageUrl": "https://picsum.photos/seed/nicolas-logo/200/200",
+      "description": "Logo institucional educativo",
+      "imageUrl": "https://picsum.photos/seed/school-logo/200/200",
       "imageHint": "educational logo"
     },
     {
       "id": "gamified-hero",
-      "description": "Ilustración de estudio tipo videojuego",
-      "imageUrl": "https://picsum.photos/seed/study-game/800/600",
-      "imageHint": "gaming education"
+      "description": "Estudiante preparándose para exámenes con tecnología",
+      "imageUrl": "https://picsum.photos/seed/exam-prep/800/600",
+      "imageHint": "student studying"
     },
     {
       "id": "achievement-badge",
-      "description": "Medalla de logro",
-      "imageUrl": "https://picsum.photos/seed/medal/100/100",
-      "imageHint": "gold medal"
+      "description": "Medalla de excelencia académica",
+      "imageUrl": "https://picsum.photos/seed/academic-medal/100/100",
+      "imageHint": "academic medal"
     }
   ]
 }
