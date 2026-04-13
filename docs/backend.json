@@ -1,0 +1,1123 @@
+{
+  "entities": {
+    "Institution": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Institution",
+      "type": "object",
+      "description": "Represents the institutional identity of the application, which can be customized by an administrator.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Institution entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the institution, e.g., 'IED Nicolas Buenaventura'."
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL to the institution's logo image.",
+          "format": "uri"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the institution's data was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the institution's data was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "logoUrl",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user profile within the application, storing non-authentication related information.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity. This typically links to an external authentication system's user ID."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The name displayed for the user in the application."
+        },
+        "profileImageUrl": {
+          "type": "string",
+          "description": "URL to the user's profile image.",
+          "format": "uri"
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user within the application, e.g., 'student', 'admin'. Admins have access to the administration panel.",
+          "format": "enum"
+        },
+        "currentPoints": {
+          "type": "number",
+          "description": "The total gamification points accumulated by the user."
+        },
+        "isTrial": {
+          "type": "boolean",
+          "description": "Indicates if the user is currently in a free trial period."
+        },
+        "trialEndDate": {
+          "type": "string",
+          "description": "The date and time when the user's free trial period ends.",
+          "format": "date-time"
+        },
+        "institutionId": {
+          "type": "string",
+          "description": "Reference to the Institution the user belongs to. (Relationship: Institution 1:N User)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "displayName",
+        "role",
+        "currentPoints",
+        "isTrial",
+        "institutionId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PremiumAccessKey": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PremiumAccessKey",
+      "type": "object",
+      "description": "Represents a key that grants premium access or extends a user's subscription, used for trial verification or promotions.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the PremiumAccessKey entity."
+        },
+        "keyString": {
+          "type": "string",
+          "description": "The actual alphanumeric string that users can enter to gain access."
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of access granted by the key, e.g., 'premium_subscription', 'admin_access'."
+        },
+        "durationDays": {
+          "type": "number",
+          "description": "The number of days the premium access is valid for once redeemed."
+        },
+        "redeemedByUserId": {
+          "type": "string",
+          "description": "Reference to the User who redeemed this key. Null if not yet redeemed. (Relationship: User 1:N PremiumAccessKey)"
+        },
+        "redeemedAt": {
+          "type": "string",
+          "description": "Timestamp when the key was redeemed by a user. Null if not yet redeemed.",
+          "format": "date-time"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if the key is still active and can be redeemed or is currently providing access."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the premium access key was generated.",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "description": "Timestamp when the key itself expires and can no longer be redeemed, or when the access granted by it would naturally end.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "keyString",
+        "type",
+        "durationDays",
+        "isActive",
+        "createdAt"
+      ]
+    },
+    "Subject": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Subject",
+      "type": "object",
+      "description": "Represents an academic subject or area of study, such as Mathematics, Critical Reading, or Socioemotional.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Subject entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the subject, e.g., 'Matemáticas', 'Lectura Crítica', 'Socioemocionales'."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the subject."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description"
+      ]
+    },
+    "Component": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Component",
+      "type": "object",
+      "description": "Represents a specific component or thematic area within a subject, as defined for the Saber 11 exams.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Component entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the component, e.g., 'Interpretación y representación', 'Indagación'."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the component."
+        },
+        "subjectId": {
+          "type": "string",
+          "description": "Reference to the Subject this component belongs to. (Relationship: Subject 1:N Component)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "subjectId"
+      ]
+    },
+    "Competency": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Competency",
+      "type": "object",
+      "description": "Represents a specific skill or ability evaluated within a component of a subject, as defined for the Saber 11 exams.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Competency entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the competency, e.g., 'Reconoce y establece relaciones entre diferentes tipos de textos'."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the competency."
+        },
+        "componentId": {
+          "type": "string",
+          "description": "Reference to the Component this competency belongs to. (Relationship: Component 1:N Competency)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "componentId"
+      ]
+    },
+    "Question": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Question",
+      "type": "object",
+      "description": "Represents a single practice question with its content, options, correct answer, and categorization.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Question entity."
+        },
+        "text": {
+          "type": "string",
+          "description": "The full text of the question."
+        },
+        "options": {
+          "type": "array",
+          "description": "An array of possible answer options for the question.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "correctAnswerIndex": {
+          "type": "number",
+          "description": "The 0-indexed position of the correct answer within the 'options' array."
+        },
+        "explanation": {
+          "type": "string",
+          "description": "A detailed explanation for the correct answer, and why other options are incorrect."
+        },
+        "subjectId": {
+          "type": "string",
+          "description": "Reference to the Subject this question belongs to. (Relationship: Subject 1:N Question)"
+        },
+        "componentId": {
+          "type": "string",
+          "description": "Reference to the Component this question belongs to. (Relationship: Component 1:N Question)"
+        },
+        "competencyId": {
+          "type": "string",
+          "description": "Reference to the Competency this question assesses. (Relationship: Competency 1:N Question)"
+        },
+        "level": {
+          "type": "string",
+          "description": "The difficulty level of the question, e.g., 'easy', 'medium', 'hard'."
+        },
+        "pointsAwarded": {
+          "type": "number",
+          "description": "The number of gamification points awarded for correctly answering this question."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Optional URL to an image associated with the question.",
+          "format": "uri"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the question was added to the database.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the question was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "options",
+        "correctAnswerIndex",
+        "explanation",
+        "subjectId",
+        "componentId",
+        "competencyId",
+        "level",
+        "pointsAwarded",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "QuizSession": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "QuizSession",
+      "type": "object",
+      "description": "Represents a collection of user attempts on questions, grouped as a practice session, daily challenge, or minigame.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the QuizSession entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who participated in this session. (Relationship: User 1:N QuizSession)"
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of quiz session, e.g., 'practice', 'daily_challenge', 'minigame', 'adaptive_mission'."
+        },
+        "subjectId": {
+          "type": "string",
+          "description": "Optional reference to the Subject if the session focuses on a specific subject. (Relationship: Subject 1:N QuizSession)"
+        },
+        "componentId": {
+          "type": "string",
+          "description": "Optional reference to the Component if the session focuses on a specific component. (Relationship: Component 1:N QuizSession)"
+        },
+        "competencyId": {
+          "type": "string",
+          "description": "Optional reference to the Competency if the session focuses on a specific competency. (Relationship: Competency 1:N QuizSession)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The total score obtained by the user in this session."
+        },
+        "totalQuestions": {
+          "type": "number",
+          "description": "The total number of questions presented in this session."
+        },
+        "correctQuestions": {
+          "type": "number",
+          "description": "The number of questions answered correctly in this session."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "Timestamp when the quiz session started.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "Timestamp when the quiz session ended.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "type",
+        "score",
+        "totalQuestions",
+        "correctQuestions",
+        "startTime",
+        "endTime"
+      ]
+    },
+    "QuizAttempt": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "QuizAttempt",
+      "type": "object",
+      "description": "Records a single user attempt on a specific question within a quiz session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the QuizAttempt entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who made this attempt. (Relationship: User 1:N QuizAttempt)"
+        },
+        "questionId": {
+          "type": "string",
+          "description": "Reference to the Question that was attempted. (Relationship: Question 1:N QuizAttempt)"
+        },
+        "quizSessionId": {
+          "type": "string",
+          "description": "Reference to the QuizSession this attempt belongs to. (Relationship: QuizSession 1:N QuizAttempt)"
+        },
+        "selectedAnswerIndex": {
+          "type": "number",
+          "description": "The 0-indexed position of the option selected by the user. Null if unanswered."
+        },
+        "isCorrect": {
+          "type": "boolean",
+          "description": "Indicates if the user's selected answer was correct."
+        },
+        "pointsEarned": {
+          "type": "number",
+          "description": "The points earned for this specific attempt (0 if incorrect or unanswered)."
+        },
+        "attemptDate": {
+          "type": "string",
+          "description": "Timestamp when the question was attempted.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "questionId",
+        "quizSessionId",
+        "isCorrect",
+        "pointsEarned",
+        "attemptDate"
+      ]
+    },
+    "Exam": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Exam",
+      "type": "object",
+      "description": "Defines the structure and content of a full simulated Saber 11 exam.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Exam entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the exam, e.g., 'Simulacro Saber 11 - 2023'."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the exam."
+        },
+        "durationMinutes": {
+          "type": "number",
+          "description": "The allowed duration for completing the exam in minutes."
+        },
+        "questionIds": {
+          "type": "array",
+          "description": "An ordered array of references to the Questions included in this exam. (Relationship: Question N:N Exam)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the exam definition was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the exam definition was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "durationMinutes",
+        "questionIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ExamAttempt": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ExamAttempt",
+      "type": "object",
+      "description": "Records a user's attempt at a full simulated exam, including their answers and final score.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ExamAttempt entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who took the exam. (Relationship: User 1:N ExamAttempt)"
+        },
+        "examId": {
+          "type": "string",
+          "description": "Reference to the Exam that was attempted. (Relationship: Exam 1:N ExamAttempt)"
+        },
+        "startTime": {
+          "type": "string",
+          "description": "Timestamp when the exam attempt started.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "Timestamp when the exam attempt ended.",
+          "format": "date-time"
+        },
+        "score": {
+          "type": "number",
+          "description": "The total score obtained by the user in this exam attempt."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the exam attempt, e.g., 'completed', 'in_progress', 'abandoned'."
+        },
+        "userAnswers": {
+          "type": "array",
+          "description": "An array of objects, each detailing a user's answer for a specific question within this exam attempt.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "examId",
+        "startTime",
+        "endTime",
+        "score",
+        "status",
+        "userAnswers"
+      ]
+    },
+    "Achievement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Achievement",
+      "type": "object",
+      "description": "Defines a virtual achievement or medal that users can unlock by meeting specific criteria.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Achievement entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the achievement, e.g., 'Experto en Matemáticas'."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of what the achievement entails."
+        },
+        "criteria": {
+          "type": "string",
+          "description": "A description of the conditions required to unlock this achievement (e.g., 'Score 90% in Math subject')."
+        },
+        "iconUrl": {
+          "type": "string",
+          "description": "URL to the icon image representing the achievement.",
+          "format": "uri"
+        },
+        "type": {
+          "type": "string",
+          "description": "The visual type of the achievement, e.g., 'medal', 'trophy', 'badge'."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the achievement was defined.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the achievement definition was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "criteria",
+        "type",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserAchievement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserAchievement",
+      "type": "object",
+      "description": "Records that a specific user has unlocked a particular achievement.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserAchievement entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who unlocked the achievement. (Relationship: User 1:N UserAchievement)"
+        },
+        "achievementId": {
+          "type": "string",
+          "description": "Reference to the Achievement that was unlocked. (Relationship: Achievement 1:N UserAchievement)"
+        },
+        "unlockedAt": {
+          "type": "string",
+          "description": "Timestamp when the achievement was unlocked by the user.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "achievementId",
+        "unlockedAt"
+      ]
+    },
+    "Wildcard": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Wildcard",
+      "type": "object",
+      "description": "Defines a type of 'comodín' (wildcard) that users can earn and use in gamified quizzes.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Wildcard entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the wildcard, e.g., '50/50', 'Skip Question', 'Extra Time'."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of what the wildcard does."
+        },
+        "effect": {
+          "type": "string",
+          "description": "Detailed explanation of the wildcard's effect and how it functions in gameplay."
+        },
+        "iconUrl": {
+          "type": "string",
+          "description": "URL to the icon image representing the wildcard.",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "effect"
+      ]
+    },
+    "UserWildcard": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserWildcard",
+      "type": "object",
+      "description": "Tracks the quantity of a specific wildcard that a user possesses.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserWildcard entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User who owns this wildcard. (Relationship: User 1:N UserWildcard)"
+        },
+        "wildcardId": {
+          "type": "string",
+          "description": "Reference to the Wildcard type. (Relationship: Wildcard 1:N UserWildcard)"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "The number of this specific wildcard the user currently possesses."
+        },
+        "lastUsedAt": {
+          "type": "string",
+          "description": "Timestamp when this type of wildcard was last used by the user.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "wildcardId",
+        "quantity"
+      ]
+    },
+    "LearningPathMission": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LearningPathMission",
+      "type": "object",
+      "description": "Represents an AI-generated personalized learning path or mission tailored for a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the LearningPathMission entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User for whom this mission was generated. (Relationship: User 1:N LearningPathMission)"
+        },
+        "name": {
+          "type": "string",
+          "description": "A concise name for the mission, e.g., 'Misión: Fortalece tus Ciencias Naturales'."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the mission's objective and scope."
+        },
+        "targetSubjectId": {
+          "type": "string",
+          "description": "Optional reference to the primary Subject targeted by this mission. (Relationship: Subject 1:N LearningPathMission)"
+        },
+        "targetCompetencyId": {
+          "type": "string",
+          "description": "Optional reference to the primary Competency targeted by this mission. (Relationship: Competency 1:N LearningPathMission)"
+        },
+        "questionIds": {
+          "type": "array",
+          "description": "An ordered array of references to specific Questions recommended for this mission. (Relationship: Question N:N LearningPathMission)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the mission, e.g., 'active', 'completed', 'archived'."
+        },
+        "generatedAt": {
+          "type": "string",
+          "description": "Timestamp when the mission was generated by the AI.",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "Timestamp when the user completed the mission.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name",
+        "description",
+        "questionIds",
+        "status",
+        "generatedAt"
+      ]
+    },
+    "MotivationalContent": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "MotivationalContent",
+      "type": "object",
+      "description": "Stores various types of motivational messages, study tips, or narrative snippets to encourage users.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the MotivationalContent entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "A title for the motivational content."
+        },
+        "content": {
+          "type": "string",
+          "description": "The main text of the motivational message, tip, or narrative."
+        },
+        "type": {
+          "type": "string",
+          "description": "The category of content, e.g., 'tip', 'quote', 'story', 'encouragement'."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Optional URL to an image accompanying the motivational content.",
+          "format": "uri"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the motivational content was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "content",
+        "type",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/institutions/{institutionId}",
+        "definition": {
+          "entityName": "Institution",
+          "schema": {
+            "$ref": "#/backend/entities/Institution"
+          },
+          "description": "Stores general institutional information. Read-only for authenticated users, read/write for administrators. Access is independent as institution data is global for presentation purposes."
+        }
+      },
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. Each user can read and write their own profile data. Admins can read all user profiles. Includes 'role', 'isTrial', and 'trialEndDate' for access control logic. Path-based ownership provides authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, corresponding to Firebase Authentication UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/adminUsers/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "A dedicated collection for marking administrative users. Only a document's existence in this collection grants admin privileges in security rules (DBAC - existence over content). Admin users can read and write to this collection, all other users can't interact with it.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who has administrator privileges."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/premiumAccessKeys/{keyId}",
+        "definition": {
+          "entityName": "PremiumAccessKey",
+          "schema": {
+            "$ref": "#/backend/entities/PremiumAccessKey"
+          },
+          "description": "Manages premium access keys for trial verification or promotions. Admin read/write access. A user may read their own redeemed key. Denormalizes 'redeemedByUserId' for efficient lookup and authorization.",
+          "params": [
+            {
+              "name": "keyId",
+              "description": "The unique identifier for the premium access key."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/subjects/{subjectId}",
+        "definition": {
+          "entityName": "Subject",
+          "schema": {
+            "$ref": "#/backend/entities/Subject"
+          },
+          "description": "Defines academic subjects (e.g., Matemáticas, Socioemocionales). Globally readable for authenticated users, read/write for administrators. Provides authorization independence for questions by linking directly.",
+          "params": [
+            {
+              "name": "subjectId",
+              "description": "The unique identifier for the academic subject."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/components/{componentId}",
+        "definition": {
+          "entityName": "Component",
+          "schema": {
+            "$ref": "#/backend/entities/Component"
+          },
+          "description": "Defines components within subjects (e.g., Interpretación y representación). Globally readable for authenticated users, read/write for administrators. Includes 'subjectId'.",
+          "params": [
+            {
+              "name": "componentId",
+              "description": "The unique identifier for the component."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/competencies/{competencyId}",
+        "definition": {
+          "entityName": "Competency",
+          "schema": {
+            "$ref": "#/backend/entities/Competency"
+          },
+          "description": "Defines competencies within components. Globally readable for authenticated users, read/write for administrators. Includes 'componentId'.",
+          "params": [
+            {
+              "name": "competencyId",
+              "description": "The unique identifier for the competency."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/questions/{questionId}",
+        "definition": {
+          "entityName": "Question",
+          "schema": {
+            "$ref": "#/backend/entities/Question"
+          },
+          "description": "Stores practice questions. Globally readable for authenticated users, read/write for administrators. Crucially, includes denormalized 'subjectId', 'componentId', 'competencyId', and 'level' for authorization independence and simplified query/rule evaluation.",
+          "params": [
+            {
+              "name": "questionId",
+              "description": "The unique identifier for the question."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/quizSessions/{sessionId}",
+        "definition": {
+          "entityName": "QuizSession",
+          "schema": {
+            "$ref": "#/backend/entities/QuizSession"
+          },
+          "description": "Records user quiz sessions. Only the owning user can read/write their sessions. The 'userId' in the path and document provides authorization independence. Denormalizes 'subjectId', 'componentId', 'competencyId' if applicable for session scope.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the quiz session."
+            },
+            {
+              "name": "sessionId",
+              "description": "The unique identifier for the quiz session."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/quizAttempts/{attemptId}",
+        "definition": {
+          "entityName": "QuizAttempt",
+          "schema": {
+            "$ref": "#/backend/entities/QuizAttempt"
+          },
+          "description": "Records individual user attempts on questions within a quiz session. Only the owning user can read/write their attempts. The 'userId' in the path and document provides authorization independence. Includes 'questionId' and 'quizSessionId' for direct linking.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who made the attempt."
+            },
+            {
+              "name": "attemptId",
+              "description": "The unique identifier for the quiz attempt."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/exams/{examId}",
+        "definition": {
+          "entityName": "Exam",
+          "schema": {
+            "$ref": "#/backend/entities/Exam"
+          },
+          "description": "Defines simulated exams (simulacros). Globally readable for authenticated users, read/write for administrators. Contains 'questionIds' array for exam content.",
+          "params": [
+            {
+              "name": "examId",
+              "description": "The unique identifier for the exam."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/examAttempts/{attemptId}",
+        "definition": {
+          "entityName": "ExamAttempt",
+          "schema": {
+            "$ref": "#/backend/entities/ExamAttempt"
+          },
+          "description": "Records user attempts on full simulated exams. Only the owning user can read/write their exam attempts. The 'userId' in the path and document provides authorization independence. Includes 'examId' and 'userAnswers' for comprehensive tracking.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who made the exam attempt."
+            },
+            {
+              "name": "attemptId",
+              "description": "The unique identifier for the exam attempt."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/achievements/{achievementId}",
+        "definition": {
+          "entityName": "Achievement",
+          "schema": {
+            "$ref": "#/backend/entities/Achievement"
+          },
+          "description": "Defines global achievements/medals. Globally readable for authenticated users, read/write for administrators. Access is independent as achievement definitions are static.",
+          "params": [
+            {
+              "name": "achievementId",
+              "description": "The unique identifier for the achievement."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/userAchievements/{userAchievementId}",
+        "definition": {
+          "entityName": "UserAchievement",
+          "schema": {
+            "$ref": "#/backend/entities/UserAchievement"
+          },
+          "description": "Tracks achievements unlocked by a user. Only the owning user can read their achievements. The 'userId' in the path and document provides authorization independence. Includes 'achievementId'.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who unlocked the achievement."
+            },
+            {
+              "name": "userAchievementId",
+              "description": "The unique identifier for the user's achievement record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/wildcards/{wildcardId}",
+        "definition": {
+          "entityName": "Wildcard",
+          "schema": {
+            "$ref": "#/backend/entities/Wildcard"
+          },
+          "description": "Defines available wildcard types. Globally readable for authenticated users, read/write for administrators. Access is independent as wildcard definitions are static.",
+          "params": [
+            {
+              "name": "wildcardId",
+              "description": "The unique identifier for the wildcard type."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/userWildcards/{userWildcardId}",
+        "definition": {
+          "entityName": "UserWildcard",
+          "schema": {
+            "$ref": "#/backend/entities/UserWildcard"
+          },
+          "description": "Tracks the quantity of wildcards a user possesses. Only the owning user can read/write their wildcard inventory. The 'userId' in the path and document provides authorization independence. Includes 'wildcardId'.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the wildcards."
+            },
+            {
+              "name": "userWildcardId",
+              "description": "The unique identifier for the user's wildcard record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/learningPathMissions/{missionId}",
+        "definition": {
+          "entityName": "LearningPathMission",
+          "schema": {
+            "$ref": "#/backend/entities/LearningPathMission"
+          },
+          "description": "Stores personalized learning missions generated by AI for a user. Only the owning user can read/write their missions. The 'userId' in the path and document provides authorization independence. Includes 'questionIds', 'targetSubjectId', 'targetCompetencyId' for mission scope.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user for whom the mission was generated."
+            },
+            {
+              "name": "missionId",
+              "description": "The unique identifier for the learning path mission."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/motivationalContent/{contentId}",
+        "definition": {
+          "entityName": "MotivationalContent",
+          "schema": {
+            "$ref": "#/backend/entities/MotivationalContent"
+          },
+          "description": "Stores motivational messages and tips. Globally readable for authenticated users, read/write for administrators. Access is independent as content is static and broadly accessible.",
+          "params": [
+            {
+              "name": "contentId",
+              "description": "The unique identifier for the motivational content."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure is designed to adhere strictly to the core design principles of Authorization Independence, Clarity of Intent, DBAC, QAPs, and Invariants. It strategically uses structural segregation and denormalization to ensure security, scalability, and debuggability.\n\n**Authorization Independence via Denormalization:**\n\n1.  **User-Owned Data:** For all data directly associated with a specific user (e.g., quiz sessions, exam attempts, personal achievements, wildcards, learning missions), the `userId` is embedded directly into the document path, creating user-specific subcollections. For instance, `/users/{userId}/quizSessions/{sessionId}`. This ensures that security rules can easily check `request.auth.uid == userId` without needing any `get()` calls to parent documents or other collections to determine ownership. The document itself also redundantly stores `userId` to reinforce this ownership and facilitate direct queries.\n2.  **Categorization Data:** Questions are a critical entity. To avoid `get()` calls when querying or validating questions, each `Question` document directly denormalizes its `subjectId`, `componentId`, `competencyId`, and `level`. This allows rules to evaluate question properties directly from the `request.resource.data` or `resource.data` without needing to fetch `Subject`, `Component`, or `Competency` documents.\n3.  **Global Data with Controlled Access:** Entities like `Institutions`, `Subjects`, `Components`, `Competencies`, `Exams`, `Achievements`, `Wildcards`, `MotivationalContent` are placed in top-level collections. These are generally considered global and publicly readable (by authenticated users), but writable only by administrators. This approach avoids hierarchical dependencies for read operations, as their access is not tied to a parent's attributes.\n\n**QAPs (Queries Are Not Filters) Support:**\n\n1.  **Structural Segregation for User Data:** By placing all user-specific operational data (e.g., `quizSessions`, `examAttempts`) under a `/users/{userId}/` path, `list` operations for these collections inherently enforce that users can only query their own data. For example, `match /users/{userId}/quizSessions/{sessionId}` rules can simply check `allow read: if request.auth.uid == userId;`. This makes QAPs trivial to implement for personal data because the query's path already scopes the data to the authorized user.\n2.  **Global, Homogeneous Collections:** Collections like `/questions`, `/exams`, `/subjects` are designed with a homogeneous security posture: all documents within these collections have the same access requirements (e.g., read-only for all authenticated users, read/write for admins). This means a user can `list` all questions or all exams without security rules having to filter the results. Any filtering logic for specific subjects or components would happen at the application layer using standard Firestore queries (e.g., `questions.where('subjectId', '==', 'math')`), which is a filtering mechanism for the *data*, not for *authorization*.\n3.  **Admin Roles (DBAC):** An `/adminUsers/{userId}` collection is introduced. This collection's sole purpose is to mark administrator UIDs. Security rules for administrative actions can simply check `exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid))`. This is an atomic and highly efficient way to implement role-based access control, fully supporting QAPs for admin data by allowing admins to list all documents within collections they have write access to, without filtering based on content.\n\n**Addressing User Requests:**\n\n*   **Components, Competencies, Level in Questions, Exams, Dashboards:** `Question` documents directly store `subjectId`, `componentId`, `competencyId`, and `level`. For `QuizSession` and `QuizAttempt`, these are also linked. For `ExamAttempt` and dashboards, the application will join these attempts with the `Question` data to retrieve the categorization, or aggregate from `QuizAttempt` data directly.\n*   **Socioemotional Questions:** The `Subject` collection can include an entry for 'Socioemocionales', and `Question` documents can link to it, fulfilling this requirement.\n*   **Trial Verification/Premium Access Key:** The `PremiumAccessKey` collection provides a mechanism for keys, and `User.isTrial` and `User.trialEndDate` attributes on the `User` document manage the trial period.\n*   **Admin Path:** The `/adminUsers/{userId}` collection explicitly defines administrators for secure rule-based access.\n\nThis structure ensures that security rules are straightforward, concise, and performant, minimizing the risk of security vulnerabilities while maximizing scalability and ease of debugging."
+  }
+}

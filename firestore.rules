@@ -1,0 +1,212 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * CORE PHILOSOPHY
+     * This ruleset implements a robust, multi-tier authorization model designed for a gamified educational platform.
+     * It combines Database-Based Access Control (DBAC) for administrative privileges with strict path-based 
+     * ownership for student data.
+     *
+     * DATA STRUCTURE
+     * 1. Global Content: Entities like Questions, Subjects, and Exams are globally readable by all authenticated 
+     *    users but strictly writable only by administrators.
+     * 2. User-Siloed Data: All personal progress, including QuizSessions, ExamAttempts, and Achievements, 
+     *    is nested under `/users/{userId}/...` to ensure natural data isolation.
+     * 3. Admin Registry: A dedicated `/adminUsers` collection acts as the single source of truth for 
+     *    administrative roles, avoiding the need for complex custom claims.
+     *
+     * KEY SECURITY DECISIONS
+     * - Admin overrides: Administrators are granted broad read access across the database for oversight.
+     * - Relational Integrity: In user subcollections, we enforce that the 'userId' field within the 
+     *   document matches the path variable to prevent data cross-contamination.
+     * - Prototyping Flexibility: While authorization is strictly enforced, the specific shape and types 
+     *   of content fields (like question text or scores) are not validated to allow for rapid iteration.
+     * - Trial Period: User profiles track trial status, allowing the application layer to manage access 
+     *   expiration while the database ensures only the owner can manage their trial-related profile data.
+     */
+
+    // --- Helper Functions ---
+
+    /**
+     * @description Checks if the request is from a signed-in user.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user is registered as an administrator.
+     * Uses DBAC (Database-Based Access Control) by checking for the user's UID in the adminUsers collection.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid));
+    }
+
+    /**
+     * @description Checks if the provided UID matches the authenticated user's UID.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Verifies ownership and ensures the document exists for state-changing operations.
+     */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Administrative Registry. Only admins can view or modify the list of administrators.
+     * @path /adminUsers/{userId}
+     * @allow (get) admin user accessing their own or another admin's record.
+     * @deny (all) any non-admin user trying to view or elevate privileges.
+     * @principle DBAC for role enforcement.
+     */
+    match /adminUsers/{userId} {
+      allow get, list, create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description Institutional identity data.
+     * @path /institutions/{institutionId}
+     * @allow (get, list) any authenticated user to see the logo and name.
+     * @allow (write) only admins to update institutional branding.
+     * @deny (write) any non-admin trying to change the institution name.
+     * @principle Public read for authenticated users, admin-only writes.
+     */
+    match /institutions/{institutionId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description User profiles containing roles, points, and trial information.
+     * @path /users/{userId}
+     * @allow (create) a user creating their own profile upon registration.
+     * @allow (get) the owner or an admin viewing the profile.
+     * @deny (list) non-admin users trying to browse the entire user directory.
+     * @principle Path-based ownership for profile management.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if (isOwner(userId) || isAdmin()) && resource != null;
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Premium Access Keys for trial verification and promotions.
+     * @path /premiumAccessKeys/{keyId}
+     * @allow (get) the user who redeemed the key or an admin.
+     * @deny (list) standard users searching for valid keys.
+     * @principle Restricted access to sensitive license-style data.
+     */
+    match /premiumAccessKeys/{keyId} {
+      allow get: if isAdmin() || (isSignedIn() && resource.data.redeemedByUserId == request.auth.uid);
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description Global academic content (Subjects, Components, Competencies).
+     * @path /{collection}/{id}
+     * @allow (get, list) all authenticated users to browse the curriculum.
+     * @allow (write) only admins to modify subjects or competencies.
+     * @deny (write) students attempting to add new subjects.
+     * @principle Global read access for static curriculum data.
+     */
+    match /subjects/{id} { allow get, list: if isSignedIn(); allow create, update, delete: if isAdmin(); }
+    match /components/{id} { allow get, list: if isSignedIn(); allow create, update, delete: if isAdmin(); }
+    match /competencies/{id} { allow get, list: if isSignedIn(); allow create, update, delete: if isAdmin(); }
+    match /questions/{id} { allow get, list: if isSignedIn(); allow create, update, delete: if isAdmin(); }
+    match /exams/{id} { allow get, list: if isSignedIn(); allow create, update, delete: if isAdmin(); }
+    match /achievements/{id} { allow get, list: if isSignedIn(); allow create, update, delete: if isAdmin(); }
+    match /wildcards/{id} { allow get, list: if isSignedIn(); allow create, update, delete: if isAdmin(); }
+    match /motivationalContent/{id} { allow get, list: if isSignedIn(); allow create, update, delete: if isAdmin(); }
+
+    /**
+     * @description User-specific quiz sessions.
+     * @path /users/{userId}/quizSessions/{sessionId}
+     * @allow (create) owner creating a new session linked to their UID.
+     * @allow (list) owner viewing their history.
+     * @deny (update) changing the userId linked to a session.
+     * @principle Relational integrity and path-based ownership.
+     */
+    match /users/{userId}/quizSessions/{sessionId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Records of individual question attempts.
+     * @path /users/{userId}/quizAttempts/{attemptId}
+     * @allow (list) owner reviewing their specific answers.
+     * @principle User-siloed data access.
+     */
+    match /users/{userId}/quizAttempts/{attemptId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Full exam attempt results and history.
+     * @path /users/{userId}/examAttempts/{attemptId}
+     * @allow (create) owner submitting a finished exam.
+     * @principle Enforces data consistency between path and document data.
+     */
+    match /users/{userId}/examAttempts/{attemptId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Record of achievements earned by the user.
+     * @path /users/{userId}/userAchievements/{id}
+     * @allow (get) owner checking their medals.
+     * @principle Restricted personal achievement inventory.
+     */
+    match /users/{userId}/userAchievements/{id} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Inventory of user-owned wildcards (comodines).
+     * @path /users/{userId}/userWildcards/{id}
+     * @allow (update) owner consuming a wildcard during a quiz.
+     * @principle Real-time inventory management protected by ownership.
+     */
+    match /users/{userId}/userWildcards/{id} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description AI-generated personalized missions.
+     * @path /users/{userId}/learningPathMissions/{missionId}
+     * @allow (get) owner viewing their recommended mission.
+     * @principle Personalized path protection.
+     */
+    match /users/{userId}/learningPathMissions/{missionId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+  }
+}
