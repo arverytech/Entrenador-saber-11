@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Trophy, ArrowRight, Sparkles } from 'lucide-react';
+import { Trophy, ArrowRight, Sparkles, LogIn } from 'lucide-react';
+import Image from 'next/image';
 
 export default function LoginPage() {
   return (
@@ -17,7 +18,7 @@ export default function LoginPage() {
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary rounded-full blur-[100px]" />
       </div>
 
-      <Card className="w-full max-w-md game-card border-primary/20 shadow-2xl z-10">
+      <Card className="w-full max-w-md game-card border-primary/20 shadow-2xl z-10 bg-card">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto bg-primary p-3 rounded-2xl w-fit glow-primary">
             <Trophy className="w-8 h-8 text-white" />
@@ -25,11 +26,25 @@ export default function LoginPage() {
           <div>
             <CardTitle className="text-3xl font-black uppercase tracking-tight">¡Bienvenido!</CardTitle>
             <CardDescription className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-              Entrenador Saber 11
+              Tu entrenamiento al éxito comienza aquí
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          <Button variant="outline" className="w-full game-button border-2 h-12 font-bold flex items-center justify-center gap-3">
+            <Image src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/smartlock/google.svg" alt="Google" width={20} height={20} />
+            Ingresar con Google
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-muted" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase font-bold">
+              <span className="bg-card px-2 text-muted-foreground">O usa tu correo</span>
+            </div>
+          </div>
+
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email" className="font-bold uppercase text-xs tracking-widest">Correo Electrónico</Label>
@@ -44,21 +59,12 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button className="w-full game-button bg-primary h-12 text-lg shadow-lg" asChild>
+          <Button className="w-full game-button bg-primary text-white h-12 text-lg shadow-lg" asChild>
             <Link href="/dashboard">
               Iniciar Sesión
-              <ArrowRight className="ml-2 w-5 h-5" />
+              <LogIn className="ml-2 w-5 h-5" />
             </Link>
           </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-muted" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase font-bold">
-              <span className="bg-card px-2 text-muted-foreground">O continúa con</span>
-            </div>
-          </div>
 
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
@@ -72,7 +78,7 @@ export default function LoginPage() {
       <div className="absolute bottom-8 left-0 w-full text-center">
         <div className="inline-flex items-center gap-2 bg-secondary/10 text-secondary px-4 py-2 rounded-full border border-secondary/20">
           <Sparkles className="w-4 h-4" />
-          <span className="text-xs font-bold uppercase tracking-wider">Tu camino al éxito comienza aquí</span>
+          <span className="text-xs font-bold uppercase tracking-wider">7 días de prueba gratuita habilitados</span>
         </div>
       </div>
     </div>

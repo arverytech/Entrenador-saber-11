@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useBranding } from '@/components/branding-provider';
 import { Button } from '@/components/ui/button';
-import { Trophy, Home, BookOpen, Target, Settings, LogOut, User } from 'lucide-react';
+import { Trophy, Home, BookOpen, Target, Settings, LogOut, User, LayoutDashboard } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,34 +58,34 @@ export function GameNavbar() {
               <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-primary p-0">
                 <Avatar className="h-full w-full">
                   <AvatarImage src="https://picsum.photos/seed/user1/40/40" />
-                  <AvatarFallback>UN</AvatarFallback>
+                  <AvatarFallback>NB</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-bold leading-none">Usuario Nicolas</p>
-                  <p className="text-xs leading-none text-muted-foreground">estudiante@nicolas.edu.co</p>
+            <DropdownMenuContent className="w-64 p-2 bg-card border-2 border-primary/10 shadow-xl" align="end" forceMount>
+              <DropdownMenuLabel className="font-normal mb-2">
+                <div className="flex flex-col space-y-1 p-2 bg-primary/5 rounded-xl border border-primary/10">
+                  <p className="text-sm font-black leading-none uppercase tracking-tight">Nicolas Buenaventura</p>
+                  <p className="text-[10px] font-bold leading-none text-muted-foreground uppercase tracking-widest">estudiante@nicolas.edu.co</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/profile" className="cursor-pointer">
+              <DropdownMenuItem asChild className="game-button rounded-lg mb-1 focus:bg-primary focus:text-white cursor-pointer transition-all">
+                <Link href="/profile" className="flex items-center">
                   <User className="mr-2 h-4 w-4" />
-                  <span>Mi Perfil</span>
+                  <span className="font-bold uppercase text-[10px] tracking-widest">Mi Perfil y Acceso</span>
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/admin" className="cursor-pointer">
+              <DropdownMenuItem asChild className="game-button rounded-lg mb-1 focus:bg-accent focus:text-white cursor-pointer transition-all border-dashed border-2 border-accent/20">
+                <Link href="/admin/branding" className="flex items-center">
                   <Settings className="mr-2 h-4 w-4" />
-                  <span>Administración</span>
+                  <span className="font-bold uppercase text-[10px] tracking-widest">Administración</span>
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer">
+              <DropdownMenuItem className="game-button rounded-lg text-destructive focus:bg-destructive focus:text-white cursor-pointer transition-all">
                 <LogOut className="mr-2 h-4 w-4" />
-                <span>Cerrar Sesión</span>
+                <span className="font-bold uppercase text-[10px] tracking-widest">Cerrar Sesión</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

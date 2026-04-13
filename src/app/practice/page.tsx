@@ -1,7 +1,7 @@
 
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Calculator, Globe, Atom, Book, BrainCircuit, Play } from 'lucide-react';
+import { BookOpen, Calculator, Globe, Atom, Book, BrainCircuit, Play, Heart } from 'lucide-react';
 import Link from 'next/link';
 
 export default function PracticePage() {
@@ -10,8 +10,8 @@ export default function PracticePage() {
       <GameNavbar />
       <main className="max-w-7xl mx-auto p-6 space-y-12">
         <header className="space-y-2">
-          <h1 className="text-4xl font-black uppercase tracking-tight">Banco de Preguntas</h1>
-          <p className="text-muted-foreground text-lg">Elige una asignatura para comenzar tu entrenamiento. ¡Gana puntos y desbloquea niveles!</p>
+          <h1 className="text-4xl font-black uppercase tracking-tight">Banco de Preguntas Saber 11</h1>
+          <p className="text-muted-foreground text-lg">Entrenamiento especializado por competencias y componentes oficiales.</p>
         </header>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -19,50 +19,49 @@ export default function PracticePage() {
             title="Matemáticas" 
             icon={<Calculator className="w-10 h-10" />} 
             color="bg-blue-500" 
-            stats="250 Preguntas | Nivel 5"
+            stats="Componentes: Geométrico, Métrico, Variacional"
             link="/practice/matematicas"
-            desc="Razonamiento cuantitativo, álgebra, cálculo y estadística."
+            desc="Interpretación, Formulación y Argumentación matemática."
           />
           <SubjectCard 
             title="Lectura Crítica" 
             icon={<BookOpen className="w-10 h-10" />} 
             color="bg-green-500" 
-            stats="180 Preguntas | Nivel 3"
+            stats="Competencias: Identificar, Comprender, Reflexionar"
             link="/practice/lectura"
-            desc="Comprensión lectora, análisis de textos y pensamiento crítico."
+            desc="Análisis de textos continuos y discontinuos."
           />
           <SubjectCard 
             title="Ciencias Naturales" 
             icon={<Atom className="w-10 h-10" />} 
             color="bg-yellow-500" 
-            stats="320 Preguntas | Nivel 2"
+            stats="Componentes: Biológico, Químico, Físico, CTS"
             link="/practice/naturales"
-            desc="Física, química, biología y ciencia, tecnología y sociedad."
+            desc="Explicación de fenómenos, Indagación y Uso del conocimiento."
           />
           <SubjectCard 
-            title="Ciencias Sociales" 
+            title="Sociales y Ciudadanas" 
             icon={<Globe className="w-10 h-10" />} 
             color="bg-red-500" 
-            stats="210 Preguntas | Nivel 4"
+            stats="Competencias: Pensamiento Social, Multiperspectivismo"
             link="/practice/sociales"
-            desc="Historia, geografía, constitución y ciudadanía."
+            desc="Análisis de problemas sociales y formación ciudadana."
           />
           <SubjectCard 
             title="Inglés" 
             icon={<Book className="w-10 h-10" />} 
             color="bg-purple-500" 
-            stats="150 Preguntas | Nivel 6"
+            stats="Niveles: A1, A2, B1, B+"
             link="/practice/ingles"
-            desc="Gramática, vocabulario y comprensión auditiva/lectora."
+            desc="Uso del lenguaje, comprensión de lectura y gramática."
           />
           <SubjectCard 
-            title="Ruta Aleatoria" 
-            icon={<BrainCircuit className="w-10 h-10" />} 
-            color="bg-accent" 
-            stats="Desafío Mixto"
-            link="/practice/random"
-            desc="Pon a prueba todas tus habilidades con preguntas de todas las áreas."
-            isSpecial
+            title="Socioemocional" 
+            icon={<Heart className="w-10 h-10" />} 
+            color="bg-pink-500" 
+            stats="Habilidades para la vida"
+            link="/practice/socioemocional"
+            desc="Empatía, manejo de emociones y toma de decisiones."
           />
         </div>
       </main>
