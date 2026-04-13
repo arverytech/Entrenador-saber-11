@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -9,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Save, Upload, RefreshCcw } from 'lucide-react';
+import { Settings, Save, Upload, RefreshCcw, Eye } from 'lucide-react';
 import Image from 'next/image';
 
 export default function AdminBrandingPage() {
@@ -94,25 +93,32 @@ export default function AdminBrandingPage() {
           </Card>
 
           <div className="space-y-6">
-            <h3 className="text-lg font-bold uppercase tracking-wider">Vista Previa</h3>
-            <Card className="game-card overflow-hidden">
+            <h3 className="text-lg font-bold uppercase tracking-wider flex items-center gap-2">
+              <Eye className="w-5 h-5 text-primary" />
+              Ventana de Vista Previa
+            </h3>
+            <Card className="game-card overflow-hidden border-primary shadow-lg scale-105">
               <div className="bg-muted p-8 flex flex-col items-center justify-center text-center space-y-4">
-                <div className="relative w-32 h-32 rounded-2xl overflow-hidden border-4 border-white shadow-xl glow-primary">
-                  <Image 
-                    src={logo} 
-                    alt="Preview" 
-                    fill 
-                    className="object-cover"
-                    data-ai-hint="institution logo preview"
-                  />
+                <div className="relative w-32 h-32 rounded-2xl overflow-hidden border-4 border-white shadow-xl glow-primary bg-white">
+                  {logo ? (
+                    <Image 
+                      src={logo} 
+                      alt="Preview" 
+                      fill 
+                      className="object-contain p-2"
+                      data-ai-hint="institution logo preview"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground text-xs font-bold uppercase p-4">Sin Logo</div>
+                  )}
                 </div>
                 <div>
-                  <h4 className="font-black text-xl uppercase leading-tight text-primary">{name}</h4>
+                  <h4 className="font-black text-xl uppercase leading-tight text-primary">{name || "Nombre de Institución"}</h4>
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Entrenador Saber 11</p>
                 </div>
               </div>
-              <CardContent className="p-4 bg-background">
-                <p className="text-[10px] text-center text-muted-foreground italic">Así es como verán el logo los estudiantes en la barra de navegación.</p>
+              <CardContent className="p-4 bg-background border-t-2 border-primary/10">
+                <p className="text-[10px] text-center text-muted-foreground italic font-bold">ASÍ ES COMO SE VERÁ EN LA PLATAFORMA</p>
               </CardContent>
             </Card>
           </div>
