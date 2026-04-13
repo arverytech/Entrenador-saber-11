@@ -3,21 +3,21 @@
   "placeholderImages": [
     {
       "id": "institution-logo",
-      "description": "Logo institucional educativo",
-      "imageUrl": "https://picsum.photos/seed/school-logo/200/200",
-      "imageHint": "educational logo"
+      "description": "Escudo institucional elegante para colegios",
+      "imageUrl": "https://picsum.photos/seed/school-shield/200/200",
+      "imageHint": "academic shield"
     },
     {
       "id": "gamified-hero",
-      "description": "Estudiante preparándose para exámenes con tecnología",
-      "imageUrl": "https://picsum.photos/seed/exam-prep/800/600",
-      "imageHint": "student studying"
+      "description": "Estudiante enfocado con audífonos y libro preparándose para el examen",
+      "imageUrl": "https://picsum.photos/seed/saber11-study/800/600",
+      "imageHint": "intensive studying"
     },
     {
       "id": "achievement-badge",
-      "description": "Medalla de excelencia académica",
-      "imageUrl": "https://picsum.photos/seed/academic-medal/100/100",
-      "imageHint": "academic medal"
+      "description": "Insignia de oro de victoria académica",
+      "imageUrl": "https://picsum.photos/seed/victory-medal/100/100",
+      "imageHint": "gold trophy"
     }
   ]
 }
