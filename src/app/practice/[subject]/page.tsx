@@ -44,7 +44,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
       <GameNavbar />
       
       <main className="max-w-6xl mx-auto p-6 flex flex-col gap-8">
-        {/* Header Stats con Metadatos */}
+        {/* Header Stats con Metadatos del ICFES */}
         <div className="flex flex-col md:flex-row items-center justify-between bg-card p-6 rounded-3xl border-2 border-primary/10 shadow-sm gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
@@ -54,7 +54,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
             <div className="hidden md:block h-6 w-[2px] bg-muted" />
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline" className="border-primary/20 text-primary font-bold uppercase tracking-widest text-[10px]">
-                Componente: Físico
+                Componente: Físico / CTS
               </Badge>
               <Badge variant="outline" className="border-secondary/20 text-secondary font-bold uppercase tracking-widest text-[10px]">
                 Competencia: Indagación
@@ -67,7 +67,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase text-muted-foreground">Progreso</span>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Misión Diaria</span>
               <div className="w-24">
                 <Progress value={30} className="h-2" />
               </div>
@@ -75,7 +75,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
             </div>
             <div className="flex items-center gap-2">
               <Comodin icon={<Zap className="w-4 h-4" />} label="50/50" count={2} />
-              <Comodin icon={<Lightbulb className="w-4 h-4" />} label="Pista" count={1} />
+              <Comodin icon={<Lightbulb className="w-4 h-4" />} label="Pista IA" count={1} />
             </div>
           </div>
         </div>
@@ -86,7 +86,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
             <div className="bg-primary/5 p-8 border-b-2 border-primary/10">
               <div className="flex items-center gap-2 mb-4">
                 <Shield className="w-4 h-4 text-primary" />
-                <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Contexto Académico Saber 11</span>
+                <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Contexto Oficial Saber 11</span>
               </div>
               <h2 className="text-2xl font-bold leading-relaxed text-foreground">
                 ¿Qué sucede con el momento angular de un sistema si no actúan torques externos sobre él?
@@ -116,7 +116,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
             {isCorrect === null ? (
               <div className="p-8 rounded-3xl bg-muted/20 border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center text-center gap-4 h-full min-h-[300px]">
                 <Sparkles className="w-12 h-12 text-muted-foreground/40" />
-                <p className="text-muted-foreground text-sm font-medium">Responde la pregunta para que nuestra IA te explique el concepto oficial del ICFES.</p>
+                <p className="text-muted-foreground text-sm font-medium">Responde para desbloquear el análisis de la IA y subir de nivel.</p>
                 <Button 
                   className="game-button bg-primary w-full h-12 text-white shadow-lg glow-primary" 
                   disabled={selectedOption === null}
@@ -134,28 +134,28 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                     </div>
                     <div>
                       <h3 className="text-xl font-black uppercase tracking-tight">{isCorrect ? '¡Correcto!' : 'Incorrecto'}</h3>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP' : 'Sigue intentando'}</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP Ganados' : 'Vuelve a intentarlo'}</p>
                     </div>
                   </div>
                   <div className="space-y-4 text-sm leading-relaxed">
                     <div className="p-4 bg-muted/50 rounded-2xl border border-primary/10">
-                      <p className="font-bold text-primary uppercase text-[10px] tracking-widest mb-2">Análisis del ICFES:</p>
+                      <p className="font-bold text-primary uppercase text-[10px] tracking-widest mb-2">Explicación del ICFES:</p>
                       <p className="text-muted-foreground italic">
                         {isCorrect 
-                          ? "Has identificado correctamente el principio de conservación del momento angular. Según la física clásica, si el torque externo neto es cero, la cantidad de rotación se mantiene sin cambios." 
-                          : "Recuerda que la inercia rotacional y la velocidad angular se ajustan entre sí para mantener el momento angular constante cuando no hay fuerzas externas aplicadas."}
+                          ? "¡Excelente! Has identificado el principio de conservación. Sin torques externos, el momento angular es una constante del movimiento." 
+                          : "Recuerda: El torque es el cambio del momento angular. Si no hay torque, no hay cambio. ¡Repasa la Dinámica Rotacional!"}
                       </p>
                     </div>
                     <div className="p-3 bg-accent/10 rounded-xl text-xs border border-accent/20 flex gap-2">
                       <Lightbulb className="w-4 h-4 text-accent shrink-0" />
-                      <p><strong>Clave:</strong> En problemas de dinámica rotacional sin torques, el sistema es aislado.</p>
+                      <p><strong>Dato Curioso:</strong> Esto es lo que permite a los patinadores girar más rápido al cerrar los brazos.</p>
                     </div>
                   </div>
                   <Button className="w-full game-button bg-primary text-white h-12 shadow-lg" onClick={() => {
                     setIsCorrect(null);
                     setSelectedOption(null);
                   }}>
-                    Siguiente Desafío
+                    Siguiente Pregunta
                   </Button>
                 </CardContent>
               </Card>
