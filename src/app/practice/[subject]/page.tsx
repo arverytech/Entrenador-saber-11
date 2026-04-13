@@ -6,7 +6,7 @@ import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sparkles, Timer, Zap, Lightbulb, AlertCircle, CheckCircle2, ShieldInfo } from 'lucide-react';
+import { Sparkles, Timer, Zap, Lightbulb, AlertCircle, CheckCircle2, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
@@ -85,7 +85,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           <Card className="lg:col-span-2 game-card border-primary/20 shadow-xl overflow-hidden bg-card">
             <div className="bg-primary/5 p-8 border-b-2 border-primary/10">
               <div className="flex items-center gap-2 mb-4">
-                <ShieldInfo className="w-4 h-4 text-primary" />
+                <Shield className="w-4 h-4 text-primary" />
                 <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Contexto Académico Saber 11</span>
               </div>
               <h2 className="text-2xl font-bold leading-relaxed text-foreground">
