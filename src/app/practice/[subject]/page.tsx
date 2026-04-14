@@ -14,84 +14,128 @@ import { doc, increment, collection, addDoc, serverTimestamp } from 'firebase/fi
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow';
 
-// BANCO DE DATOS TÉCNICO ALINEADO CON ICFES 2024
+// BANCO DE DATOS TÉCNICO MAESTRO (ICFES 2021-2025)
 const SUBJECT_DATA: Record<string, any[]> = {
   matematicas: [
     {
-      id: "math_01",
+      id: "math_2024_01",
+      title: "Un tanque cilíndrico tiene un radio de 2m y una altura de 5m. Si se llena hasta el 80% de su capacidad, ¿qué volumen de agua contiene? (Use π ≈ 3.14)",
+      options: ["A) 62.8 m³", "B) 50.24 m³", "C) 12.56 m³", "D) 25.12 m³"],
+      correctIndex: 1,
+      component: "Geométrico - Métrico",
+      competency: "Formulación y Ejecución",
+      level: "III (Avanzado)",
+      explanation: "Volumen = π * r² * h = 3.14 * 4 * 5 = 62.8. El 80% de 62.8 es 50.24 m³.",
+      fact: "El cálculo de volúmenes es la base de la ingeniería civil."
+    },
+    {
+      id: "math_2023_02",
       title: "En una bolsa hay 3 bolas rojas, 2 azules y 5 verdes. Si se extrae una bola al azar, ¿cuál es la probabilidad de que NO sea verde?",
       options: ["A) 1/2", "B) 3/10", "C) 1/5", "D) 2/3"],
       correctIndex: 0,
-      component: "Aleatorio (Probabilidad)",
+      component: "Aleatorio (Estadística)",
       competency: "Interpretación y Representación",
       level: "II (Medio)",
-      explanation: "El total de bolas es 10. Las que NO son verdes son las rojas (3) y azules (2), total 5. Probabilidad = 5/10 = 1/2.",
-      fact: "La probabilidad es clave para la toma de decisiones financieras."
+      explanation: "Total 10 bolas. No verdes = 5 (3 rojas + 2 azules). P = 5/10 = 1/2.",
+      fact: "La probabilidad ayuda a predecir riesgos en seguros y finanzas."
     }
   ],
   lectura: [
     {
-      id: "lc_01",
-      title: "Si un autor utiliza ironía para criticar una política pública, ¿cuál es su intención comunicativa principal?",
+      id: "lc_2024_01",
+      title: "Si un autor utiliza ironía para criticar una política pública en una columna de opinión, ¿cuál es su intención comunicativa principal?",
       options: ["A) Informar datos objetivos.", "B) Ridiculizar una postura.", "C) Describir un proceso legal.", "D) Elogiar a los gobernantes."],
       correctIndex: 1,
       component: "Reflexivo - Pragmático",
       competency: "Reflexión sobre el contenido y la forma",
       level: "III (Avanzado)",
-      explanation: "La ironía es una figura retórica que busca dar a entender lo contrario de lo que se dice, frecuentemente con fines satíricos o críticos.",
-      fact: "Identificar la intención del autor es la habilidad más evaluada en Lectura Crítica."
+      explanation: "La ironía busca dar a entender lo contrario de lo que se dice con fines críticos.",
+      fact: "La lectura crítica evalúa tu capacidad de no ser manipulado por el texto."
+    },
+    {
+      id: "lc_2022_02",
+      title: "En un texto argumentativo, ¿cuál es la función primordial de la tesis?",
+      options: ["A) Resumir los hechos narrados.", "B) Presentar la postura que se va a defender.", "C) Listar las fuentes bibliográficas.", "D) Describir el escenario del relato."],
+      correctIndex: 1,
+      component: "Sintáctico",
+      competency: "Comprender cómo se articulan las partes del texto",
+      level: "II (Medio)",
+      explanation: "La tesis es la columna vertebral de cualquier texto argumentativo.",
+      fact: "Sin una tesis clara, un argumento pierde toda su fuerza persuasiva."
     }
   ],
   naturales: [
     {
-      id: "cn_01",
-      title: "En un ecosistema, ¿qué sucede con la energía disponible a medida que se avanza en los niveles tróficos (de productores a consumidores)?",
+      id: "cn_2024_01",
+      title: "En un ecosistema, ¿qué sucede con la energía disponible a medida que se avanza en los niveles tróficos?",
       options: ["A) Aumenta exponencialmente.", "B) Se mantiene constante.", "C) Disminuye progresivamente.", "D) Se duplica en cada nivel."],
       correctIndex: 2,
       component: "Biológico (Ecosistemas)",
+      competency: "Uso comprensivo del conocimiento científico",
+      level: "II (Medio)",
+      explanation: "Solo el 10% de la energía pasa al siguiente nivel; el resto se pierde como calor.",
+      fact: "Este principio explica por qué hay menos depredadores que presas."
+    },
+    {
+      id: "cn_2023_02",
+      title: "Un objeto cae libremente desde un edificio. ¿Cómo cambia su velocidad si despreciamos la resistencia del aire?",
+      options: ["A) Se mantiene constante.", "B) Aumenta linealmente con el tiempo.", "C) Disminuye hasta llegar a cero.", "D) Cambia de dirección constantemente."],
+      correctIndex: 1,
+      component: "Físico (Mecánica)",
       competency: "Explicación de fenómenos",
       level: "II (Medio)",
-      explanation: "Debido a la ley del diezmo ecológico, solo el 10% de la energía se transfiere al siguiente nivel; el resto se pierde en calor y procesos vitales.",
-      fact: "Sin plantas (productores), toda la pirámide energética colapsaría."
+      explanation: "La aceleración de la gravedad (9.8 m/s²) hace que la velocidad aumente cada segundo.",
+      fact: "En el vacío, una pluma y un martillo caen a la misma velocidad."
     }
   ],
   sociales: [
     {
-      id: "soc_01",
+      id: "soc_2024_01",
       title: "¿Qué rama del poder público en Colombia es la encargada de dictar las leyes y reformar la Constitución?",
       options: ["A) Ejecutiva", "B) Judicial", "C) Legislativa", "D) Ciudadana"],
       correctIndex: 2,
       component: "Pensamiento Social (Estado)",
       competency: "Pensamiento Social",
       level: "I (Básico)",
-      explanation: "El Congreso de la República (Senado y Cámara) conforma la rama legislativa y su función es crear leyes.",
-      fact: "Conocer las ramas del poder es vital para el ejercicio de la ciudadanía."
+      explanation: "El Congreso de la República ejerce la función legislativa.",
+      fact: "El equilibrio de poderes evita que una sola persona tenga el control total."
+    },
+    {
+      id: "soc_2023_02",
+      title: "Un grupo de ciudadanos interpone una tutela para proteger su derecho a la salud. ¿Bajo qué principio constitucional actúan?",
+      options: ["A) Soberanía Nacional", "B) Estado Social de Derecho", "C) Centralismo Administrativo", "D) Propiedad Privada"],
+      correctIndex: 1,
+      component: "Constitucional",
+      competency: "Conocimiento de los fundamentos de la Constitución",
+      level: "II (Medio)",
+      explanation: "El Estado Social de Derecho prioriza la protección de los derechos fundamentales de las personas.",
+      fact: "La tutela es la herramienta más poderosa del ciudadano colombiano."
     }
   ],
   ingles: [
     {
-      id: "eng_01",
+      id: "eng_2024_01",
       title: "Choose the correct sentence: 'If I __________ more money, I would buy a new car.'",
       options: ["A) have", "B) had", "C) will have", "D) am having"],
       correctIndex: 1,
       component: "Uso Funcional (Grammar)",
       competency: "Lingüística (Second Conditional)",
       level: "B1 (Intermedio)",
-      explanation: "El segundo condicional usa 'if' + past simple para situaciones hipotéticas en el presente.",
-      fact: "El dominio del 'Second Conditional' es común en las partes 4 y 6 del examen de inglés."
+      explanation: "Second Conditional uses 'if + past simple' for hypothetical situations.",
+      fact: "Dominar los condicionales te permite hablar de tus sueños y metas."
     }
   ],
   socioemocional: [
     {
-      id: "se_01",
-      title: "Un compañero de clase cometió un error en una exposición y todos se ríen. Tú notas que él está muy avergonzado. ¿Qué acción demuestra regulación emocional?",
+      id: "se_2024_01",
+      title: "Un compañero de clase cometió un error y todos se ríen. Tú notas que él está muy avergonzado. ¿Qué acción demuestra regulación emocional y empatía?",
       options: ["A) Reírte también para encajar.", "B) Salir del salón sin decir nada.", "C) Esperar a que se calme y ofrecerle apoyo.", "D) Gritarles a todos que se callen."],
       correctIndex: 2,
       component: "Empatía y Convivencia",
-      competency: "Manejo de Emociones / Empatía",
+      competency: "Manejo de Emociones",
       level: "I (Ciudadano)",
-      explanation: "La regulación emocional implica procesar la situación y actuar de manera constructiva para uno mismo y para los demás.",
-      fact: "Estas preguntas no restan puntos, pero definen tu perfil ciudadano ante el ICFES."
+      explanation: "La empatía requiere reconocer el sentimiento del otro y actuar con respeto.",
+      fact: "La inteligencia emocional predice el éxito laboral más que el IQ."
     }
   ]
 };
@@ -108,7 +152,11 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
 
   const currentSubject = params.subject.toLowerCase();
   const questions = useMemo(() => SUBJECT_DATA[currentSubject] || SUBJECT_DATA['matematicas'], [currentSubject]);
-  const currentQuestion = questions[currentQuestionIndex];
+  
+  // Rotación de preguntas simple para el banco extendido
+  const currentQuestion = useMemo(() => {
+    return questions[currentQuestionIndex % questions.length];
+  }, [questions, currentQuestionIndex]);
 
   const handleCheck = async () => {
     if (selectedOption === null) return;
@@ -117,16 +165,18 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     setIsCorrect(correct);
 
     if (correct) {
-      toast({ title: "¡Excelente!", description: "+50 Puntos de Experiencia." });
+      toast({ title: "¡Misión Cumplida!", description: "+50 XP ganados para tu avatar." });
       if (user && firestore) {
         const userRef = doc(firestore, 'users', user.uid);
-        updateDocumentNonBlocking(userRef, { currentPoints: increment(50) });
+        updateDocumentNonBlocking(userRef, { 
+          currentPoints: increment(50),
+          updatedAt: serverTimestamp()
+        });
       }
     } else {
-      toast({ title: "¡Sigue intentando!", description: "Revisa la solución técnica.", variant: "destructive" });
+      toast({ title: "Sigue Entrenando", description: "Analiza la explicación técnica.", variant: "destructive" });
     }
 
-    // REGISTRO PROFUNDO DE INTENTO
     if (user && firestore) {
       const attemptsRef = collection(firestore, 'users', user.uid, 'quizAttempts');
       addDoc(attemptsRef, {
@@ -136,23 +186,26 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         selectedAnswer: selectedOption,
         timestamp: serverTimestamp(),
         component: currentQuestion.component,
-        competency: currentQuestion.competency
+        competency: currentQuestion.competency,
+        level: currentQuestion.level
       });
     }
   };
 
   const handleAiExplanation = async () => {
+    if (selectedOption === null) return;
     setIsExplaining(true);
     try {
       const result = await generateExplanation({
         question: currentQuestion.title,
-        userAnswer: currentQuestion.options[selectedOption!],
+        userAnswer: currentQuestion.options[selectedOption],
         correctAnswer: currentQuestion.options[currentQuestion.correctIndex],
-        context: `Materia: ${currentSubject}, Componente: ${currentQuestion.component}`
+        context: `Materia: ${currentSubject}, Componente: ${currentQuestion.component}, Competencia: ${currentQuestion.competency}`
       });
       setAiExplanation(result.explanation);
     } catch (e) {
       console.error(e);
+      toast({ variant: "destructive", title: "Error IA", description: "No pudimos conectar con el tutor IA." });
     } finally {
       setIsExplaining(false);
     }
@@ -162,7 +215,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     setIsCorrect(null);
     setSelectedOption(null);
     setAiExplanation("");
-    // En un banco real, aquí avanzaríamos el índice
+    setCurrentQuestionIndex(prev => prev + 1);
   };
 
   return (
@@ -170,12 +223,11 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
       <GameNavbar />
       
       <main className="max-w-6xl mx-auto p-6 flex flex-col gap-8">
-        {/* HEADER TÉCNICO */}
         <div className="flex flex-col md:flex-row items-center justify-between bg-card p-6 rounded-3xl border-2 border-primary/10 shadow-sm gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2 text-primary">
               <Timer className="w-5 h-5" />
-              <span className="font-bold tabular-nums text-lg">Sesión Activa</span>
+              <span className="font-bold tabular-nums text-lg">Entrenamiento Activo</span>
             </div>
             <div className="hidden md:block h-6 w-[2px] bg-muted" />
             <div className="flex flex-wrap gap-2">
@@ -186,19 +238,16 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                 {currentQuestion.competency}
               </Badge>
               <Badge variant="outline" className="bg-accent/5 border-accent/20 text-accent font-bold text-[10px] uppercase">
-                Nivel {currentQuestion.level}
+                {currentQuestion.level}
               </Badge>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="px-4 py-2 bg-muted rounded-2xl text-[10px] font-black uppercase tracking-widest opacity-60">
-              ID: {currentQuestion.id}
-            </div>
+            <span className="text-[10px] font-black uppercase text-muted-foreground">Pregunta {currentQuestionIndex + 1}</span>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* PREGUNTA */}
           <Card className="lg:col-span-2 game-card border-primary/20 shadow-xl overflow-hidden bg-card">
             <div className="bg-gradient-to-r from-primary/5 to-transparent p-10 border-b-2 border-primary/10">
               <h2 className="text-2xl md:text-3xl font-bold leading-snug text-foreground">
@@ -225,7 +274,6 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
             </CardContent>
           </Card>
 
-          {/* LATERAL: ANÁLISIS E IA */}
           <div className="space-y-6">
             {isCorrect === null ? (
               <div className="p-10 rounded-3xl bg-card border-2 border-dashed border-primary/20 flex flex-col items-center justify-center text-center gap-6 h-full min-h-[400px]">
@@ -233,9 +281,9 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   <BrainCircuit className="w-12 h-12 text-primary animate-pulse" />
                 </div>
                 <div>
-                  <p className="text-primary font-black uppercase tracking-widest text-xs mb-2">Entrenador Saber 11</p>
+                  <p className="text-primary font-black uppercase tracking-widest text-xs mb-2">Manual del Aspirante</p>
                   <p className="text-muted-foreground text-sm italic leading-relaxed">
-                    Analiza cuidadosamente las opciones. Recuerda que el ICFES evalúa competencias, no solo memoria.
+                    Identifica el **Componente** de la pregunta para aplicar la fórmula o estrategia correcta.
                   </p>
                 </div>
                 <Button 
@@ -256,7 +304,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                       </div>
                       <div>
                         <h3 className="text-2xl font-black uppercase tracking-tight">{isCorrect ? '¡CORRECTO!' : 'INCORRECTO'}</h3>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP PARA TU AVATAR' : 'REVISA LA JUSTIFICACIÓN'}</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP PARA TU AVATAR' : 'REVISA TU ESTRATEGIA'}</p>
                       </div>
                     </div>
 
@@ -273,7 +321,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                       {aiExplanation ? (
                         <div className="p-5 bg-primary/5 rounded-2xl border border-primary/20 animate-in fade-in zoom-in-95">
                           <p className="font-black text-primary uppercase text-[10px] tracking-widest mb-3 flex items-center gap-2">
-                            <Sparkles className="w-3 h-3 text-accent" /> Análisis IA Personalizado:
+                            <Sparkles className="w-3 h-3 text-accent" /> Tutor IA Personalizado:
                           </p>
                           <p className="text-xs text-muted-foreground leading-relaxed">
                             {aiExplanation}
@@ -286,14 +334,14 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                           onClick={handleAiExplanation}
                           disabled={isExplaining}
                         >
-                          {isExplaining ? "Generando análisis..." : "Solicitar análisis a la IA"}
+                          {isExplaining ? "Analizando..." : "Solicitar Análisis IA"}
                           <BrainCircuit className="ml-2 w-4 h-4" />
                         </Button>
                       )}
                     </div>
 
                     <Button className="w-full game-button bg-primary text-white h-14 shadow-lg text-lg" onClick={handleNext}>
-                      Siguiente Misión
+                      Siguiente Desafío
                       <ArrowRight className="ml-2 w-5 h-5" />
                     </Button>
                   </CardContent>
