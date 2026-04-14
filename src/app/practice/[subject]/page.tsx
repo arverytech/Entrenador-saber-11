@@ -1,18 +1,17 @@
-
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sparkles, Timer, Zap, Lightbulb, AlertCircle, CheckCircle2, Shield, BrainCircuit, ArrowRight } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Sparkles, Timer, Zap, AlertCircle, CheckCircle2, Shield, BrainCircuit, ArrowRight, Loader2, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser } from '@/firebase';
 import { doc, increment, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow';
+import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
 
 // BANCO DE DATOS TÉCNICO MAESTRO (ICFES 2021-2025)
 const SUBJECT_DATA: Record<string, any[]> = {
@@ -51,17 +50,6 @@ const SUBJECT_DATA: Record<string, any[]> = {
       level: "III (Avanzado)",
       explanation: "La ironía busca dar a entender lo contrario de lo que se dice con fines críticos.",
       fact: "La lectura crítica evalúa tu capacidad de no ser manipulado por el texto."
-    },
-    {
-      id: "lc_2022_02",
-      title: "En un texto argumentativo, ¿cuál es la función primordial de la tesis?",
-      options: ["A) Resumir los hechos narrados.", "B) Presentar la postura que se va a defender.", "C) Listar las fuentes bibliográficas.", "D) Describir el escenario del relato."],
-      correctIndex: 1,
-      component: "Sintáctico",
-      competency: "Comprender cómo se articulan las partes del texto",
-      level: "II (Medio)",
-      explanation: "La tesis es la columna vertebral de cualquier texto argumentativo.",
-      fact: "Sin una tesis clara, un argumento pierde toda su fuerza persuasiva."
     }
   ],
   naturales: [
@@ -75,17 +63,6 @@ const SUBJECT_DATA: Record<string, any[]> = {
       level: "II (Medio)",
       explanation: "Solo el 10% de la energía pasa al siguiente nivel; el resto se pierde como calor.",
       fact: "Este principio explica por qué hay menos depredadores que presas."
-    },
-    {
-      id: "cn_2023_02",
-      title: "Un objeto cae libremente desde un edificio. ¿Cómo cambia su velocidad si despreciamos la resistencia del aire?",
-      options: ["A) Se mantiene constante.", "B) Aumenta linealmente con el tiempo.", "C) Disminuye hasta llegar a cero.", "D) Cambia de dirección constantemente."],
-      correctIndex: 1,
-      component: "Físico (Mecánica)",
-      competency: "Explicación de fenómenos",
-      level: "II (Medio)",
-      explanation: "La aceleración de la gravedad (9.8 m/s²) hace que la velocidad aumente cada segundo.",
-      fact: "En el vacío, una pluma y un martillo caen a la misma velocidad."
     }
   ],
   sociales: [
@@ -99,17 +76,6 @@ const SUBJECT_DATA: Record<string, any[]> = {
       level: "I (Básico)",
       explanation: "El Congreso de la República ejerce la función legislativa.",
       fact: "El equilibrio de poderes evita que una sola persona tenga el control total."
-    },
-    {
-      id: "soc_2023_02",
-      title: "Un grupo de ciudadanos interpone una tutela para proteger su derecho a la salud. ¿Bajo qué principio constitucional actúan?",
-      options: ["A) Soberanía Nacional", "B) Estado Social de Derecho", "C) Centralismo Administrativo", "D) Propiedad Privada"],
-      correctIndex: 1,
-      component: "Constitucional",
-      competency: "Conocimiento de los fundamentos de la Constitución",
-      level: "II (Medio)",
-      explanation: "El Estado Social de Derecho prioriza la protección de los derechos fundamentales de las personas.",
-      fact: "La tutela es la herramienta más poderosa del ciudadano colombiano."
     }
   ],
   ingles: [
@@ -145,18 +111,20 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [aiExplanation, setAiExplanation] = useState("");
+  const [generatedQuestion, setGeneratedQuestion] = useState<GenerateQuestionOutput | null>(null);
   
   const { user, firestore } = useUser();
   const { toast } = useToast();
 
   const currentSubject = params.subject.toLowerCase();
-  const questions = useMemo(() => SUBJECT_DATA[currentSubject] || SUBJECT_DATA['matematicas'], [currentSubject]);
+  const staticQuestions = useMemo(() => SUBJECT_DATA[currentSubject] || SUBJECT_DATA['matematicas'], [currentSubject]);
   
-  // Rotación de preguntas simple para el banco extendido
   const currentQuestion = useMemo(() => {
-    return questions[currentQuestionIndex % questions.length];
-  }, [questions, currentQuestionIndex]);
+    if (generatedQuestion) return generatedQuestion;
+    return staticQuestions[currentQuestionIndex % staticQuestions.length];
+  }, [staticQuestions, currentQuestionIndex, generatedQuestion]);
 
   const handleCheck = async () => {
     if (selectedOption === null) return;
@@ -185,9 +153,9 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         isCorrect: correct,
         selectedAnswer: selectedOption,
         timestamp: serverTimestamp(),
-        component: currentQuestion.component,
-        competency: currentQuestion.competency,
-        level: currentQuestion.level
+        component: currentQuestion.metadata?.component || currentQuestion.component,
+        competency: currentQuestion.metadata?.competency || currentQuestion.competency,
+        level: currentQuestion.metadata?.level || currentQuestion.level
       });
     }
   };
@@ -211,10 +179,35 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     }
   };
 
+  const handleGenerateAiQuestion = async () => {
+    setIsGenerating(true);
+    setGeneratedQuestion(null);
+    setIsCorrect(null);
+    setSelectedOption(null);
+    setAiExplanation("");
+
+    try {
+      const question = await generateIcfesQuestion({
+        subject: currentSubject,
+        component: currentQuestion.component,
+        competency: currentQuestion.competency,
+        level: "II"
+      });
+      setGeneratedQuestion(question);
+      toast({ title: "¡Desafío Generado!", description: "La IA ha construido un ítem nuevo para ti." });
+    } catch (e) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Error de Generación", description: "La IA no pudo construir el ítem en este momento." });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleNext = () => {
     setIsCorrect(null);
     setSelectedOption(null);
     setAiExplanation("");
+    setGeneratedQuestion(null);
     setCurrentQuestionIndex(prev => prev + 1);
   };
 
@@ -232,23 +225,33 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
             <div className="hidden md:block h-6 w-[2px] bg-muted" />
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-bold text-[10px] uppercase">
-                {currentQuestion.component}
+                {currentQuestion.metadata?.component || currentQuestion.component}
               </Badge>
               <Badge variant="outline" className="bg-secondary/5 border-secondary/20 text-secondary font-bold text-[10px] uppercase">
-                {currentQuestion.competency}
+                {currentQuestion.metadata?.competency || currentQuestion.competency}
               </Badge>
               <Badge variant="outline" className="bg-accent/5 border-accent/20 text-accent font-bold text-[10px] uppercase">
-                {currentQuestion.level}
+                {currentQuestion.metadata?.level || currentQuestion.level}
               </Badge>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-[10px] font-black uppercase text-muted-foreground">Pregunta {currentQuestionIndex + 1}</span>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleGenerateAiQuestion} 
+              disabled={isGenerating}
+              className="game-button border-accent/50 text-accent hover:bg-accent/10"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Wand2 className="w-4 h-4 mr-2" />}
+              {isGenerating ? "Creando ítem..." : "Desafío IA"}
+            </Button>
+            <span className="text-[10px] font-black uppercase text-muted-foreground ml-4">Pregunta {currentQuestionIndex + 1}</span>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          <Card className="lg:col-span-2 game-card border-primary/20 shadow-xl overflow-hidden bg-card">
+          <Card className={`lg:col-span-2 game-card border-primary/20 shadow-xl overflow-hidden bg-card ${isGenerating ? 'opacity-50 animate-pulse' : ''}`}>
             <div className="bg-gradient-to-r from-primary/5 to-transparent p-10 border-b-2 border-primary/10">
               <h2 className="text-2xl md:text-3xl font-bold leading-snug text-foreground">
                 {currentQuestion.title}
@@ -258,7 +261,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
               {currentQuestion.options.map((opt: string, idx: number) => (
                 <button
                   key={idx}
-                  disabled={isCorrect !== null}
+                  disabled={isCorrect !== null || isGenerating}
                   onClick={() => setSelectedOption(idx)}
                   className={`w-full p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center justify-between group
                     ${selectedOption === idx ? 'border-primary bg-primary/5 shadow-md scale-[1.01]' : 'border-muted hover:border-primary/40 hover:bg-muted/30'}
@@ -288,7 +291,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                 </div>
                 <Button 
                   className="game-button bg-primary w-full h-14 text-lg text-white shadow-lg glow-primary" 
-                  disabled={selectedOption === null}
+                  disabled={selectedOption === null || isGenerating}
                   onClick={handleCheck}
                 >
                   Confirmar Selección
