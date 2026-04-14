@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useBranding } from '@/components/branding-provider';
 import { Button } from '@/components/ui/button';
-import { Trophy, Home, BookOpen, Settings, LogOut, User, ShieldAlert } from 'lucide-react';
+import { Trophy, Home, BookOpen, LogOut, User, ShieldAlert } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,7 +76,7 @@ export function GameNavbar() {
                 <Avatar className="h-full w-full">
                   <AvatarImage src={user?.photoURL || ""} />
                   <AvatarFallback className="bg-primary text-white font-bold uppercase">
-                    {user?.displayName?.[0] || user?.email?.[0]}
+                    {(userData?.displayName || user?.displayName || user?.email || "?")[0]}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -85,7 +85,7 @@ export function GameNavbar() {
               <DropdownMenuLabel className="font-normal mb-2">
                 <div className="flex flex-col space-y-1 p-3 bg-primary/5 rounded-xl border border-primary/10">
                   <p className="text-sm font-black leading-none uppercase tracking-tight text-primary truncate">
-                    {user?.displayName || 'Mi Perfil'}
+                    {userData?.displayName || user?.displayName || 'Mi Perfil'}
                   </p>
                   <p className="text-[9px] font-bold leading-none text-muted-foreground uppercase tracking-widest truncate">
                     {user?.email}
@@ -96,7 +96,7 @@ export function GameNavbar() {
               <DropdownMenuItem asChild className="cursor-pointer focus:bg-primary/5 rounded-lg py-2.5">
                 <Link href="/profile" className="flex items-center w-full">
                   <User className="mr-3 h-4 w-4 text-primary" />
-                  <span className="font-black uppercase text-[10px] tracking-widest">Mi Perfil y Acceso</span>
+                  <span className="font-black uppercase text-[10px] tracking-widest">Perfil y Suscripción</span>
                 </Link>
               </DropdownMenuItem>
               
@@ -104,7 +104,7 @@ export function GameNavbar() {
                 <DropdownMenuItem asChild className="cursor-pointer focus:bg-accent/5 rounded-lg py-2.5 text-accent">
                   <Link href="/admin/branding" className="flex items-center w-full">
                     <ShieldAlert className="mr-3 h-4 w-4" />
-                    <span className="font-black uppercase text-[10px] tracking-widest">Gestión Académica</span>
+                    <span className="font-black uppercase text-[10px] tracking-widest">Administración</span>
                   </Link>
                 </DropdownMenuItem>
               )}

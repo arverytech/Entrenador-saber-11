@@ -9,8 +9,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Sparkles, Timer, Zap, Lightbulb, AlertCircle, CheckCircle2, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { doc, increment } from 'firebase/firestore';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
-// Datos de ejemplo para cada materia siguiendo el estándar ICFES
 const SUBJECT_DATA: Record<string, any> = {
   matematicas: {
     title: "¿Cuál es el resultado de resolver la ecuación 2x + 5 = 13?",
@@ -40,7 +42,7 @@ const SUBJECT_DATA: Record<string, any> = {
     competency: "Explicación de fenómenos",
     level: "II (Medio)",
     explanation: "Este es el principio de conservación del momento angular: sin torques, no hay cambio en la rotación.",
-    fact: "Esto explica por qué los planetas giran alrededor del sol por miles de millones de años."
+    fact: "Esto explica por qué los planetas giran alrededor del sol."
   },
   sociales: {
     title: "¿Cuál es el mecanismo de participación que permite a los ciudadanos elegir a sus gobernantes?",
@@ -60,7 +62,7 @@ const SUBJECT_DATA: Record<string, any> = {
     competency: "Lingüística",
     level: "A2 (Básico)",
     explanation: "Para la tercera persona del singular (She) en presente simple, añadimos 'es' al verbo 'go'.",
-    fact: "El inglés es el idioma más hablado en el mundo de la ciencia y la tecnología."
+    fact: "El inglés es el idioma más hablado en el mundo de la ciencia."
   },
   socioemocional: {
     title: "Si un compañero está siendo excluido de un grupo, ¿cuál es la acción más empática?",
@@ -70,13 +72,14 @@ const SUBJECT_DATA: Record<string, any> = {
     competency: "Empatía",
     level: "I (Ciudadano)",
     explanation: "La empatía implica reconocer el sentimiento del otro y actuar para mejorar su bienestar social.",
-    fact: "Las habilidades socioemocionales son las más valoradas por las empresas modernas."
+    fact: "Las habilidades socioemocionales son las más valoradas hoy."
   }
 };
 
 export default function PracticeRoomPage({ params }: { params: { subject: string } }) {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const { user, firestore } = useUser();
   const { toast } = useToast();
 
   const currentSubject = params.subject.toLowerCase();
@@ -89,11 +92,19 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         title: "¡Respuesta Correcta!",
         description: "+50 Puntos de Experiencia ganados.",
       });
+
+      // Actualizar puntos en Firestore de forma no bloqueante
+      if (user && firestore) {
+        const userRef = doc(firestore, 'users', user.uid);
+        updateDocumentNonBlocking(userRef, {
+          currentPoints: increment(50)
+        });
+      }
     } else {
       setIsCorrect(false);
       toast({
-        title: "Intenta de nuevo",
-        description: "Revisa la explicación para entender el concepto.",
+        title: "Sigue intentando",
+        description: "Revisa la explicación para aprender el concepto.",
         variant: "destructive",
       });
     }
@@ -109,49 +120,40 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
       <GameNavbar />
       
       <main className="max-w-6xl mx-auto p-6 flex flex-col gap-8">
-        {/* Header Stats con Metadatos del ICFES */}
         <div className="flex flex-col md:flex-row items-center justify-between bg-card p-6 rounded-3xl border-2 border-primary/10 shadow-sm gap-4">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Timer className="w-5 h-5 text-primary" />
+            <div className="flex items-center gap-2 text-primary">
+              <Timer className="w-5 h-5" />
               <span className="font-bold tabular-nums text-lg">12:45</span>
             </div>
             <div className="hidden md:block h-6 w-[2px] bg-muted" />
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className="border-primary/20 text-primary font-bold uppercase tracking-widest text-[10px]">
-                Componente: {data.component}
+              <Badge variant="outline" className="border-primary/20 text-primary font-bold text-[10px] uppercase">
+                {data.component}
               </Badge>
-              <Badge variant="outline" className="border-secondary/20 text-secondary font-bold uppercase tracking-widest text-[10px]">
-                Competencia: {data.competency}
+              <Badge variant="outline" className="border-secondary/20 text-secondary font-bold text-[10px] uppercase">
+                {data.competency}
               </Badge>
-              <Badge variant="outline" className="border-accent/20 text-accent font-bold uppercase tracking-widest text-[10px]">
-                Nivel: {data.level}
+              <Badge variant="outline" className="border-accent/20 text-accent font-bold text-[10px] uppercase">
+                Nivel {data.level}
               </Badge>
             </div>
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase text-muted-foreground">Progreso Misión</span>
-              <div className="w-24">
-                <Progress value={30} className="h-2" />
-              </div>
-              <span className="text-xs font-bold">3/10</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Comodin icon={<Zap className="w-4 h-4" />} label="50/50" count={2} />
-              <Comodin icon={<Lightbulb className="w-4 h-4" />} label="Pista IA" count={1} />
+            <div className="flex items-center bg-accent/10 px-3 py-1.5 rounded-xl border border-accent/20">
+              <Zap className="w-4 h-4 text-accent mr-2" />
+              <span className="text-xs font-black uppercase text-accent">50/50: 2</span>
             </div>
           </div>
         </div>
 
-        {/* Question Area */}
         <div className="grid lg:grid-cols-3 gap-8">
           <Card className="lg:col-span-2 game-card border-primary/20 shadow-xl overflow-hidden bg-card">
             <div className="bg-primary/5 p-8 border-b-2 border-primary/10">
-              <div className="flex items-center gap-2 mb-4">
-                <Shield className="w-4 h-4 text-primary" />
-                <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Contexto Oficial Saber 11</span>
+              <div className="flex items-center gap-2 mb-4 text-primary opacity-70">
+                <Shield className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Entrenamiento Oficial</span>
               </div>
               <h2 className="text-2xl font-bold leading-relaxed text-foreground">
                 {data.title}
@@ -161,7 +163,8 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
               {data.options.map((opt: string, idx: number) => (
                 <button
                   key={idx}
-                  onClick={() => !isCorrect && setSelectedOption(idx)}
+                  disabled={isCorrect !== null}
+                  onClick={() => setSelectedOption(idx)}
                   className={`w-full p-5 rounded-2xl border-2 text-left font-bold transition-all flex items-center justify-between group
                     ${selectedOption === idx ? 'border-primary bg-primary/5 shadow-md' : 'border-muted hover:border-primary/40 hover:bg-muted/30'}
                     ${isCorrect && idx === data.correctIndex ? 'border-secondary bg-secondary/10' : ''}
@@ -176,12 +179,11 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
             </CardContent>
           </Card>
 
-          {/* Feedback & AI Explanation Column */}
           <div className="space-y-6">
             {isCorrect === null ? (
               <div className="p-8 rounded-3xl bg-muted/20 border-2 border-dashed border-muted-foreground/20 flex flex-col items-center justify-center text-center gap-4 h-full min-h-[300px]">
                 <Sparkles className="w-12 h-12 text-muted-foreground/40" />
-                <p className="text-muted-foreground text-sm font-medium uppercase font-bold tracking-widest">
+                <p className="text-muted-foreground text-sm font-bold uppercase tracking-widest">
                   Área: {params.subject}
                 </p>
                 <p className="text-muted-foreground text-xs italic">Responde para desbloquear el análisis de la IA y subir de nivel.</p>
@@ -202,7 +204,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                     </div>
                     <div>
                       <h3 className="text-xl font-black uppercase tracking-tight">{isCorrect ? '¡Correcto!' : 'Incorrecto'}</h3>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP Ganados' : 'Vuelve a intentarlo'}</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP Ganados' : 'Estudia la solución'}</p>
                     </div>
                   </div>
                   <div className="space-y-4 text-sm leading-relaxed">
@@ -226,20 +228,6 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           </div>
         </div>
       </main>
-    </div>
-  );
-}
-
-function Comodin({ icon, label, count }: { icon: React.ReactNode; label: string; count: number }) {
-  return (
-    <div className="flex flex-col items-center gap-1 group cursor-pointer">
-      <div className="w-10 h-10 rounded-xl bg-accent text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-        {icon}
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="text-[10px] font-black uppercase tracking-tighter opacity-70">{label}</span>
-        <span className="px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[10px] font-black">{count}</span>
-      </div>
     </div>
   );
 }
