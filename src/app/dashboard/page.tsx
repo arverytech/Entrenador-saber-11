@@ -1,27 +1,36 @@
 
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Trophy, Flame, Target, BookOpen, Star, ArrowRight, Zap, GraduationCap, Clock } from 'lucide-react';
+import { Trophy, Flame, Target, BookOpen, Star, ArrowRight, Zap, GraduationCap, Clock, BrainCircuit, Sparkles, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
-import { useUser, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, collection, query, limit, orderBy } from 'firebase/firestore';
+import { adaptLearningPath, type AdaptiveLearningPathOutput } from '@/ai/flows/adaptive-learning-path';
 
 export default function DashboardPage() {
   const { user, isUserLoading, firestore } = useUser();
   const router = useRouter();
+  const [aiMission, setAiMission] = useState<AdaptiveLearningPathOutput | null>(null);
+  const [isGeneratingMission, setIsGeneratingMission] = useState(false);
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
 
+  const attemptsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'users', user.uid, 'quizAttempts'), orderBy('timestamp', 'desc'), limit(10));
+  }, [firestore, user]);
+
   const { data: userData, isLoading: isDataLoading } = useDoc(userDocRef);
+  const { data: attempts } = useCollection(attemptsQuery);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -29,13 +38,37 @@ export default function DashboardPage() {
     }
   }, [user, isUserLoading, router]);
 
+  const generateMission = async () => {
+    if (!user || !attempts) return;
+    setIsGeneratingMission(true);
+    try {
+      const performanceData = JSON.stringify(attempts.map(a => ({
+        subject: a.subject,
+        isCorrect: a.isCorrect,
+        component: a.component,
+        competency: a.competency
+      })));
+      
+      const mission = await adaptLearningPath({
+        studentPerformanceData: performanceData,
+        userGoal: "Obtener más de 400 puntos en el Saber 11",
+        currentContext: "Preparación integral"
+      });
+      setAiMission(mission);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsGeneratingMission(false);
+    }
+  };
+
   if (isUserLoading || isDataLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <div className="animate-bounce bg-primary p-4 rounded-3xl shadow-xl">
           <GraduationCap className="w-12 h-12 text-white" />
         </div>
-        <p className="font-black uppercase tracking-[0.2em] text-primary text-xs animate-pulse">Cargando tu progreso...</p>
+        <p className="font-black uppercase tracking-[0.2em] text-primary text-xs animate-pulse">Sincronizando Perfil de Héroe...</p>
       </div>
     );
   }
@@ -45,14 +78,14 @@ export default function DashboardPage() {
   const xpProgress = (points % 500) / 5;
   
   const trialEndDate = userData?.trialEndDate ? new Date(userData.trialEndDate) : null;
-  const today = new Date();
-  const daysLeft = trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+  const daysLeft = trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
   return (
     <div className="min-h-screen bg-background">
       <GameNavbar />
       
       <main className="max-w-7xl mx-auto p-6 space-y-8">
+        {/* ALERTA DE TRIAL */}
         {userData?.isTrial && (
           <div className="bg-orange-500/10 border-2 border-orange-500/30 p-5 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="flex items-center gap-4">
@@ -61,87 +94,147 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="font-black text-orange-600 uppercase tracking-tight text-sm">Prueba Gratuita: {daysLeft} días restantes</p>
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest text-center md:text-left">Valida tu clave institucional para acceso ilimitado.</p>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Activa tu clave institucional para no perder tus medallas.</p>
               </div>
             </div>
             <Button variant="outline" className="game-button border-orange-500 text-orange-600 font-black hover:bg-orange-500 hover:text-white" asChild>
-              <Link href="/profile">Activar Ahora</Link>
+              <Link href="/profile">Validar Clave</Link>
             </Button>
           </div>
         )}
 
+        {/* HERO DASHBOARD */}
         <div className="grid lg:grid-cols-4 gap-6">
           <div className="lg:col-span-2 p-10 rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-blue-600 text-white relative overflow-hidden glow-primary shadow-2xl">
             <div className="absolute top-0 right-0 p-4 opacity-10">
-              <GraduationCap className="w-48 h-48 -rotate-12" />
+              <ShieldCheck className="w-48 h-48 -rotate-12" />
             </div>
             <div className="relative z-10 space-y-6">
               <div>
                 <h2 className="text-4xl font-black uppercase italic leading-none tracking-tighter">
                   ¡Hola, {userData?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Héroe'}!
                 </h2>
-                <p className="text-primary-foreground/80 mt-2 font-bold uppercase text-[10px] tracking-[0.3em]">Nivel {level} • Aspirante Académico</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge className="bg-white/20 text-white border-none text-[10px] px-3 font-bold uppercase tracking-widest">Nivel {level}</Badge>
+                  <span className="text-primary-foreground/80 font-bold uppercase text-[10px] tracking-[0.3em]">Aspirante Académico</span>
+                </div>
               </div>
-              <p className="text-lg opacity-90 font-medium max-w-sm">Has acumulado <strong>{points} puntos</strong>. ¡Sigue así para dominar el Saber 11!</p>
+              <p className="text-lg opacity-90 font-medium max-w-sm">Tu puntaje actual es de <strong>{points} XP</strong>. Cada pregunta correcta te acerca a tu meta del Saber 11.</p>
               <div className="flex gap-4">
                 <Button className="game-button bg-white text-primary hover:bg-white/90 shadow-xl px-8 h-12" asChild>
-                  <Link href="/practice">Ir a Entrenar</Link>
+                  <Link href="/practice">Empezar Entrenamiento</Link>
                 </Button>
               </div>
             </div>
           </div>
 
-          <StatCard icon={<Flame className="w-6 h-6 text-orange-500" />} label="Nivel Actual" value={level.toString()} color="bg-orange-500/10" />
+          <StatCard icon={<Flame className="w-6 h-6 text-orange-500" />} label="Racha de Días" value="1" color="bg-orange-500/10" />
           <StatCard icon={<Trophy className="w-6 h-6 text-yellow-500" />} label="Puntos Totales" value={points.toString()} color="bg-yellow-500/10" />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="lg:col-span-2 space-y-8">
+            {/* IA ADAPTATIVA SECTION */}
+            <section className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3 text-primary">
+                  <BrainCircuit className="w-6 h-6" />
+                  Misión Adaptativa IA
+                </h3>
+              </div>
+
+              {!aiMission ? (
+                <Card className="game-card bg-primary/5 border-primary/20 p-8 border-dashed flex flex-col items-center justify-center text-center gap-6">
+                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-primary/10">
+                    <Sparkles className="w-8 h-8 text-accent" />
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-bold text-lg uppercase tracking-tight">Generar Misión Personalizada</h4>
+                    <p className="text-xs text-muted-foreground max-w-sm italic">
+                      Nuestra IA analizará tus últimos 10 intentos para recomendarte en qué áreas enfocarte hoy.
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={generateMission} 
+                    disabled={isGeneratingMission || !attempts || attempts.length === 0}
+                    className="game-button bg-primary text-white h-12 px-10 shadow-lg glow-primary"
+                  >
+                    {isGeneratingMission ? "Analizando rendimiento..." : "Analizar y Crear Misión"}
+                  </Button>
+                  {!attempts || attempts.length === 0 && (
+                    <p className="text-[10px] font-bold text-destructive uppercase tracking-widest">Necesitas realizar al menos una práctica primero</p>
+                  )}
+                </Card>
+              ) : (
+                <Card className="game-card bg-card border-accent/30 glow-accent p-8 animate-in zoom-in-95 duration-500">
+                  <div className="flex flex-col md:flex-row gap-8 items-start">
+                    <div className="bg-accent/10 p-5 rounded-3xl text-accent border border-accent/20">
+                      <Target className="w-10 h-10" />
+                    </div>
+                    <div className="flex-1 space-y-6">
+                      <div>
+                        <Badge className="bg-accent text-white uppercase font-black text-[9px] mb-2">Recomendación de la IA</Badge>
+                        <h4 className="text-2xl font-black uppercase italic leading-none">{aiMission.recommendationType === 'mission' ? 'Nueva Misión de Héroe' : 'Ruta Sugerida'}</h4>
+                      </div>
+                      <div className="space-y-4">
+                        {aiMission.recommendations.map((rec, i) => (
+                          <div key={i} className="flex gap-3 p-4 bg-muted/30 rounded-2xl border border-muted-foreground/10 text-sm font-bold">
+                            <Zap className="w-4 h-4 text-accent shrink-0" />
+                            <p>{rec.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="p-4 bg-primary/5 rounded-2xl border-l-4 border-primary">
+                        <p className="text-xs font-bold text-primary uppercase italic mb-1">Mensaje de tu Tutor IA:</p>
+                        <p className="text-sm italic text-muted-foreground">"{aiMission.motivationMessage}"</p>
+                      </div>
+                      <Button className="game-button bg-accent text-white h-12 px-8 shadow-lg" asChild>
+                        <Link href="/practice">Aceptar Desafío</Link>
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </section>
+
+            {/* MISIONES ESTÁNDAR */}
+            <section className="space-y-6">
               <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
                 <Target className="text-primary w-6 h-6" />
-                Misiones Disponibles
+                Misiones por Asignatura
               </h3>
-            </div>
-            
-            <div className="space-y-4">
-              <MissionCard 
-                title="Desafío Matemático" 
-                subject="Matemáticas" 
-                progress={points > 0 ? 40 : 0} 
-                reward="+200 PTS" 
-                icon={<Zap className="w-5 h-5" />}
-                link="/practice/matematicas"
-              />
-              <MissionCard 
-                title="Lectura Veloz" 
-                subject="Lectura Crítica" 
-                progress={points > 100 ? 20 : 0} 
-                reward="+150 PTS" 
-                icon={<BookOpen className="w-5 h-5" />}
-                link="/practice/lectura"
-              />
-            </div>
+              <div className="grid gap-4">
+                <MissionCard title="Dominio Matemático" subject="Matemáticas" progress={points > 0 ? 40 : 0} reward="+200 PTS" icon={<Zap className="w-5 h-5" />} link="/practice/matematicas" />
+                <MissionCard title="Lectura Crítica" subject="Lectura Crítica" progress={points > 100 ? 20 : 0} reward="+150 PTS" icon={<BookOpen className="w-5 h-5" />} link="/practice/lectura" />
+                <MissionCard title="Desafío Ciudadano" subject="Socioemocional" progress={0} reward="+100 PTS" icon={<ShieldCheck className="w-5 h-5" />} link="/practice/socioemocional" />
+              </div>
+            </section>
           </div>
 
           <div className="space-y-6">
             <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
               <Star className="text-accent w-6 h-6" />
-              Tu Progreso
+              Tu Ranking
             </h3>
-            <Card className="game-card border-accent/20 shadow-xl">
+            <Card className="game-card border-accent/20 shadow-xl bg-card">
               <CardContent className="p-8 space-y-8 text-center">
-                <div className="relative w-40 h-40 mx-auto">
-                  <div className="absolute inset-0 rounded-full border-[10px] border-muted" />
-                  <div className="absolute inset-0 rounded-full border-[10px] border-accent border-t-transparent" style={{ transform: `rotate(${xpProgress * 3.6}deg)` }} />
+                <div className="relative w-44 h-44 mx-auto">
+                  <div className="absolute inset-0 rounded-full border-[12px] border-muted shadow-inner" />
+                  <div className="absolute inset-0 rounded-full border-[12px] border-accent border-t-transparent transition-all duration-1000" style={{ transform: `rotate(${xpProgress * 3.6}deg)` }} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-5xl font-black text-foreground italic">{level}</span>
-                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Nivel</span>
+                    <span className="text-6xl font-black text-foreground italic leading-none">{level}</span>
+                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mt-1">Nivel</span>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <Progress value={xpProgress} className="h-3 rounded-full bg-muted" />
-                  <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">{500 - (points % 500)} Puntos para el siguiente nivel</p>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                      <span>Progreso del Nivel</span>
+                      <span className="text-accent">{Math.floor(xpProgress)}%</span>
+                    </div>
+                    <Progress value={xpProgress} className="h-3 rounded-full bg-muted" />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest bg-muted/50 py-2 rounded-xl">Faltan {500 - (points % 500)} Puntos para el Nivel {level + 1}</p>
                 </div>
               </CardContent>
             </Card>
@@ -154,13 +247,13 @@ export default function DashboardPage() {
 
 function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
   return (
-    <Card className="game-card border-primary/10 hover:border-primary/40 shadow-sm transition-all">
+    <Card className="game-card border-primary/10 hover:border-primary/40 shadow-sm transition-all bg-card">
       <CardContent className="p-8 flex items-center gap-5">
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${color}`}>
           {icon}
         </div>
         <div>
-          <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">{label}</p>
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{label}</p>
           <p className="text-3xl font-black tabular-nums">{value}</p>
         </div>
       </CardContent>
@@ -170,19 +263,19 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
 
 function MissionCard({ title, subject, progress, reward, icon, link }: { title: string; subject: string; progress: number; reward: string; icon: React.ReactNode, link: string }) {
   return (
-    <Link href={link} className="block game-card bg-card p-6 border-muted group cursor-pointer hover:border-primary/40 hover:shadow-lg transition-all">
+    <Link href={link} className="block game-card bg-card p-6 border-muted group cursor-pointer hover:border-primary/40 hover:shadow-xl transition-all">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
             {icon}
           </div>
           <div>
-            <h4 className="font-black text-xl leading-none uppercase tracking-tight">{title}</h4>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">{subject}</span>
+            <h4 className="font-black text-xl leading-none uppercase tracking-tighter">{title}</h4>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{subject}</span>
           </div>
         </div>
         <div className="text-right">
-          <span className="text-xs font-black text-secondary bg-secondary/10 px-3 py-1 rounded-full border border-secondary/20">{reward}</span>
+          <span className="text-[10px] font-black text-secondary bg-secondary/10 px-4 py-1 rounded-full border border-secondary/20">{reward}</span>
         </div>
       </div>
       <div className="flex items-center gap-6">
