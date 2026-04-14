@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Trophy, LogIn, Sparkles } from 'lucide-react';
+import { Trophy, LogIn } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -45,12 +45,11 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Verificar si el usuario ya existe en Firestore
       const userDoc = await getDoc(doc(firestore, 'users', user.uid));
       
       if (!userDoc.exists()) {
         const trialEndDate = new Date();
-        trialEndDate.setDate(today.getDate() + 7);
+        trialEndDate.setDate(trialEndDate.getDate() + 7);
 
         await setDoc(doc(firestore, 'users', user.uid), {
           id: user.uid,

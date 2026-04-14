@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from 'react';
@@ -13,7 +14,6 @@ import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
 
-// BANCO DE DATOS TÉCNICO MAESTRO (ICFES 2021-2025)
 const SUBJECT_DATA: Record<string, any[]> = {
   matematicas: [
     {
@@ -24,8 +24,7 @@ const SUBJECT_DATA: Record<string, any[]> = {
       component: "Geométrico - Métrico",
       competency: "Formulación y Ejecución",
       level: "III (Avanzado)",
-      explanation: "Volumen = π * r² * h = 3.14 * 4 * 5 = 62.8. El 80% de 62.8 es 50.24 m³.",
-      fact: "El cálculo de volúmenes es la base de la ingeniería civil."
+      explanation: "Volumen = π * r² * h = 3.14 * 4 * 5 = 62.8. El 80% de 62.8 es 50.24 m³."
     },
     {
       id: "math_2023_02",
@@ -35,8 +34,7 @@ const SUBJECT_DATA: Record<string, any[]> = {
       component: "Aleatorio (Estadística)",
       competency: "Interpretación y Representación",
       level: "II (Medio)",
-      explanation: "Total 10 bolas. No verdes = 5 (3 rojas + 2 azules). P = 5/10 = 1/2.",
-      fact: "La probabilidad ayuda a predecir riesgos en seguros y finanzas."
+      explanation: "Total 10 bolas. No verdes = 5 (3 rojas + 2 azules). P = 5/10 = 1/2."
     }
   ],
   lectura: [
@@ -48,8 +46,7 @@ const SUBJECT_DATA: Record<string, any[]> = {
       component: "Reflexivo - Pragmático",
       competency: "Reflexión sobre el contenido y la forma",
       level: "III (Avanzado)",
-      explanation: "La ironía busca dar a entender lo contrario de lo que se dice con fines críticos.",
-      fact: "La lectura crítica evalúa tu capacidad de no ser manipulado por el texto."
+      explanation: "La ironía busca dar a entender lo contrario de lo que se dice con fines críticos."
     }
   ],
   naturales: [
@@ -61,8 +58,7 @@ const SUBJECT_DATA: Record<string, any[]> = {
       component: "Biológico (Ecosistemas)",
       competency: "Uso comprensivo del conocimiento científico",
       level: "II (Medio)",
-      explanation: "Solo el 10% de la energía pasa al siguiente nivel; el resto se pierde como calor.",
-      fact: "Este principio explica por qué hay menos depredadores que presas."
+      explanation: "Solo el 10% de la energía pasa al siguiente nivel; el resto se pierde como calor."
     }
   ],
   sociales: [
@@ -74,8 +70,7 @@ const SUBJECT_DATA: Record<string, any[]> = {
       component: "Pensamiento Social (Estado)",
       competency: "Pensamiento Social",
       level: "I (Básico)",
-      explanation: "El Congreso de la República ejerce la función legislativa.",
-      fact: "El equilibrio de poderes evita que una sola persona tenga el control total."
+      explanation: "El Congreso de la República ejerce la función legislativa."
     }
   ],
   ingles: [
@@ -87,8 +82,7 @@ const SUBJECT_DATA: Record<string, any[]> = {
       component: "Uso Funcional (Grammar)",
       competency: "Lingüística (Second Conditional)",
       level: "B1 (Intermedio)",
-      explanation: "Second Conditional uses 'if + past simple' for hypothetical situations.",
-      fact: "Dominar los condicionales te permite hablar de tus sueños y metas."
+      explanation: "Second Conditional uses 'if + past simple' for hypothetical situations."
     }
   ],
   socioemocional: [
@@ -100,8 +94,7 @@ const SUBJECT_DATA: Record<string, any[]> = {
       component: "Empatía y Convivencia",
       competency: "Manejo de Emociones",
       level: "I (Ciudadano)",
-      explanation: "La empatía requiere reconocer el sentimiento del otro y actuar con respeto.",
-      fact: "La inteligencia emocional predice el éxito laboral más que el IQ."
+      explanation: "La empatía requiere reconocer el sentimiento del otro y actuar con respeto."
     }
   ]
 };
@@ -129,7 +122,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
   const handleCheck = async () => {
     if (selectedOption === null) return;
     
-    const correct = selectedOption === currentQuestion.correctIndex;
+    const correct = selectedOption === (currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex);
     setIsCorrect(correct);
 
     if (correct) {
@@ -165,9 +158,9 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     setIsExplaining(true);
     try {
       const result = await generateExplanation({
-        question: currentQuestion.title,
+        question: currentQuestion.title || currentQuestion.text,
         userAnswer: currentQuestion.options[selectedOption],
-        correctAnswer: currentQuestion.options[currentQuestion.correctIndex],
+        correctAnswer: currentQuestion.options[currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex],
         context: `Materia: ${currentSubject}, Componente: ${currentQuestion.component}, Competencia: ${currentQuestion.competency}`
       });
       setAiExplanation(result.explanation);
@@ -254,7 +247,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           <Card className={`lg:col-span-2 game-card border-primary/20 shadow-xl overflow-hidden bg-card ${isGenerating ? 'opacity-50 animate-pulse' : ''}`}>
             <div className="bg-gradient-to-r from-primary/5 to-transparent p-10 border-b-2 border-primary/10">
               <h2 className="text-2xl md:text-3xl font-bold leading-snug text-foreground">
-                {currentQuestion.title}
+                {currentQuestion.title || currentQuestion.text}
               </h2>
             </div>
             <CardContent className="p-10 space-y-4">
@@ -265,12 +258,12 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   onClick={() => setSelectedOption(idx)}
                   className={`w-full p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center justify-between group
                     ${selectedOption === idx ? 'border-primary bg-primary/5 shadow-md scale-[1.01]' : 'border-muted hover:border-primary/40 hover:bg-muted/30'}
-                    ${isCorrect && idx === currentQuestion.correctIndex ? 'border-secondary bg-secondary/10' : ''}
+                    ${isCorrect && idx === (currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex) ? 'border-secondary bg-secondary/10' : ''}
                     ${isCorrect === false && selectedOption === idx ? 'border-destructive bg-destructive/10' : ''}
                   `}
                 >
                   <span className="flex-1 text-lg">{opt}</span>
-                  {isCorrect && idx === currentQuestion.correctIndex && <CheckCircle2 className="text-secondary shrink-0 ml-4 w-6 h-6" />}
+                  {isCorrect && idx === (currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex) && <CheckCircle2 className="text-secondary shrink-0 ml-4 w-6 h-6" />}
                   {isCorrect === false && selectedOption === idx && <AlertCircle className="text-destructive shrink-0 ml-4 w-6 h-6" />}
                 </button>
               ))}

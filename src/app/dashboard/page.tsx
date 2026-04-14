@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { Trophy, Flame, Target, BookOpen, Star, ArrowRight, Zap, GraduationCap, Clock, BrainCircuit, Sparkles, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
@@ -85,7 +86,6 @@ export default function DashboardPage() {
       <GameNavbar />
       
       <main className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* ALERTA DE TRIAL */}
         {userData?.isTrial && (
           <div className="bg-orange-500/10 border-2 border-orange-500/30 p-5 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="flex items-center gap-4">
@@ -103,7 +103,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* HERO DASHBOARD */}
         <div className="grid lg:grid-cols-4 gap-6">
           <div className="lg:col-span-2 p-10 rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-blue-600 text-white relative overflow-hidden glow-primary shadow-2xl">
             <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -134,7 +133,6 @@ export default function DashboardPage() {
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            {/* IA ADAPTATIVA SECTION */}
             <section className="space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3 text-primary">
@@ -156,14 +154,11 @@ export default function DashboardPage() {
                   </div>
                   <Button 
                     onClick={generateMission} 
-                    disabled={isGeneratingMission || !attempts || attempts.length === 0}
+                    disabled={isGeneratingMission}
                     className="game-button bg-primary text-white h-12 px-10 shadow-lg glow-primary"
                   >
                     {isGeneratingMission ? "Analizando rendimiento..." : "Analizar y Crear Misión"}
                   </Button>
-                  {!attempts || attempts.length === 0 && (
-                    <p className="text-[10px] font-bold text-destructive uppercase tracking-widest">Necesitas realizar al menos una práctica primero</p>
-                  )}
                 </Card>
               ) : (
                 <Card className="game-card bg-card border-accent/30 glow-accent p-8 animate-in zoom-in-95 duration-500">
@@ -197,7 +192,6 @@ export default function DashboardPage() {
               )}
             </section>
 
-            {/* MISIONES ESTÁNDAR */}
             <section className="space-y-6">
               <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
                 <Target className="text-primary w-6 h-6" />
