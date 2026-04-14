@@ -1,17 +1,73 @@
 
 "use client";
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Rocket, CheckCircle2, UserPlus } from 'lucide-react';
+import { useFirebase } from '@/firebase';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
 
 export default function RegisterPage() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { auth, firestore } = useFirebase();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      await updateProfile(user, { displayName: name });
+
+      const trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + 7);
+
+      await setDoc(doc(firestore, 'users', user.uid), {
+        id: user.uid,
+        email: user.email,
+        displayName: name,
+        role: 'student',
+        currentPoints: 0,
+        isTrial: true,
+        trialEndDate: trialEndDate.toISOString(),
+        institutionId: 'default',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      toast({
+        title: "¡Bienvenido Héroe!",
+        description: "Tu cuenta ha sido creada con 0 puntos. ¡Empieza tu entrenamiento!",
+      });
+
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error al registrar",
+        description: error.message || "No se pudo crear la cuenta.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6 relative overflow-hidden">
-      {/* Background Decorative Elements */}
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-10">
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent rounded-full blur-[100px]" />
@@ -30,34 +86,58 @@ export default function RegisterPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-4">
+          <form onSubmit={handleRegister} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name" className="font-bold uppercase text-xs tracking-widest">Nombre Completo</Label>
-              <Input id="name" placeholder="Nicolas Buenaventura" className="rounded-xl border-2 h-12" />
+              <Input 
+                id="name" 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Nicolas Buenaventura" 
+                className="rounded-xl border-2 h-12" 
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email" className="font-bold uppercase text-xs tracking-widest">Correo Institucional</Label>
-              <Input id="email" type="email" placeholder="estudiante@colegio.edu.co" className="rounded-xl border-2 h-12" />
+              <Input 
+                id="email" 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="estudiante@colegio.edu.co" 
+                className="rounded-xl border-2 h-12" 
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password" className="font-bold uppercase text-xs tracking-widest">Crea una Contraseña</Label>
-              <Input id="password" type="password" className="rounded-xl border-2 h-12" />
+              <Input 
+                id="password" 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="rounded-xl border-2 h-12" 
+                required
+              />
             </div>
-          </div>
 
-          <div className="space-y-3">
-            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-xl border border-muted-foreground/10">
-              <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-              <p className="text-[10px] text-muted-foreground leading-tight">Al registrarte, aceptas nuestros términos de servicio y política de privacidad del entrenamiento.</p>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-xl border border-muted-foreground/10">
+                <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                <p className="text-[10px] text-muted-foreground leading-tight">Al registrarte, recibes 7 días de entrenamiento gratuito para dominar el Saber 11.</p>
+              </div>
             </div>
-          </div>
 
-          <Button className="w-full game-button bg-secondary h-12 text-lg shadow-lg glow-secondary" asChild>
-            <Link href="/dashboard">
-              Empezar Entrenamiento
+            <Button 
+              type="submit"
+              disabled={isLoading}
+              className="w-full game-button bg-secondary h-12 text-lg shadow-lg glow-secondary"
+            >
+              {isLoading ? "Creando Avatar..." : "Empezar Entrenamiento"}
               <Rocket className="ml-2 w-5 h-5" />
-            </Link>
-          </Button>
+            </Button>
+          </form>
 
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
