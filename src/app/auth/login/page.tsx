@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Trophy, LogIn, Sparkles } from 'lucide-react';
-import { useAuth, useFirebase } from '@/firebase';
+import { useFirebase } from '@/firebase';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 
@@ -32,7 +32,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "Error de ingreso",
-        description: "Credenciales incorrectas. Intenta de nuevo.",
+        description: "Credenciales incorrectas o usuario no encontrado.",
       });
     } finally {
       setIsLoading(false);
@@ -67,7 +67,7 @@ export default function LoginPage() {
           </div>
           <div>
             <CardTitle className="text-3xl font-black uppercase tracking-tight text-primary">¡Ingreso de Héroes!</CardTitle>
-            <CardDescription className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+            <CardDescription className="text-sm font-bold text-muted-foreground uppercase tracking-widest text-center">
               Tu entrenamiento al éxito comienza aquí
             </CardDescription>
           </div>
@@ -87,7 +87,7 @@ export default function LoginPage() {
               <span className="w-full border-t border-muted" />
             </div>
             <div className="relative flex justify-center text-xs uppercase font-bold">
-              <span className="bg-card px-2 text-muted-foreground tracking-widest">O usa tu correo académico</span>
+              <span className="bg-card px-2 text-muted-foreground tracking-widest">O usa tu correo registrado</span>
             </div>
           </div>
 

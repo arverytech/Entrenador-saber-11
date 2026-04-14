@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Trophy, Flame, Target, BookOpen, Star, ArrowRight, Zap, GraduationCap, AlertTriangle } from 'lucide-react';
+import { Trophy, Flame, Target, BookOpen, Star, ArrowRight, Zap, GraduationCap, AlertCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -31,55 +31,65 @@ export default function DashboardPage() {
 
   if (isUserLoading || isDataLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-bounce bg-primary p-4 rounded-full">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <div className="animate-bounce bg-primary p-4 rounded-3xl shadow-xl">
           <GraduationCap className="w-12 h-12 text-white" />
         </div>
+        <p className="font-black uppercase tracking-[0.2em] text-primary text-xs animate-pulse">Cargando Entrenamiento...</p>
       </div>
     );
   }
 
   const points = userData?.currentPoints || 0;
   const level = Math.floor(points / 500) + 1;
-  const xpForNextLevel = 500 - (points % 500);
-  const progressToNextLevel = (points % 500) / 5;
+  const xpProgress = (points % 500) / 5;
+  
+  // Cálculo de días restantes
+  const trialEndDate = userData?.trialEndDate ? new Date(userData.trialEndDate) : null;
+  const today = new Date();
+  const daysLeft = trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
   return (
     <div className="min-h-screen bg-background">
       <GameNavbar />
       
       <main className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* Trial Warning */}
+        {/* Aviso de Prueba de 7 Días */}
         {userData?.isTrial && (
-          <div className="bg-accent/10 border-2 border-accent/30 p-4 rounded-2xl flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="text-accent w-6 h-6" />
+          <div className="bg-orange-500/10 border-2 border-orange-500/30 p-5 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-center gap-4">
+              <div className="bg-orange-500 p-2 rounded-xl text-white shadow-lg">
+                <Clock className="w-6 h-6" />
+              </div>
               <div>
-                <p className="font-bold text-accent">Modo Prueba de 7 Días</p>
-                <p className="text-xs text-muted-foreground font-medium">Tu acceso terminará pronto. Valida tu clave institucional en el perfil.</p>
+                <p className="font-black text-orange-600 uppercase tracking-tight text-sm">Entrenamiento de Prueba Activo</p>
+                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Te quedan {daysLeft} días para validar tu clave institucional.</p>
               </div>
             </div>
-            <Button variant="outline" className="game-button border-accent text-accent" asChild>
-              <Link href="/profile">Validar Ahora</Link>
+            <Button variant="outline" className="game-button border-orange-500 text-orange-600 font-black hover:bg-orange-500 hover:text-white" asChild>
+              <Link href="/profile">Activar Ahora</Link>
             </Button>
           </div>
         )}
 
-        {/* Welcome & Global Stats */}
+        {/* Hero Section */}
         <div className="grid lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-2 p-8 rounded-3xl bg-gradient-to-br from-primary to-primary/80 text-white relative overflow-hidden glow-primary">
-            <div className="absolute top-0 right-0 p-4 opacity-20">
-              <GraduationCap className="w-32 h-32" />
+          <div className="lg:col-span-2 p-10 rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-blue-600 text-white relative overflow-hidden glow-primary shadow-2xl">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <GraduationCap className="w-48 h-48 -rotate-12" />
             </div>
-            <div className="relative z-10 space-y-4">
-              <h2 className="text-3xl font-black uppercase italic">¡Hola, {user?.displayName || 'Estudiante'}!</h2>
-              <p className="text-primary-foreground/90 max-w-md">Tu entrenamiento personal ha comenzado. Tienes <strong>{points} puntos</strong> acumulados.</p>
-              <div className="flex gap-4 pt-2">
-                <Button className="game-button bg-white text-primary hover:bg-white/90" asChild>
-                  <Link href="/practice">Continuar Misión</Link>
+            <div className="relative z-10 space-y-6">
+              <div>
+                <h2 className="text-4xl font-black uppercase italic leading-none tracking-tighter">¡Hola, {user?.displayName?.split(' ')[0] || 'Héroe'}!</h2>
+                <p className="text-primary-foreground/80 mt-2 font-bold uppercase text-[10px] tracking-[0.3em]">Nivel {level} • Aspirante Académico</p>
+              </div>
+              <p className="text-lg opacity-90 font-medium max-w-sm">Tu misión de hoy es dominar la <strong>Lectura Crítica</strong>. ¿Estás listo?</p>
+              <div className="flex gap-4">
+                <Button className="game-button bg-white text-primary hover:bg-white/90 shadow-xl px-8 h-12" asChild>
+                  <Link href="/practice">Ir a la Misión</Link>
                 </Button>
-                <Button variant="outline" className="game-button border-white/40 text-white hover:bg-white/10">
-                  Simulacro
+                <Button variant="outline" className="game-button border-white/30 text-white hover:bg-white/10 h-12">
+                  Ver Ranking
                 </Button>
               </div>
             </div>
@@ -90,53 +100,55 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Missions Column */}
+          {/* Misiones */}
           <div className="lg:col-span-2 space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold uppercase tracking-wider flex items-center gap-2">
-                <Target className="text-primary w-5 h-5" />
-                Misiones Activas
+              <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
+                <Target className="text-primary w-6 h-6" />
+                Misiones de Entrenamiento
               </h3>
             </div>
             
             <div className="space-y-4">
               <MissionCard 
-                title="Fundamentos de Matemáticas" 
+                title="Ecuaciones y Lógica" 
                 subject="Matemáticas" 
-                progress={points > 100 ? 100 : points} 
-                reward="200 PTS" 
+                progress={35} 
+                reward="+200 PTS" 
                 icon={<Zap className="w-5 h-5" />}
               />
               <MissionCard 
-                title="Comprensión Lectora" 
+                title="Análisis Literario" 
                 subject="Lectura Crítica" 
-                progress={0} 
-                reward="150 PTS" 
+                progress={10} 
+                reward="+150 PTS" 
                 icon={<BookOpen className="w-5 h-5" />}
               />
             </div>
           </div>
 
-          {/* Progress Summary Column */}
+          {/* Rango */}
           <div className="space-y-6">
-            <h3 className="text-xl font-bold uppercase tracking-wider flex items-center gap-2">
-              <Star className="text-accent w-5 h-5" />
-              Tu Rango
+            <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
+              <Star className="text-accent w-6 h-6" />
+              Tu Ascenso
             </h3>
-            <Card className="game-card border-accent/20">
-              <CardContent className="p-6 space-y-6 text-center">
-                <div className="relative w-32 h-32 mx-auto">
-                  <div className="absolute inset-0 rounded-full border-8 border-muted" />
-                  <div className="absolute inset-0 rounded-full border-8 border-accent border-t-transparent transition-all" style={{ transform: `rotate(${progressToNextLevel * 3.6}deg)` }} />
+            <Card className="game-card border-accent/20 shadow-xl">
+              <CardContent className="p-8 space-y-8 text-center">
+                <div className="relative w-40 h-40 mx-auto">
+                  <div className="absolute inset-0 rounded-full border-[10px] border-muted" />
+                  <div className="absolute inset-0 rounded-full border-[10px] border-accent border-t-transparent transition-all duration-1000" style={{ transform: `rotate(${xpProgress * 3.6}deg)` }} />
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-4xl font-black">{level}</span>
-                    <span className="text-[10px] font-bold uppercase opacity-60">Nivel</span>
+                    <span className="text-5xl font-black text-foreground italic">{level}</span>
+                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Nivel Actual</span>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <p className="font-bold">Aspirante {level > 5 ? 'Experto' : 'Novato'}</p>
-                  <Progress value={progressToNextLevel} className="h-2" />
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{xpForNextLevel} PTS para Nivel {level + 1}</p>
+                <div className="space-y-3">
+                  <p className="font-black uppercase tracking-tighter text-xl">{level > 10 ? 'Maestro' : 'Recluta'}</p>
+                  <div className="space-y-1">
+                    <Progress value={xpProgress} className="h-3 rounded-full bg-muted" />
+                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">{500 - (points % 500)} Puntos para Nivel {level + 1}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -149,14 +161,14 @@ export default function DashboardPage() {
 
 function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
   return (
-    <Card className="game-card border-primary/10 hover:border-primary/30">
-      <CardContent className="p-6 flex items-center gap-4">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
+    <Card className="game-card border-primary/10 hover:border-primary/40 shadow-sm transition-all">
+      <CardContent className="p-8 flex items-center gap-5">
+        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${color}`}>
           {icon}
         </div>
         <div>
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{label}</p>
-          <p className="text-2xl font-black">{value}</p>
+          <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">{label}</p>
+          <p className="text-3xl font-black tabular-nums">{value}</p>
         </div>
       </CardContent>
     </Card>
@@ -165,29 +177,31 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
 
 function MissionCard({ title, subject, progress, reward, icon }: { title: string; subject: string; progress: number; reward: string; icon: React.ReactNode }) {
   return (
-    <div className="game-card bg-card p-5 border-muted group cursor-pointer hover:border-primary/40">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center transition-colors">
+    <div className="game-card bg-card p-6 border-muted group cursor-pointer hover:border-primary/40 hover:shadow-lg transition-all">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
             {icon}
           </div>
           <div>
-            <h4 className="font-bold text-lg leading-none">{title}</h4>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{subject}</span>
+            <h4 className="font-black text-xl leading-none uppercase tracking-tight">{title}</h4>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">{subject}</span>
           </div>
         </div>
         <div className="text-right">
-          <span className="text-xs font-black text-secondary">{reward}</span>
+          <span className="text-xs font-black text-secondary bg-secondary/10 px-3 py-1 rounded-full border border-secondary/20">{reward}</span>
         </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-6">
         <div className="flex-1">
-          <Progress value={progress} className="h-1.5" />
+          <Progress value={progress} className="h-2 rounded-full" />
         </div>
-        <span className="text-xs font-bold tabular-nums">{progress}%</span>
-        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary">
-          <ArrowRight className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-4">
+          <span className="text-xs font-black tabular-nums">{progress}%</span>
+          <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full hover:bg-primary/10 hover:text-primary transition-all">
+            <ArrowRight className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
     </div>
   );
