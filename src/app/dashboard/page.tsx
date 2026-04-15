@@ -45,12 +45,12 @@ export default function DashboardPage() {
     try {
       const performanceData = attempts && attempts.length > 0 
         ? JSON.stringify(attempts.map(a => ({ subject: a.subject, isCorrect: a.isCorrect })))
-        : "Usuario sin historial previo";
+        : "Usuario nuevo sin historial. Iniciar con fundamentos básicos.";
       
       const mission = await adaptLearningPath({
         studentPerformanceData: performanceData,
-        userGoal: "Dominar todas las áreas del Saber 11",
-        currentContext: "Inicio de entrenamiento"
+        userGoal: "Dominar todas las áreas del Saber 11 y alcanzar el Nivel de Héroe",
+        currentContext: "Inicio de fase de entrenamiento intensivo"
       });
       setAiMission(mission);
     } catch (e) {
@@ -71,10 +71,10 @@ export default function DashboardPage() {
     );
   }
 
-  // Lógica de progreso REAL (Estudiante empieza en 0)
+  // LÓGICA DE PROGRESO REAL: Empieza en 0 si no hay datos
   const points = userData?.currentPoints ?? 0;
   const level = Math.floor(points / 500) + 1;
-  const xpProgress = (points % 500) / 5;
+  const xpProgress = (points % 500) / 5; // 500 XP por nivel
   
   const trialEndDate = userData?.trialEndDate ? new Date(userData.trialEndDate) : null;
   const now = new Date();
@@ -93,11 +93,11 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="font-black text-orange-600 uppercase tracking-tight text-sm">Prueba Gratuita: {daysLeft} días restantes</p>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Activa tu clave institucional para no perder tus medallas.</p>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Valida tu código institucional para acceso ilimitado.</p>
               </div>
             </div>
             <Button variant="outline" className="game-button border-orange-500 text-orange-600 font-black hover:bg-orange-500 hover:text-white" asChild>
-              <Link href="/profile">Validar Clave</Link>
+              <Link href="/profile">Validar Código</Link>
             </Button>
           </div>
         )}
@@ -113,23 +113,23 @@ export default function DashboardPage() {
                   ¡Hola, {userData?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Aspirante'}!
                 </h2>
                 <div className="flex items-center gap-2 mt-2">
-                  <Badge className="bg-white/20 text-white border-none text-[10px] px-3 font-bold uppercase tracking-widest">Nivel {level}</Badge>
+                  <Badge className="bg-white/20 text-white border-none text-[10px] px-3 font-bold uppercase tracking-widest">Rango: {userData?.role === 'admin' ? 'Comandante' : 'Estudiante'}</Badge>
                   <span className="text-primary-foreground/80 font-bold uppercase text-[10px] tracking-[0.3em]">
-                    {userData?.role === 'admin' ? 'Comandante Académico' : 'Héroe en Entrenamiento'}
+                    Nivel {level} • {points} XP Acumulados
                   </span>
                 </div>
               </div>
-              <p className="text-lg opacity-90 font-medium max-w-sm">Tu entrenamiento real comienza aquí. Tienes <strong>{points} XP</strong> acumulados.</p>
+              <p className="text-lg opacity-90 font-medium max-w-sm">Tu camino al éxito académico empieza hoy. ¿Listo para la siguiente misión?</p>
               <div className="flex gap-4">
                 <Button className="game-button bg-white text-primary hover:bg-white/90 shadow-xl px-8 h-12" asChild>
-                  <Link href="/practice">Empezar Misión</Link>
+                  <Link href="/practice">Ir al Banco de Preguntas</Link>
                 </Button>
               </div>
             </div>
           </div>
 
-          <StatCard icon={<Flame className="w-6 h-6 text-orange-500" />} label="Días en Racha" value={attempts?.length ? "1" : "0"} color="bg-orange-500/10" />
-          <StatCard icon={<Trophy className="w-6 h-6 text-yellow-500" />} label="XP Total" value={points.toString()} color="bg-yellow-500/10" />
+          <StatCard icon={<Flame className="w-6 h-6 text-orange-500" />} label="Racha Actual" value={attempts?.length ? "1 Día" : "0 Días"} color="bg-orange-500/10" />
+          <StatCard icon={<Trophy className="w-6 h-6 text-yellow-500" />} label="Puntos Totales" value={points.toString()} color="bg-yellow-500/10" />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -148,9 +148,9 @@ export default function DashboardPage() {
                     <Sparkles className="w-8 h-8 text-accent" />
                   </div>
                   <div className="space-y-2">
-                    <h4 className="font-bold text-lg uppercase tracking-tight">Generar Misión Personalizada</h4>
+                    <h4 className="font-bold text-lg uppercase tracking-tight text-foreground">Analizar mi Desempeño</h4>
                     <p className="text-xs text-muted-foreground max-w-sm italic">
-                      Nuestra IA analizará tus aciertos para recomendarte en qué áreas enfocarte hoy.
+                      Nuestra IA revisará tus últimos intentos para crear una misión que fortalezca tus debilidades.
                     </p>
                   </div>
                   <Button 
@@ -158,7 +158,7 @@ export default function DashboardPage() {
                     disabled={isGeneratingMission}
                     className="game-button bg-primary text-white h-12 px-10 shadow-lg glow-primary"
                   >
-                    {isGeneratingMission ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analizando...</> : "Analizar y Crear Misión"}
+                    {isGeneratingMission ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analizando...</> : "Generar Misión Personalizada"}
                   </Button>
                 </Card>
               ) : (
@@ -170,7 +170,7 @@ export default function DashboardPage() {
                     <div className="flex-1 space-y-6">
                       <div>
                         <Badge className="bg-accent text-white uppercase font-black text-[9px] mb-2">Recomendación IA</Badge>
-                        <h4 className="text-2xl font-black uppercase italic leading-none">Tu Ruta de Heroe</h4>
+                        <h4 className="text-2xl font-black uppercase italic leading-none">{aiMission.recommendationType === 'mission' ? 'Misión Especial' : 'Sugerencia de Estudio'}</h4>
                       </div>
                       <div className="space-y-4">
                         {aiMission.recommendations.map((rec, i) => (
@@ -196,12 +196,12 @@ export default function DashboardPage() {
             <section className="space-y-6">
               <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
                 <Target className="text-primary w-6 h-6" />
-                Entrenamiento por Área
+                Áreas de Entrenamiento
               </h3>
               <div className="grid gap-4">
-                <MissionCard title="Dominio Matemático" subject="Matemáticas" progress={Math.min(100, (points / 10))} reward="+50 XP" icon={<Zap className="w-5 h-5" />} link="/practice/matematicas" />
+                <MissionCard title="Dominio Matemático" subject="Matemáticas" progress={Math.min(100, Math.floor((points / 1000) * 100))} reward="+50 XP" icon={<Zap className="w-5 h-5" />} link="/practice/matematicas" />
                 <MissionCard title="Lectura Crítica" subject="Lectura Crítica" progress={0} reward="+50 XP" icon={<BookOpen className="w-5 h-5" />} link="/practice/lectura" />
-                <MissionCard title="Desafío Ciudadano" subject="Socioemocional" progress={0} reward="+50 XP" icon={<ShieldCheck className="w-5 h-5" />} link="/practice/socioemocional" />
+                <MissionCard title="Desafío Socioemocional" subject="Socioemocional" progress={0} reward="+50 XP" icon={<ShieldCheck className="w-5 h-5" />} link="/practice/socioemocional" />
               </div>
             </section>
           </div>
@@ -209,7 +209,7 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
               <Star className="text-accent w-6 h-6" />
-              Progreso Real
+              Nivel Heroico
             </h3>
             <Card className="game-card border-accent/20 shadow-xl bg-card">
               <CardContent className="p-8 space-y-8 text-center">
@@ -224,13 +224,13 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                      <span>XP para Nivel {level + 1}</span>
+                      <span>Progreso del Nivel</span>
                       <span className="text-accent">{Math.floor(xpProgress)}%</span>
                     </div>
                     <Progress value={xpProgress} className="h-3 rounded-full bg-muted" />
                   </div>
                   <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest bg-muted/50 py-2 rounded-xl">
-                    Faltan {500 - (points % 500)} XP para subir
+                    Próximo Nivel en {500 - (points % 500)} XP
                   </p>
                 </div>
               </CardContent>
@@ -251,7 +251,7 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
         </div>
         <div>
           <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{label}</p>
-          <p className="text-3xl font-black tabular-nums">{value}</p>
+          <p className="text-3xl font-black tabular-nums text-foreground">{value}</p>
         </div>
       </CardContent>
     </Card>
@@ -267,7 +267,7 @@ function MissionCard({ title, subject, progress, reward, icon, link }: { title: 
             {icon}
           </div>
           <div>
-            <h4 className="font-black text-xl leading-none uppercase tracking-tighter">{title}</h4>
+            <h4 className="font-black text-xl leading-none uppercase tracking-tighter text-foreground">{title}</h4>
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{subject}</span>
           </div>
         </div>
@@ -280,7 +280,7 @@ function MissionCard({ title, subject, progress, reward, icon, link }: { title: 
           <Progress value={progress} className="h-2 rounded-full" />
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-xs font-black tabular-nums">{progress}%</span>
+          <span className="text-xs font-black tabular-nums text-foreground">{progress}%</span>
           <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-all" />
         </div>
       </div>

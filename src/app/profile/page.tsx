@@ -32,15 +32,15 @@ export default function ProfilePage() {
   const handleActivatePremium = async () => {
     if (!premiumKey) return;
 
-    // AUDITORÍA FORENSE: Llave maestra para que el usuario sea Admin sin programar
+    // LÓGICA FORENSE: Llaves maestras de activación
     const isAdminKey = premiumKey === 'ADMIN-MASTER-2025';
-    const isPremiumKey = premiumKey === 'ICFES-PREMIUM-2025';
+    const isPremiumKey = premiumKey === 'ICFES-PRO-2025' || premiumKey === 'ESTUDIANTE-PREMIUM';
 
     if (!isAdminKey && !isPremiumKey) {
       toast({
         variant: "destructive",
-        title: "Clave Inválida",
-        description: "El código no coincide con nuestros registros institucionales.",
+        title: "Código Incorrecto",
+        description: "El código ingresado no existe en los registros institucionales.",
       });
       return;
     }
@@ -66,12 +66,12 @@ export default function ProfilePage() {
 
         toast({
           title: "¡Activación Exitosa!",
-          description: `Has desbloqueado el rango ${isAdminKey ? 'Administrador' : 'Héroe Premium'}.`,
+          description: `Has desbloqueado el rango de ${isAdminKey ? 'Comandante (Admin)' : 'Héroe Premium'}.`,
         });
         setPremiumKey("");
       } catch (e) {
         console.error(e);
-        toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar tu estatus." });
+        toast({ variant: "destructive", title: "Error", description: "No se pudo conectar con el servidor de licencias." });
       }
     }
   };
@@ -97,30 +97,30 @@ export default function ProfilePage() {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 text-center md:text-left">
-            <h1 className="text-3xl font-black uppercase tracking-tight">{userData?.displayName || 'Estudiante'}</h1>
+            <h1 className="text-3xl font-black uppercase tracking-tight text-foreground">{userData?.displayName || 'Cargando Avatar...'}</h1>
             <p className="text-muted-foreground font-bold text-sm uppercase tracking-widest">
-              Puntaje Acumulado: {userData?.currentPoints ?? 0} XP
+              XP Total: {userData?.currentPoints ?? 0}
             </p>
             <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-4">
               {userData?.isTrial ? (
                 <Badge className="bg-orange-500 text-white border-none px-4 py-1 font-bold">
-                  MODO PRUEBA: {trialDaysLeft} DÍAS RESTANTES
+                  PRUEBA ACTIVA: {trialDaysLeft} DÍAS
                 </Badge>
               ) : (
                 <Badge className="bg-secondary text-white border-none px-4 py-1 font-bold">
-                  CUENTA PREMIUM ACTIVA
+                  MIEMBRO PREMIUM
                 </Badge>
               )}
               {userData?.role === 'admin' && (
                 <Badge className="bg-primary text-white border-none px-4 py-1 font-bold">
-                  COMANDANTE (ADMIN)
+                  RANGO: COMANDANTE (ADMIN)
                 </Badge>
               )}
             </div>
           </div>
           <Button onClick={handleLogout} variant="ghost" className="text-destructive font-bold uppercase text-xs hover:bg-destructive/10">
             <LogOut className="w-4 h-4 mr-2" />
-            Cerrar Sesión
+            Salir
           </Button>
         </header>
 
@@ -129,17 +129,17 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle className="text-xl font-bold uppercase flex items-center gap-2 text-primary">
                 <ShieldCheck className="w-5 h-5" />
-                Datos del Avatar
+                Datos de Identidad
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Nombre de Usuario</Label>
-                <div className="p-4 bg-muted/20 rounded-xl border-2 font-bold">{userData?.displayName || user?.displayName}</div>
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Nombre Público</Label>
+                <div className="p-4 bg-muted/20 rounded-xl border-2 font-bold text-foreground">{userData?.displayName || user?.displayName}</div>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Correo Registrado</Label>
-                <div className="p-4 bg-muted/20 rounded-xl border-2 italic text-sm">{user?.email}</div>
+                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Email Institucional</Label>
+                <div className="p-4 bg-muted/20 rounded-xl border-2 italic text-sm text-foreground">{user?.email}</div>
               </div>
             </CardContent>
           </Card>
@@ -148,9 +148,9 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle className="text-xl font-bold uppercase flex items-center gap-2 text-accent">
                 <Key className="w-5 h-5" />
-                Validar Membresía
+                Activación de Cuenta
               </CardTitle>
-              <CardDescription className="font-bold text-xs uppercase">Ingresa tu código institucional</CardDescription>
+              <CardDescription className="font-bold text-xs uppercase">Valida tu membresía permanente</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {userData?.isTrial ? (
@@ -158,14 +158,14 @@ export default function ProfilePage() {
                   <div className="p-4 bg-accent/5 rounded-2xl border border-accent/20 flex gap-3">
                     <Clock className="w-6 h-6 text-accent shrink-0" />
                     <p className="text-xs font-medium leading-tight text-accent-foreground">
-                      Tu tiempo de prueba gratuito expira pronto. Ingresa tu clave para acceso ilimitado.
+                      Tu tiempo de prueba gratuito expira pronto. Ingresa tu código para desbloquear todas las misiones.
                     </p>
                   </div>
                   <div className="space-y-3">
-                    <Label className="text-xs font-black uppercase tracking-widest">Código Secreto</Label>
+                    <Label className="text-xs font-black uppercase tracking-widest">Ingresar Código</Label>
                     <div className="flex gap-2">
                       <Input 
-                        placeholder="EJ: ICFES-PREMIUM" 
+                        placeholder="EJ: ADMIN-MASTER-2025" 
                         value={premiumKey}
                         onChange={(e) => setPremiumKey(e.target.value.toUpperCase())}
                         className="rounded-xl border-2 focus:ring-accent h-12 font-bold uppercase"
@@ -181,8 +181,8 @@ export default function ProfilePage() {
                   <div className="bg-secondary/20 p-4 rounded-full">
                     <CheckCircle2 className="w-12 h-12 text-secondary" />
                   </div>
-                  <p className="font-bold text-secondary text-lg uppercase">¡Héroe Validado!</p>
-                  <p className="text-xs text-muted-foreground italic">Tu entrenamiento es permanente. ¡Llega a los 500 puntos!</p>
+                  <p className="font-bold text-secondary text-lg uppercase">¡Cuenta Activada!</p>
+                  <p className="text-xs text-muted-foreground italic">Tu entrenamiento es permanente. ¡Sigue subiendo de XP!</p>
                 </div>
               )}
             </CardContent>
@@ -193,7 +193,7 @@ export default function ProfilePage() {
           <div className="p-4 bg-muted/30 rounded-2xl flex items-center gap-3 border border-dashed border-muted-foreground/30">
             <ShieldAlert className="w-5 h-5 text-muted-foreground" />
             <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest leading-relaxed">
-              Comandante: Para activar el panel de administración, usa tu código de acceso maestro.
+              Modo Invitado: Los privilegios de Comandante están bloqueados para esta cuenta.
             </p>
           </div>
         )}

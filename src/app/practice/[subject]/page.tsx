@@ -17,114 +17,60 @@ import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/g
 const SUBJECT_DATA: Record<string, any[]> = {
   matematicas: [
     {
-      id: "math_2024_01",
-      title: "Un tanque cilíndrico tiene un radio de 2m y una altura de 5m. Si se llena hasta el 80% de su capacidad, ¿qué volumen de agua contiene? (Use π ≈ 3.14)",
-      options: ["A) 62.8 m³", "B) 50.24 m³", "C) 12.56 m³", "D) 25.12 m³"],
-      correctIndex: 1,
-      component: "Geométrico - Métrico",
-      competency: "Formulación y Ejecución",
-      level: "Avanzado",
-      explanation: "El volumen total es π * r² * h = 3.14 * 4 * 5 = 62.8. El 80% de ese total es 50.24 m³."
-    },
-    {
-      id: "math_2023_02",
-      title: "Una empresa reporta que el 30% de sus empleados son bilingües. Si en la empresa hay 150 empleados, ¿cuántos NO son bilingües?",
-      options: ["A) 45", "B) 105", "C) 30", "D) 120"],
+      id: "math_2025_01",
+      title: "En una secuencia aritmética, el primer término es 5 y la diferencia común es 3. ¿Cuál es el valor del término número 12?",
+      options: ["A) 35", "B) 38", "C) 41", "D) 44"],
       correctIndex: 1,
       component: "Numérico - Variacional",
-      competency: "Interpretación y Representación",
-      level: "Básico",
-      explanation: "El 30% de 150 es 45. Por lo tanto, los que no son bilingües son 150 - 45 = 105."
+      competency: "Formulación y Ejecución",
+      level: "Medio",
+      explanation: "Fórmula: a_n = a_1 + (n-1)d. Entonces: 5 + (12-1)*3 = 5 + 33 = 38."
     },
     {
-      id: "math_2022_05",
-      title: "¿Cuál es la probabilidad de obtener un número par al lanzar un dado de 6 caras?",
-      options: ["A) 1/6", "B) 1/3", "C) 1/2", "D) 2/3"],
-      correctIndex: 2,
-      component: "Aleatorio",
-      competency: "Argumentación",
+      id: "math_2024_02",
+      title: "¿Cuál es el área de un círculo cuyo diámetro es 10 cm? (Use π ≈ 3.14)",
+      options: ["A) 31.4 cm²", "B) 78.5 cm²", "C) 157 cm²", "D) 314 cm²"],
+      correctIndex: 1,
+      component: "Geométrico - Métrico",
+      competency: "Interpretación y Representación",
       level: "Básico",
-      explanation: "Los números pares son {2, 4, 6}, es decir, 3 de 6 caras. 3/6 = 1/2."
+      explanation: "Radio = 5. Área = π * r² = 3.14 * 25 = 78.5."
     }
   ],
   lectura: [
     {
       id: "lc_2024_01",
-      title: "En un texto argumentativo, cuando el autor cita a una autoridad científica para respaldar su tesis, ¿qué tipo de recurso está utilizando?",
-      options: ["A) Analogía", "B) Argumento de autoridad", "C) Generalización", "D) Ejemplificación"],
+      title: "Si un autor utiliza la palabra 'paradójicamente' para introducir una idea, su intención es:",
+      options: ["A) Confirmar una obviedad", "B) Señalar una contradicción", "C) Describir un paisaje", "D) Citar a un experto"],
       correctIndex: 1,
       component: "Pragmático",
       competency: "Reflexión sobre el contenido",
       level: "Medio",
-      explanation: "Citar a expertos o instituciones reconocidas es un argumento de autoridad."
-    },
-    {
-      id: "lc_2023_04",
-      title: "Si un autor utiliza ironía para criticar una política pública, ¿cuál es su intención principal?",
-      options: ["A) Informar datos objetivos", "B) Persuadir mediante la burla", "C) Describir un proceso", "D) Elogiar al gobierno"],
-      correctIndex: 1,
-      component: "Semántico",
-      competency: "Comprender cómo se articulan las partes de un texto",
-      level: "Avanzado",
-      explanation: "La ironía en textos de opinión busca cuestionar posturas mediante el sarcasmo."
-    }
-  ],
-  naturales: [
-    {
-      id: "cn_2024_01",
-      title: "¿Qué organelo celular es el encargado de la producción de energía mediante la respiración celular?",
-      options: ["A) Ribosoma", "B) Mitocondria", "C) Núcleo", "D) Cloroplasto"],
-      correctIndex: 1,
-      component: "Biológico",
-      competency: "Uso comprensivo del conocimiento científico",
-      level: "Básico",
-      explanation: "La mitocondria es la central energética de la célula donde ocurre el ciclo de Krebs."
-    },
-    {
-      id: "cn_2023_09",
-      title: "En un circuito en serie de tres bombillos, si uno se quema, ¿qué sucede con los otros?",
-      options: ["A) Brillan más fuerte", "B) Se apagan", "C) Siguen igual", "D) Brillan menos"],
-      correctIndex: 1,
-      component: "Físico",
-      competency: "Explicación de fenómenos",
-      level: "Medio",
-      explanation: "En serie, la corriente tiene un solo camino; si se abre, el circuito deja de funcionar."
-    }
-  ],
-  sociales: [
-    {
-      id: "soc_2024_01",
-      title: "¿Cuál de los siguientes mecanismos de participación permite a los ciudadanos decidir sobre la destitución de un alcalde?",
-      options: ["A) Plebiscito", "B) Referendo", "C) Revocatoria del mandato", "D) Cabildo abierto"],
-      correctIndex: 2,
-      component: "Estado y Constitución",
-      competency: "Pensamiento Social",
-      level: "Medio",
-      explanation: "La revocatoria es el derecho político para terminar el mandato de un gobernante local."
-    }
-  ],
-  ingles: [
-    {
-      id: "eng_2024_01",
-      title: "Complete: 'If I _______ more time, I would learn how to play the piano.'",
-      options: ["A) have", "B) had", "C) will have", "D) am having"],
-      correctIndex: 1,
-      component: "Gramática",
-      competency: "Uso funcional del lenguaje",
-      level: "B1",
-      explanation: "El segundo condicional usa 'if + past simple' para situaciones hipotéticas."
+      explanation: "La paradoja implica una contradicción aparente que encierra una verdad."
     }
   ],
   socioemocional: [
     {
       id: "se_2024_01",
-      title: "Un compañero de equipo no está cumpliendo con su parte del trabajo. Tú te sientes molesto. ¿Cuál es la respuesta más asertiva?",
-      options: ["A) Ignorarlo y hacer todo el trabajo solo.", "B) Hablar con él en privado sobre cómo afecta esto al equipo.", "C) Gritarle frente al grupo para que reaccione.", "D) Quejarte con el profesor sin hablar con él."],
-      correctIndex: 1,
-      component: "Comunicación Asertiva",
-      competency: "Manejo de Conflictos",
+      title: "Un compañero de clase está siendo excluido de un grupo de estudio. Tú notas que esto le afecta. La acción más empática sería:",
+      options: ["A) Ignorar la situación para no tener problemas.", "B) Unirte a la exclusión para encajar en el grupo.", "C) Hablar con el grupo e invitar al compañero a integrarse.", "D) Reírte de la situación en secreto."],
+      correctIndex: 2,
+      component: "Empatía",
+      competency: "Toma de Perspectiva",
       level: "Ciudadano",
-      explanation: "La asertividad implica expresar sentimientos sin agredir al otro, buscando soluciones."
+      explanation: "La empatía requiere reconocer el sentimiento ajeno y actuar para mejorar la situación social."
+    }
+  ],
+  naturales: [
+    {
+      id: "cn_2024_05",
+      title: "En un ecosistema, ¿cuál es el papel principal de los organismos descomponedores?",
+      options: ["A) Producir oxígeno", "B) Reciclar materia orgánica", "C) Consumir herbívoros", "D) Captar energía solar"],
+      correctIndex: 1,
+      component: "Biológico",
+      competency: "Uso comprensivo del conocimiento",
+      level: "Básico",
+      explanation: "Los descomponedores transforman la materia orgánica muerta en inorgánica para que las plantas la usen."
     }
   ]
 };
@@ -156,7 +102,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     setIsCorrect(correct);
 
     if (correct) {
-      toast({ title: "¡Misión Cumplida!", description: "+50 XP ganados para tu avatar." });
+      toast({ title: "¡Excelente!", description: "+50 XP ganados para tu cuenta real." });
       if (user && firestore) {
         const userRef = doc(firestore, 'users', user.uid);
         updateDocumentNonBlocking(userRef, { 
@@ -165,7 +111,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         });
       }
     } else {
-      toast({ title: "Sigue Entrenando", description: "Analiza la explicación técnica.", variant: "destructive" });
+      toast({ title: "Intenta de nuevo", description: "Revisa la justificación técnica abajo.", variant: "destructive" });
     }
 
     if (user && firestore) {
@@ -191,12 +137,12 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         question: currentQuestion.title || currentQuestion.text,
         userAnswer: currentQuestion.options[selectedOption],
         correctAnswer: currentQuestion.options[currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex],
-        context: `Materia: ${currentSubject}, Componente: ${currentQuestion.component}, Competencia: ${currentQuestion.competency}`
+        context: `Asignatura: ${currentSubject}, Componente: ${currentQuestion.component}`
       });
       setAiExplanation(result.explanation);
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "Error IA", description: "No pudimos conectar con el tutor IA." });
+      toast({ variant: "destructive", title: "IA Ocupada", description: "No pudimos conectar con el tutor en este momento." });
     } finally {
       setIsExplaining(false);
     }
@@ -214,13 +160,13 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         subject: currentSubject,
         component: currentQuestion.component || "General",
         competency: currentQuestion.competency || "General",
-        level: "II"
+        level: "Medio"
       });
       setGeneratedQuestion(question);
-      toast({ title: "¡Desafío Generado!", description: "La IA ha construido un ítem nuevo para ti." });
+      toast({ title: "¡Nuevo Ítem Generado!", description: "La IA ha creado un desafío basado en el DCE." });
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "Error de Generación", description: "La IA no pudo construir el ítem en este momento." });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el ítem." });
     } finally {
       setIsGenerating(false);
     }
@@ -241,9 +187,9 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
       <main className="max-w-6xl mx-auto p-6 flex flex-col gap-8">
         <div className="flex flex-col md:flex-row items-center justify-between bg-card p-6 rounded-3xl border-2 border-primary/10 shadow-sm gap-4">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2 text-primary">
+            <div className="flex items-center gap-2 text-primary font-black uppercase tracking-widest text-sm">
               <Timer className="w-5 h-5" />
-              <span className="font-bold tabular-nums text-lg">Entrenamiento Real</span>
+              Saber 11 Real-Time
             </div>
             <div className="hidden md:block h-6 w-[2px] bg-muted" />
             <div className="flex flex-wrap gap-2">
@@ -251,30 +197,24 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                 {currentQuestion.metadata?.component || currentQuestion.component}
               </Badge>
               <Badge variant="outline" className="bg-secondary/5 border-secondary/20 text-secondary font-bold text-[10px] uppercase">
-                {currentQuestion.metadata?.competency || currentQuestion.competency}
-              </Badge>
-              <Badge variant="outline" className="bg-accent/5 border-accent/20 text-accent font-bold text-[10px] uppercase">
                 {currentQuestion.metadata?.level || currentQuestion.level}
               </Badge>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleGenerateAiQuestion} 
-              disabled={isGenerating}
-              className="game-button border-accent/50 text-accent hover:bg-accent/10"
-            >
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Wand2 className="w-4 h-4 mr-2" />}
-              {isGenerating ? "Creando ítem..." : "Desafío IA"}
-            </Button>
-            <span className="text-[10px] font-black uppercase text-muted-foreground ml-4">Reto #{currentQuestionIndex + 1}</span>
-          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleGenerateAiQuestion} 
+            disabled={isGenerating}
+            className="game-button border-accent/50 text-accent hover:bg-accent/10"
+          >
+            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Wand2 className="w-4 h-4 mr-2" />}
+            Desafío IA Personalizado
+          </Button>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          <Card className={`lg:col-span-2 game-card border-primary/20 shadow-xl overflow-hidden bg-card ${isGenerating ? 'opacity-50 animate-pulse' : ''}`}>
+          <Card className={`lg:col-span-2 game-card border-primary/20 shadow-xl overflow-hidden bg-card ${isGenerating ? 'opacity-50' : ''}`}>
             <div className="bg-gradient-to-r from-primary/5 to-transparent p-10 border-b-2 border-primary/10">
               <h2 className="text-2xl md:text-3xl font-bold leading-snug text-foreground">
                 {currentQuestion.title || currentQuestion.text}
@@ -292,7 +232,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                     ${isCorrect === false && selectedOption === idx ? 'border-destructive bg-destructive/10' : ''}
                   `}
                 >
-                  <span className="flex-1 text-lg">{opt}</span>
+                  <span className="flex-1 text-lg text-foreground">{opt}</span>
                   {isCorrect && idx === (currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex) && <CheckCircle2 className="text-secondary shrink-0 ml-4 w-6 h-6" />}
                   {isCorrect === false && selectedOption === idx && <AlertCircle className="text-destructive shrink-0 ml-4 w-6 h-6" />}
                 </button>
@@ -306,10 +246,10 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                 <div className="bg-primary/10 p-4 rounded-full">
                   <BrainCircuit className="w-12 h-12 text-primary animate-pulse" />
                 </div>
-                <div>
-                  <p className="text-primary font-black uppercase tracking-widest text-xs mb-2">Pista del Tutor</p>
+                <div className="space-y-2">
+                  <p className="text-primary font-black uppercase tracking-widest text-xs">Modo Entrenamiento</p>
                   <p className="text-muted-foreground text-sm italic leading-relaxed">
-                    Identifica el componente evaluado antes de responder. ¡Cada XP cuenta!
+                    Analiza bien la pregunta antes de confirmar. Tu progreso se guardará en tu perfil real.
                   </p>
                 </div>
                 <Button 
@@ -329,15 +269,15 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                         {isCorrect ? <CheckCircle2 className="w-8 h-8" /> : <AlertCircle className="w-8 h-8" />}
                       </div>
                       <div>
-                        <h3 className="text-2xl font-black uppercase tracking-tight">{isCorrect ? '¡CORRECTO!' : 'FALLASTE'}</h3>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP GANADOS' : 'ANALIZA EL ERROR'}</p>
+                        <h3 className="text-2xl font-black uppercase tracking-tight text-foreground">{isCorrect ? '¡CORRECTO!' : 'INCENDIO'}</h3>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP GANADOS' : 'ANÁLISIS DE ERROR'}</p>
                       </div>
                     </div>
 
                     <div className="space-y-4">
                       <div className="p-5 bg-muted/40 rounded-2xl border border-primary/10">
                         <p className="font-black text-primary uppercase text-[10px] tracking-widest mb-3 flex items-center gap-2">
-                          <Shield className="w-3 h-3" /> Justificación ICFES:
+                          <Shield className="w-3 h-3" /> Justificación Técnica:
                         </p>
                         <p className="text-sm text-muted-foreground leading-relaxed italic">
                           {currentQuestion.explanation}
@@ -347,7 +287,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                       {aiExplanation ? (
                         <div className="p-5 bg-primary/5 rounded-2xl border border-primary/20 animate-in fade-in zoom-in-95">
                           <p className="font-black text-primary uppercase text-[10px] tracking-widest mb-3 flex items-center gap-2">
-                            <Sparkles className="w-3 h-3 text-accent" /> Tutor IA Personalizado:
+                            <Sparkles className="w-3 h-3 text-accent" /> Explicación IA Personalizada:
                           </p>
                           <p className="text-xs text-muted-foreground leading-relaxed">
                             {aiExplanation}
@@ -360,14 +300,14 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                           onClick={handleAiExplanation}
                           disabled={isExplaining}
                         >
-                          {isExplaining ? "Pensando..." : "Pedir Explicación IA"}
+                          {isExplaining ? "Pensando..." : "Solicitar Tutoría IA"}
                           <BrainCircuit className="ml-2 w-4 h-4" />
                         </Button>
                       )}
                     </div>
 
                     <Button className="w-full game-button bg-primary text-white h-14 shadow-lg text-lg" onClick={handleNext}>
-                      Siguiente Pregunta
+                      Siguiente Desafío
                       <ArrowRight className="ml-2 w-5 h-5" />
                     </Button>
                   </CardContent>
