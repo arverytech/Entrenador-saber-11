@@ -23,78 +23,108 @@ const SUBJECT_DATA: Record<string, any[]> = {
       correctIndex: 1,
       component: "Geométrico - Métrico",
       competency: "Formulación y Ejecución",
-      level: "III (Avanzado)",
-      explanation: "Volumen = π * r² * h = 3.14 * 4 * 5 = 62.8. El 80% de 62.8 es 50.24 m³."
+      level: "Avanzado",
+      explanation: "El volumen total es π * r² * h = 3.14 * 4 * 5 = 62.8. El 80% de ese total es 50.24 m³."
     },
     {
       id: "math_2023_02",
-      title: "En una bolsa hay 3 bolas rojas, 2 azules y 5 verdes. Si se extrae una bola al azar, ¿cuál es la probabilidad de que NO sea verde?",
-      options: ["A) 1/2", "B) 3/10", "C) 1/5", "D) 2/3"],
-      correctIndex: 0,
-      component: "Aleatorio (Estadística)",
+      title: "Una empresa reporta que el 30% de sus empleados son bilingües. Si en la empresa hay 150 empleados, ¿cuántos NO son bilingües?",
+      options: ["A) 45", "B) 105", "C) 30", "D) 120"],
+      correctIndex: 1,
+      component: "Numérico - Variacional",
       competency: "Interpretación y Representación",
-      level: "II (Medio)",
-      explanation: "Total 10 bolas. No verdes = 5 (3 rojas + 2 azules). P = 5/10 = 1/2."
+      level: "Básico",
+      explanation: "El 30% de 150 es 45. Por lo tanto, los que no son bilingües son 150 - 45 = 105."
+    },
+    {
+      id: "math_2022_05",
+      title: "¿Cuál es la probabilidad de obtener un número par al lanzar un dado de 6 caras?",
+      options: ["A) 1/6", "B) 1/3", "C) 1/2", "D) 2/3"],
+      correctIndex: 2,
+      component: "Aleatorio",
+      competency: "Argumentación",
+      level: "Básico",
+      explanation: "Los números pares son {2, 4, 6}, es decir, 3 de 6 caras. 3/6 = 1/2."
     }
   ],
   lectura: [
     {
       id: "lc_2024_01",
-      title: "Si un autor utiliza ironía para criticar una política pública en una columna de opinión, ¿cuál es su intención comunicativa principal?",
-      options: ["A) Informar datos objetivos.", "B) Ridiculizar una postura.", "C) Describir un proceso legal.", "D) Elogiar a los gobernantes."],
+      title: "En un texto argumentativo, cuando el autor cita a una autoridad científica para respaldar su tesis, ¿qué tipo de recurso está utilizando?",
+      options: ["A) Analogía", "B) Argumento de autoridad", "C) Generalización", "D) Ejemplificación"],
       correctIndex: 1,
-      component: "Reflexivo - Pragmático",
-      competency: "Reflexión sobre el contenido y la forma",
-      level: "III (Avanzado)",
-      explanation: "La ironía busca dar a entender lo contrario de lo que se dice con fines críticos."
+      component: "Pragmático",
+      competency: "Reflexión sobre el contenido",
+      level: "Medio",
+      explanation: "Citar a expertos o instituciones reconocidas es un argumento de autoridad."
+    },
+    {
+      id: "lc_2023_04",
+      title: "Si un autor utiliza ironía para criticar una política pública, ¿cuál es su intención principal?",
+      options: ["A) Informar datos objetivos", "B) Persuadir mediante la burla", "C) Describir un proceso", "D) Elogiar al gobierno"],
+      correctIndex: 1,
+      component: "Semántico",
+      competency: "Comprender cómo se articulan las partes de un texto",
+      level: "Avanzado",
+      explanation: "La ironía en textos de opinión busca cuestionar posturas mediante el sarcasmo."
     }
   ],
   naturales: [
     {
       id: "cn_2024_01",
-      title: "En un ecosistema, ¿qué sucede con la energía disponible a medida que se avanza en los niveles tróficos?",
-      options: ["A) Aumenta exponencialmente.", "B) Se mantiene constante.", "C) Disminuye progresivamente.", "D) Se duplica en cada nivel."],
-      correctIndex: 2,
-      component: "Biológico (Ecosistemas)",
+      title: "¿Qué organelo celular es el encargado de la producción de energía mediante la respiración celular?",
+      options: ["A) Ribosoma", "B) Mitocondria", "C) Núcleo", "D) Cloroplasto"],
+      correctIndex: 1,
+      component: "Biológico",
       competency: "Uso comprensivo del conocimiento científico",
-      level: "II (Medio)",
-      explanation: "Solo el 10% de la energía pasa al siguiente nivel; el resto se pierde como calor."
+      level: "Básico",
+      explanation: "La mitocondria es la central energética de la célula donde ocurre el ciclo de Krebs."
+    },
+    {
+      id: "cn_2023_09",
+      title: "En un circuito en serie de tres bombillos, si uno se quema, ¿qué sucede con los otros?",
+      options: ["A) Brillan más fuerte", "B) Se apagan", "C) Siguen igual", "D) Brillan menos"],
+      correctIndex: 1,
+      component: "Físico",
+      competency: "Explicación de fenómenos",
+      level: "Medio",
+      explanation: "En serie, la corriente tiene un solo camino; si se abre, el circuito deja de funcionar."
     }
   ],
   sociales: [
     {
       id: "soc_2024_01",
-      title: "¿Qué rama del poder público en Colombia es la encargada de dictar las leyes y reformar la Constitución?",
-      options: ["A) Ejecutiva", "B) Judicial", "C) Legislativa", "D) Ciudadana"],
+      title: "¿Cuál de los siguientes mecanismos de participación permite a los ciudadanos decidir sobre la destitución de un alcalde?",
+      options: ["A) Plebiscito", "B) Referendo", "C) Revocatoria del mandato", "D) Cabildo abierto"],
       correctIndex: 2,
-      component: "Pensamiento Social (Estado)",
+      component: "Estado y Constitución",
       competency: "Pensamiento Social",
-      level: "I (Básico)",
-      explanation: "El Congreso de la República ejerce la función legislativa."
+      level: "Medio",
+      explanation: "La revocatoria es el derecho político para terminar el mandato de un gobernante local."
     }
   ],
   ingles: [
     {
       id: "eng_2024_01",
-      title: "Choose the correct sentence: 'If I __________ more money, I would buy a new car.'",
+      title: "Complete: 'If I _______ more time, I would learn how to play the piano.'",
       options: ["A) have", "B) had", "C) will have", "D) am having"],
       correctIndex: 1,
-      component: "Uso Funcional (Grammar)",
-      competency: "Lingüística (Second Conditional)",
-      level: "B1 (Intermedio)",
-      explanation: "Second Conditional uses 'if + past simple' for hypothetical situations."
+      component: "Gramática",
+      competency: "Uso funcional del lenguaje",
+      level: "B1",
+      explanation: "El segundo condicional usa 'if + past simple' para situaciones hipotéticas."
     }
   ],
   socioemocional: [
     {
       id: "se_2024_01",
-      title: "Un compañero de clase cometió un error y todos se ríen. Tú notas que él está muy avergonzado. ¿Qué acción demuestra regulación emocional y empatía?",
-      options: ["A) Reírte también para encajar.", "B) Salir del salón sin decir nada.", "C) Esperar a que se calme y ofrecerle apoyo.", "D) Gritarles a todos que se callen."],
-      correctIndex: 2,
-      component: "Empatía y Convivencia",
-      competency: "Manejo de Emociones",
-      level: "I (Ciudadano)",
-      explanation: "La empatía requiere reconocer el sentimiento del otro y actuar con respeto."
+      title: "Un compañero de equipo no está cumpliendo con su parte del trabajo. Tú te sientes molesto. ¿Cuál es la respuesta más asertiva?",
+      options: ["A) Ignorarlo y hacer todo el trabajo solo.", "B) Hablar con él en privado sobre cómo afecta esto al equipo.", "C) Gritarle frente al grupo para que reaccione.", "D) Quejarte con el profesor sin hablar con él."],
+      correctIndex: 1,
+      component: "Comunicación Asertiva",
+      competency: "Manejo de Conflictos",
+      level: "Ciudadano",
+      explanation: "La asertividad implica expresar sentimientos sin agredir al otro, buscando soluciones."
     }
   ]
 };
@@ -182,8 +212,8 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     try {
       const question = await generateIcfesQuestion({
         subject: currentSubject,
-        component: currentQuestion.component,
-        competency: currentQuestion.competency,
+        component: currentQuestion.component || "General",
+        competency: currentQuestion.competency || "General",
         level: "II"
       });
       setGeneratedQuestion(question);
@@ -213,7 +243,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2 text-primary">
               <Timer className="w-5 h-5" />
-              <span className="font-bold tabular-nums text-lg">Entrenamiento Activo</span>
+              <span className="font-bold tabular-nums text-lg">Entrenamiento Real</span>
             </div>
             <div className="hidden md:block h-6 w-[2px] bg-muted" />
             <div className="flex flex-wrap gap-2">
@@ -239,7 +269,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
               {isGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Wand2 className="w-4 h-4 mr-2" />}
               {isGenerating ? "Creando ítem..." : "Desafío IA"}
             </Button>
-            <span className="text-[10px] font-black uppercase text-muted-foreground ml-4">Pregunta {currentQuestionIndex + 1}</span>
+            <span className="text-[10px] font-black uppercase text-muted-foreground ml-4">Reto #{currentQuestionIndex + 1}</span>
           </div>
         </div>
 
@@ -277,9 +307,9 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   <BrainCircuit className="w-12 h-12 text-primary animate-pulse" />
                 </div>
                 <div>
-                  <p className="text-primary font-black uppercase tracking-widest text-xs mb-2">Manual del Aspirante</p>
+                  <p className="text-primary font-black uppercase tracking-widest text-xs mb-2">Pista del Tutor</p>
                   <p className="text-muted-foreground text-sm italic leading-relaxed">
-                    Identifica el **Componente** de la pregunta para aplicar la fórmula o estrategia correcta.
+                    Identifica el componente evaluado antes de responder. ¡Cada XP cuenta!
                   </p>
                 </div>
                 <Button 
@@ -287,7 +317,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   disabled={selectedOption === null || isGenerating}
                   onClick={handleCheck}
                 >
-                  Confirmar Selección
+                  Confirmar Respuesta
                 </Button>
               </div>
             ) : (
@@ -299,15 +329,15 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                         {isCorrect ? <CheckCircle2 className="w-8 h-8" /> : <AlertCircle className="w-8 h-8" />}
                       </div>
                       <div>
-                        <h3 className="text-2xl font-black uppercase tracking-tight">{isCorrect ? '¡CORRECTO!' : 'INCORRECTO'}</h3>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP PARA TU AVATAR' : 'REVISA TU ESTRATEGIA'}</p>
+                        <h3 className="text-2xl font-black uppercase tracking-tight">{isCorrect ? '¡CORRECTO!' : 'FALLASTE'}</h3>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP GANADOS' : 'ANALIZA EL ERROR'}</p>
                       </div>
                     </div>
 
                     <div className="space-y-4">
                       <div className="p-5 bg-muted/40 rounded-2xl border border-primary/10">
                         <p className="font-black text-primary uppercase text-[10px] tracking-widest mb-3 flex items-center gap-2">
-                          <Shield className="w-3 h-3" /> Justificación Técnica:
+                          <Shield className="w-3 h-3" /> Justificación ICFES:
                         </p>
                         <p className="text-sm text-muted-foreground leading-relaxed italic">
                           {currentQuestion.explanation}
@@ -330,14 +360,14 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                           onClick={handleAiExplanation}
                           disabled={isExplaining}
                         >
-                          {isExplaining ? "Analizando..." : "Solicitar Análisis IA"}
+                          {isExplaining ? "Pensando..." : "Pedir Explicación IA"}
                           <BrainCircuit className="ml-2 w-4 h-4" />
                         </Button>
                       )}
                     </div>
 
                     <Button className="w-full game-button bg-primary text-white h-14 shadow-lg text-lg" onClick={handleNext}>
-                      Siguiente Desafío
+                      Siguiente Pregunta
                       <ArrowRight className="ml-2 w-5 h-5" />
                     </Button>
                   </CardContent>

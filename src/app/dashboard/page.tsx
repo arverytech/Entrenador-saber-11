@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Flame, Target, BookOpen, Star, ArrowRight, Zap, GraduationCap, Clock, BrainCircuit, Sparkles, ShieldCheck } from 'lucide-react';
+import { Trophy, Flame, Target, BookOpen, Star, ArrowRight, Zap, GraduationCap, Clock, BrainCircuit, Sparkles, ShieldCheck, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { doc, collection, query, limit, orderBy } from 'firebase/firestore';
@@ -40,7 +40,24 @@ export default function DashboardPage() {
   }, [user, isUserLoading, router]);
 
   const generateMission = async () => {
-    if (!user || !attempts) return;
+    if (!user || !attempts || attempts.length === 0) {
+      // Si no hay intentos, generamos una misión inicial basada en el objetivo general
+      setIsGeneratingMission(true);
+      try {
+        const mission = await adaptLearningPath({
+          studentPerformanceData: "Nuevo usuario sin historial",
+          userGoal: "Iniciar preparación desde cero",
+          currentContext: "Introducción a la plataforma"
+        });
+        setAiMission(mission);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsGeneratingMission(false);
+      }
+      return;
+    }
+
     setIsGeneratingMission(true);
     try {
       const performanceData = JSON.stringify(attempts.map(a => ({
@@ -74,12 +91,14 @@ export default function DashboardPage() {
     );
   }
 
-  const points = userData?.currentPoints || 0;
+  // Lógica de progreso REAL (Cero si no hay datos)
+  const points = userData?.currentPoints ?? 0;
   const level = Math.floor(points / 500) + 1;
   const xpProgress = (points % 500) / 5;
   
   const trialEndDate = userData?.trialEndDate ? new Date(userData.trialEndDate) : null;
-  const daysLeft = trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))) : 0;
+  const now = new Date();
+  const daysLeft = trialEndDate ? Math.max(0, Math.ceil((trialEndDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -111,14 +130,16 @@ export default function DashboardPage() {
             <div className="relative z-10 space-y-6">
               <div>
                 <h2 className="text-4xl font-black uppercase italic leading-none tracking-tighter">
-                  ¡Hola, {userData?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Héroe'}!
+                  ¡Hola, {userData?.displayName?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Aspirante'}!
                 </h2>
                 <div className="flex items-center gap-2 mt-2">
                   <Badge className="bg-white/20 text-white border-none text-[10px] px-3 font-bold uppercase tracking-widest">Nivel {level}</Badge>
-                  <span className="text-primary-foreground/80 font-bold uppercase text-[10px] tracking-[0.3em]">Aspirante Académico</span>
+                  <span className="text-primary-foreground/80 font-bold uppercase text-[10px] tracking-[0.3em]">
+                    {userData?.role === 'admin' ? 'Comandante Académico' : 'Aspirante Académico'}
+                  </span>
                 </div>
               </div>
-              <p className="text-lg opacity-90 font-medium max-w-sm">Tu puntaje actual es de <strong>{points} XP</strong>. Cada pregunta correcta te acerca a tu meta del Saber 11.</p>
+              <p className="text-lg opacity-90 font-medium max-w-sm">Tu entrenamiento real comienza aquí. Tienes <strong>{points} XP</strong> acumulados.</p>
               <div className="flex gap-4">
                 <Button className="game-button bg-white text-primary hover:bg-white/90 shadow-xl px-8 h-12" asChild>
                   <Link href="/practice">Empezar Entrenamiento</Link>
@@ -127,8 +148,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <StatCard icon={<Flame className="w-6 h-6 text-orange-500" />} label="Racha de Días" value="1" color="bg-orange-500/10" />
-          <StatCard icon={<Trophy className="w-6 h-6 text-yellow-500" />} label="Puntos Totales" value={points.toString()} color="bg-yellow-500/10" />
+          <StatCard icon={<Flame className="w-6 h-6 text-orange-500" />} label="Días en Racha" value={attempts?.length ? "1" : "0"} color="bg-orange-500/10" />
+          <StatCard icon={<Trophy className="w-6 h-6 text-yellow-500" />} label="XP Real" value={points.toString()} color="bg-yellow-500/10" />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -149,7 +170,7 @@ export default function DashboardPage() {
                   <div className="space-y-2">
                     <h4 className="font-bold text-lg uppercase tracking-tight">Generar Misión Personalizada</h4>
                     <p className="text-xs text-muted-foreground max-w-sm italic">
-                      Nuestra IA analizará tus últimos 10 intentos para recomendarte en qué áreas enfocarte hoy.
+                      Nuestra IA analizará tus aciertos para recomendarte en qué áreas enfocarte hoy.
                     </p>
                   </div>
                   <Button 
@@ -157,7 +178,7 @@ export default function DashboardPage() {
                     disabled={isGeneratingMission}
                     className="game-button bg-primary text-white h-12 px-10 shadow-lg glow-primary"
                   >
-                    {isGeneratingMission ? "Analizando rendimiento..." : "Analizar y Crear Misión"}
+                    {isGeneratingMission ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analizando...</> : "Analizar y Crear Misión"}
                   </Button>
                 </Card>
               ) : (
@@ -168,7 +189,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex-1 space-y-6">
                       <div>
-                        <Badge className="bg-accent text-white uppercase font-black text-[9px] mb-2">Recomendación de la IA</Badge>
+                        <Badge className="bg-accent text-white uppercase font-black text-[9px] mb-2">Recomendación IA</Badge>
                         <h4 className="text-2xl font-black uppercase italic leading-none">{aiMission.recommendationType === 'mission' ? 'Nueva Misión de Héroe' : 'Ruta Sugerida'}</h4>
                       </div>
                       <div className="space-y-4">
@@ -180,7 +201,7 @@ export default function DashboardPage() {
                         ))}
                       </div>
                       <div className="p-4 bg-primary/5 rounded-2xl border-l-4 border-primary">
-                        <p className="text-xs font-bold text-primary uppercase italic mb-1">Mensaje de tu Tutor IA:</p>
+                        <p className="text-xs font-bold text-primary uppercase italic mb-1">Feedback del Tutor:</p>
                         <p className="text-sm italic text-muted-foreground">"{aiMission.motivationMessage}"</p>
                       </div>
                       <Button className="game-button bg-accent text-white h-12 px-8 shadow-lg" asChild>
@@ -195,11 +216,11 @@ export default function DashboardPage() {
             <section className="space-y-6">
               <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
                 <Target className="text-primary w-6 h-6" />
-                Misiones por Asignatura
+                Entrenamiento por Área
               </h3>
               <div className="grid gap-4">
-                <MissionCard title="Dominio Matemático" subject="Matemáticas" progress={points > 0 ? 40 : 0} reward="+200 PTS" icon={<Zap className="w-5 h-5" />} link="/practice/matematicas" />
-                <MissionCard title="Lectura Crítica" subject="Lectura Crítica" progress={points > 100 ? 20 : 0} reward="+150 PTS" icon={<BookOpen className="w-5 h-5" />} link="/practice/lectura" />
+                <MissionCard title="Dominio Matemático" subject="Matemáticas" progress={points > 500 ? 100 : Math.min(100, (points / 5))} reward="+200 PTS" icon={<Zap className="w-5 h-5" />} link="/practice/matematicas" />
+                <MissionCard title="Lectura Crítica" subject="Lectura Crítica" progress={0} reward="+150 PTS" icon={<BookOpen className="w-5 h-5" />} link="/practice/lectura" />
                 <MissionCard title="Desafío Ciudadano" subject="Socioemocional" progress={0} reward="+100 PTS" icon={<ShieldCheck className="w-5 h-5" />} link="/practice/socioemocional" />
               </div>
             </section>
@@ -208,7 +229,7 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
               <Star className="text-accent w-6 h-6" />
-              Tu Ranking
+              Progreso Real
             </h3>
             <Card className="game-card border-accent/20 shadow-xl bg-card">
               <CardContent className="p-8 space-y-8 text-center">
@@ -223,12 +244,14 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                      <span>Progreso del Nivel</span>
+                      <span>Progreso de Nivel</span>
                       <span className="text-accent">{Math.floor(xpProgress)}%</span>
                     </div>
                     <Progress value={xpProgress} className="h-3 rounded-full bg-muted" />
                   </div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest bg-muted/50 py-2 rounded-xl">Faltan {500 - (points % 500)} Puntos para el Nivel {level + 1}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest bg-muted/50 py-2 rounded-xl">
+                    {points >= 5000 ? "¡Nivel Máximo Alcanzado!" : `Faltan ${500 - (points % 500)} Puntos para el Nivel ${level + 1}`}
+                  </p>
                 </div>
               </CardContent>
             </Card>
