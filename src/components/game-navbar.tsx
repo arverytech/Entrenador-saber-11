@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useBranding } from '@/components/branding-provider';
 import { Button } from '@/components/ui/button';
-import { Trophy, Home, BookOpen, LogOut, User, ShieldAlert, GraduationCap } from 'lucide-react';
+import { Trophy, Home, BookOpen, LogOut, User, ShieldAlert, GraduationCap, LayoutDashboard } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -105,12 +105,20 @@ export function GameNavbar() {
               </DropdownMenuItem>
               
               {userData?.role === 'admin' && (
-                <DropdownMenuItem asChild className="cursor-pointer focus:bg-accent/5 rounded-lg py-2.5 text-accent">
-                  <Link href="/admin/branding" className="flex items-center w-full">
-                    <ShieldAlert className="mr-3 h-4 w-4" />
-                    <span className="font-black uppercase text-[10px] tracking-widest">Panel Comandante</span>
-                  </Link>
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-primary/5 rounded-lg py-2.5">
+                    <Link href="/admin/dashboard" className="flex items-center w-full text-primary">
+                      <LayoutDashboard className="mr-3 h-4 w-4" />
+                      <span className="font-black uppercase text-[10px] tracking-widest">Logros Globales</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-accent/5 rounded-lg py-2.5 text-accent">
+                    <Link href="/admin/branding" className="flex items-center w-full">
+                      <ShieldAlert className="mr-3 h-4 w-4" />
+                      <span className="font-black uppercase text-[10px] tracking-widest">Personalizar Academia</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </>
               )}
               
               <DropdownMenuSeparator />
