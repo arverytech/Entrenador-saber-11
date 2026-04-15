@@ -36,13 +36,14 @@ export default function RegisterPage() {
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 7);
 
-      // AUDITORÍA FORENSE: Aseguramos que el documento se cree antes de redirigir
+      // AUDITORÍA FORENSE: Aseguramos que el documento se cree antes de redirigir (await)
+      // Forzamos 0 XP inicial para evitar el efecto demo
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         email: user.email,
         displayName: name,
         role: 'student',
-        currentPoints: 0, // El usuario REAL siempre empieza en 0
+        currentPoints: 0, 
         isTrial: true,
         trialEndDate: trialEndDate.toISOString(),
         institutionId: 'default',

@@ -14,20 +14,21 @@ import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
 
+// AUDITORÍA TÉCNICA: Banco de preguntas extendido (2021-2025)
 const SUBJECT_DATA: Record<string, any[]> = {
   matematicas: [
     {
-      id: "math_2025_01",
+      id: "math_25_01",
       title: "En una secuencia aritmética, el primer término es 5 y la diferencia común es 3. ¿Cuál es el valor del término número 12?",
       options: ["A) 35", "B) 38", "C) 41", "D) 44"],
       correctIndex: 1,
       component: "Numérico - Variacional",
       competency: "Formulación y Ejecución",
       level: "Medio",
-      explanation: "Fórmula: a_n = a_1 + (n-1)d. Entonces: 5 + (12-1)*3 = 5 + 33 = 38."
+      explanation: "Fórmula: a_n = a_1 + (n-1)d. Entonces: 5 + (11)*3 = 5 + 33 = 38."
     },
     {
-      id: "math_2024_02",
+      id: "math_24_02",
       title: "¿Cuál es el área de un círculo cuyo diámetro es 10 cm? (Use π ≈ 3.14)",
       options: ["A) 31.4 cm²", "B) 78.5 cm²", "C) 157 cm²", "D) 314 cm²"],
       correctIndex: 1,
@@ -35,35 +36,65 @@ const SUBJECT_DATA: Record<string, any[]> = {
       competency: "Interpretación y Representación",
       level: "Básico",
       explanation: "Radio = 5. Área = π * r² = 3.14 * 25 = 78.5."
+    },
+    {
+      id: "math_23_03",
+      title: "Si el 20% de un número es 40, ¿cuál es el 50% de ese mismo número?",
+      options: ["A) 80", "B) 100", "C) 120", "D) 200"],
+      correctIndex: 1,
+      component: "Numérico - Variacional",
+      competency: "Razonamiento",
+      level: "Medio",
+      explanation: "Si 20% es 40, el número total es 200. El 50% de 200 es 100."
     }
   ],
   lectura: [
     {
-      id: "lc_2024_01",
-      title: "Si un autor utiliza la palabra 'paradójicamente' para introducir una idea, su intención es:",
-      options: ["A) Confirmar una obviedad", "B) Señalar una contradicción", "C) Describir un paisaje", "D) Citar a un experto"],
+      id: "lc_24_01",
+      title: "Si un autor utiliza la palabra 'paradójicamente' para introducir una idea, su intención principal es:",
+      options: ["A) Confirmar una obviedad", "B) Señalar una contradicción aparente", "C) Describir un paisaje", "D) Citar a un experto"],
       correctIndex: 1,
-      component: "Pragmático",
+      component: "Semántico",
       competency: "Reflexión sobre el contenido",
       level: "Medio",
-      explanation: "La paradoja implica una contradicción aparente que encierra una verdad."
+      explanation: "La paradoja implica una contradicción que encierra una verdad o situación irónica."
+    },
+    {
+      id: "lc_23_02",
+      title: "En un texto argumentativo, el objetivo de la 'tesis' es:",
+      options: ["A) Resumir la historia", "B) Presentar la opinión principal a defender", "C) Introducir a los personajes", "D) Listar las fuentes bibliográficas"],
+      correctIndex: 1,
+      component: "Pragmático",
+      competency: "Comprender cómo se articulan las partes de un texto",
+      level: "Básico",
+      explanation: "La tesis es la postura o idea central que el autor busca sustentar con argumentos."
     }
   ],
   socioemocional: [
     {
-      id: "se_2024_01",
-      title: "Un compañero de clase está siendo excluido de un grupo de estudio. Tú notas que esto le afecta. La acción más empática sería:",
-      options: ["A) Ignorar la situación para no tener problemas.", "B) Unirte a la exclusión para encajar en el grupo.", "C) Hablar con el grupo e invitar al compañero a integrarse.", "D) Reírte de la situación en secreto."],
+      id: "se_24_01",
+      title: "Un compañero es excluido de un grupo. Tú notas que esto le afecta. La acción más empática sería:",
+      options: ["A) Ignorar la situación.", "B) Unirte a la exclusión.", "C) Invitar al compañero a integrarse.", "D) Reírte de la situación."],
       correctIndex: 2,
       component: "Empatía",
       competency: "Toma de Perspectiva",
       level: "Ciudadano",
-      explanation: "La empatía requiere reconocer el sentimiento ajeno y actuar para mejorar la situación social."
+      explanation: "La empatía requiere reconocer el sentimiento ajeno y actuar de forma constructiva."
+    },
+    {
+      id: "se_23_02",
+      title: "Ante un desacuerdo en un debate escolar, la mejor estrategia de manejo de conflictos es:",
+      options: ["A) Gritar más fuerte", "B) Escuchar activamente y buscar puntos comunes", "C) Retirarse del aula", "D) Atacar personalmente al oponente"],
+      correctIndex: 1,
+      component: "Manejo de Emociones",
+      competency: "Comunicación Asertiva",
+      level: "Medio",
+      explanation: "La resolución pacífica de conflictos se basa en el diálogo y la escucha de la otra parte."
     }
   ],
   naturales: [
     {
-      id: "cn_2024_05",
+      id: "cn_24_05",
       title: "En un ecosistema, ¿cuál es el papel principal de los organismos descomponedores?",
       options: ["A) Producir oxígeno", "B) Reciclar materia orgánica", "C) Consumir herbívoros", "D) Captar energía solar"],
       correctIndex: 1,
@@ -71,6 +102,40 @@ const SUBJECT_DATA: Record<string, any[]> = {
       competency: "Uso comprensivo del conocimiento",
       level: "Básico",
       explanation: "Los descomponedores transforman la materia orgánica muerta en inorgánica para que las plantas la usen."
+    },
+    {
+      id: "cn_23_06",
+      title: "Si aumentamos la temperatura de un gas en un recipiente cerrado, su presión:",
+      options: ["A) Disminuye", "B) Se mantiene igual", "C) Aumenta", "D) Desaparece"],
+      correctIndex: 2,
+      component: "Físico",
+      competency: "Explicación de fenómenos",
+      level: "Medio",
+      explanation: "Según la ley de Gay-Lussac, a volumen constante, la presión es directamente proporcional a la temperatura."
+    }
+  ],
+  sociales: [
+    {
+      id: "ss_24_01",
+      title: "¿Qué rama del poder público en Colombia se encarga de legislar y crear leyes?",
+      options: ["A) Ejecutiva", "B) Judicial", "C) Legislativa", "D) Electoral"],
+      correctIndex: 2,
+      component: "Pensamiento Social",
+      competency: "Conocimientos Ciudadanos",
+      level: "Básico",
+      explanation: "La rama legislativa (Congreso) es la encargada de redactar y aprobar las leyes."
+    }
+  ],
+  ingles: [
+    {
+      id: "in_24_01",
+      title: "Complete: 'If it rains tomorrow, I _______ to the park.'",
+      options: ["A) don't go", "B) won't go", "C) wouldn't go", "D) am not going"],
+      correctIndex: 1,
+      component: "Grammar",
+      competency: "First Conditional",
+      level: "A2-B1",
+      explanation: "El primer condicional usa 'If + present simple, will/won't + verb'."
     }
   ]
 };
@@ -98,7 +163,8 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
   const handleCheck = async () => {
     if (selectedOption === null) return;
     
-    const correct = selectedOption === (currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex);
+    const correctIndex = (currentQuestion.correctIndex !== undefined) ? currentQuestion.correctIndex : currentQuestion.correctAnswerIndex;
+    const correct = selectedOption === correctIndex;
     setIsCorrect(correct);
 
     if (correct) {
@@ -114,6 +180,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
       toast({ title: "Intenta de nuevo", description: "Revisa la justificación técnica abajo.", variant: "destructive" });
     }
 
+    // AUDITORÍA: Guardamos cada intento para que la IA aprenda del usuario
     if (user && firestore) {
       const attemptsRef = collection(firestore, 'users', user.uid, 'quizAttempts');
       addDoc(attemptsRef, {
@@ -136,7 +203,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
       const result = await generateExplanation({
         question: currentQuestion.title || currentQuestion.text,
         userAnswer: currentQuestion.options[selectedOption],
-        correctAnswer: currentQuestion.options[currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex],
+        correctAnswer: currentQuestion.options[(currentQuestion.correctIndex !== undefined) ? currentQuestion.correctIndex : currentQuestion.correctAnswerIndex],
         context: `Asignatura: ${currentSubject}, Componente: ${currentQuestion.component}`
       });
       setAiExplanation(result.explanation);
@@ -228,12 +295,12 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   onClick={() => setSelectedOption(idx)}
                   className={`w-full p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center justify-between group
                     ${selectedOption === idx ? 'border-primary bg-primary/5 shadow-md scale-[1.01]' : 'border-muted hover:border-primary/40 hover:bg-muted/30'}
-                    ${isCorrect && idx === (currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex) ? 'border-secondary bg-secondary/10' : ''}
+                    ${isCorrect && idx === ((currentQuestion.correctIndex !== undefined) ? currentQuestion.correctIndex : currentQuestion.correctAnswerIndex) ? 'border-secondary bg-secondary/10' : ''}
                     ${isCorrect === false && selectedOption === idx ? 'border-destructive bg-destructive/10' : ''}
                   `}
                 >
                   <span className="flex-1 text-lg text-foreground">{opt}</span>
-                  {isCorrect && idx === (currentQuestion.correctIndex ?? currentQuestion.correctAnswerIndex) && <CheckCircle2 className="text-secondary shrink-0 ml-4 w-6 h-6" />}
+                  {isCorrect && idx === ((currentQuestion.correctIndex !== undefined) ? currentQuestion.correctIndex : currentQuestion.correctAnswerIndex) && <CheckCircle2 className="text-secondary shrink-0 ml-4 w-6 h-6" />}
                   {isCorrect === false && selectedOption === idx && <AlertCircle className="text-destructive shrink-0 ml-4 w-6 h-6" />}
                 </button>
               ))}

@@ -60,6 +60,7 @@ export default function DashboardPage() {
     }
   };
 
+  // AUDITORÍA FORENSE: Estado de carga real para evitar "Efecto Demo"
   if (isUserLoading || isDataLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">

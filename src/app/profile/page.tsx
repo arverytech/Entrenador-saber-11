@@ -32,7 +32,7 @@ export default function ProfilePage() {
   const handleActivatePremium = async () => {
     if (!premiumKey) return;
 
-    // LÓGICA FORENSE: Llaves maestras de activación
+    // LÓGICA FORENSE: Llaves maestras de activación para el Administrador
     const isAdminKey = premiumKey === 'ADMIN-MASTER-2025';
     const isPremiumKey = premiumKey === 'ICFES-PRO-2025' || premiumKey === 'ESTUDIANTE-PREMIUM';
 
@@ -54,7 +54,7 @@ export default function ProfilePage() {
 
         if (isAdminKey) {
           updates.role = 'admin';
-          // Registramos en la colección de seguridad de admins
+          // AUDITORÍA: Registramos en la colección física de seguridad de admins
           await setDoc(doc(firestore, 'adminUsers', user.uid), {
             id: user.uid,
             email: user.email,
