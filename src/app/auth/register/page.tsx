@@ -36,12 +36,13 @@ export default function RegisterPage() {
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 7);
 
+      // AUDITORÍA FORENSE: Aseguramos que el documento se cree antes de redirigir
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         email: user.email,
         displayName: name,
         role: 'student',
-        currentPoints: 0,
+        currentPoints: 0, // El usuario REAL siempre empieza en 0
         isTrial: true,
         trialEndDate: trialEndDate.toISOString(),
         institutionId: 'default',
@@ -50,8 +51,8 @@ export default function RegisterPage() {
       });
 
       toast({
-        title: "¡Bienvenido Héroe!",
-        description: "Tu cuenta ha sido creada con 0 puntos. ¡Empieza tu entrenamiento!",
+        title: "¡Avatar Creado!",
+        description: "Tu entrenamiento empieza ahora con 0 XP. ¡Demuestra tu poder!",
       });
 
       router.push('/dashboard');
@@ -81,19 +82,19 @@ export default function RegisterPage() {
           <div>
             <CardTitle className="text-3xl font-black uppercase tracking-tight">Crea tu Avatar</CardTitle>
             <CardDescription className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-              Únete a la legión de estudiantes
+              Tu camino al Saber 11 empieza aquí
             </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleRegister} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name" className="font-bold uppercase text-xs tracking-widest">Nombre Completo</Label>
+              <Label htmlFor="name" className="font-bold uppercase text-xs tracking-widest">Tu Nombre de Héroe</Label>
               <Input 
                 id="name" 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Nicolas Buenaventura" 
+                placeholder="Ej. Nicolas Buenaventura" 
                 className="rounded-xl border-2 h-12" 
                 required
               />
@@ -122,10 +123,12 @@ export default function RegisterPage() {
               />
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-xl border border-muted-foreground/10">
+            <div className="p-3 bg-muted/30 rounded-xl border border-muted-foreground/10">
+              <div className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-                <p className="text-[10px] text-muted-foreground leading-tight">Al registrarte, recibes 7 días de entrenamiento gratuito para dominar el Saber 11.</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  Al registrarte, recibes 7 días de acceso completo para dominar el examen.
+                </p>
               </div>
             </div>
 
@@ -134,7 +137,7 @@ export default function RegisterPage() {
               disabled={isLoading}
               className="w-full game-button bg-secondary h-12 text-lg shadow-lg glow-secondary"
             >
-              {isLoading ? "Creando Avatar..." : "Empezar Entrenamiento"}
+              {isLoading ? "Creando Avatar..." : "Iniciar Misión"}
               <Rocket className="ml-2 w-5 h-5" />
             </Button>
           </form>

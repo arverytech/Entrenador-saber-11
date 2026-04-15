@@ -40,37 +40,17 @@ export default function DashboardPage() {
   }, [user, isUserLoading, router]);
 
   const generateMission = async () => {
-    if (!user || !attempts || attempts.length === 0) {
-      // Si no hay intentos, generamos una misión inicial basada en el objetivo general
-      setIsGeneratingMission(true);
-      try {
-        const mission = await adaptLearningPath({
-          studentPerformanceData: "Nuevo usuario sin historial",
-          userGoal: "Iniciar preparación desde cero",
-          currentContext: "Introducción a la plataforma"
-        });
-        setAiMission(mission);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsGeneratingMission(false);
-      }
-      return;
-    }
-
+    if (!user) return;
     setIsGeneratingMission(true);
     try {
-      const performanceData = JSON.stringify(attempts.map(a => ({
-        subject: a.subject,
-        isCorrect: a.isCorrect,
-        component: a.component,
-        competency: a.competency
-      })));
+      const performanceData = attempts && attempts.length > 0 
+        ? JSON.stringify(attempts.map(a => ({ subject: a.subject, isCorrect: a.isCorrect })))
+        : "Usuario sin historial previo";
       
       const mission = await adaptLearningPath({
         studentPerformanceData: performanceData,
-        userGoal: "Obtener más de 400 puntos en el Saber 11",
-        currentContext: "Preparación integral"
+        userGoal: "Dominar todas las áreas del Saber 11",
+        currentContext: "Inicio de entrenamiento"
       });
       setAiMission(mission);
     } catch (e) {
@@ -91,7 +71,7 @@ export default function DashboardPage() {
     );
   }
 
-  // Lógica de progreso REAL (Cero si no hay datos)
+  // Lógica de progreso REAL (Estudiante empieza en 0)
   const points = userData?.currentPoints ?? 0;
   const level = Math.floor(points / 500) + 1;
   const xpProgress = (points % 500) / 5;
@@ -135,21 +115,21 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-2 mt-2">
                   <Badge className="bg-white/20 text-white border-none text-[10px] px-3 font-bold uppercase tracking-widest">Nivel {level}</Badge>
                   <span className="text-primary-foreground/80 font-bold uppercase text-[10px] tracking-[0.3em]">
-                    {userData?.role === 'admin' ? 'Comandante Académico' : 'Aspirante Académico'}
+                    {userData?.role === 'admin' ? 'Comandante Académico' : 'Héroe en Entrenamiento'}
                   </span>
                 </div>
               </div>
               <p className="text-lg opacity-90 font-medium max-w-sm">Tu entrenamiento real comienza aquí. Tienes <strong>{points} XP</strong> acumulados.</p>
               <div className="flex gap-4">
                 <Button className="game-button bg-white text-primary hover:bg-white/90 shadow-xl px-8 h-12" asChild>
-                  <Link href="/practice">Empezar Entrenamiento</Link>
+                  <Link href="/practice">Empezar Misión</Link>
                 </Button>
               </div>
             </div>
           </div>
 
           <StatCard icon={<Flame className="w-6 h-6 text-orange-500" />} label="Días en Racha" value={attempts?.length ? "1" : "0"} color="bg-orange-500/10" />
-          <StatCard icon={<Trophy className="w-6 h-6 text-yellow-500" />} label="XP Real" value={points.toString()} color="bg-yellow-500/10" />
+          <StatCard icon={<Trophy className="w-6 h-6 text-yellow-500" />} label="XP Total" value={points.toString()} color="bg-yellow-500/10" />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -190,7 +170,7 @@ export default function DashboardPage() {
                     <div className="flex-1 space-y-6">
                       <div>
                         <Badge className="bg-accent text-white uppercase font-black text-[9px] mb-2">Recomendación IA</Badge>
-                        <h4 className="text-2xl font-black uppercase italic leading-none">{aiMission.recommendationType === 'mission' ? 'Nueva Misión de Héroe' : 'Ruta Sugerida'}</h4>
+                        <h4 className="text-2xl font-black uppercase italic leading-none">Tu Ruta de Heroe</h4>
                       </div>
                       <div className="space-y-4">
                         {aiMission.recommendations.map((rec, i) => (
@@ -219,9 +199,9 @@ export default function DashboardPage() {
                 Entrenamiento por Área
               </h3>
               <div className="grid gap-4">
-                <MissionCard title="Dominio Matemático" subject="Matemáticas" progress={points > 500 ? 100 : Math.min(100, (points / 5))} reward="+200 PTS" icon={<Zap className="w-5 h-5" />} link="/practice/matematicas" />
-                <MissionCard title="Lectura Crítica" subject="Lectura Crítica" progress={0} reward="+150 PTS" icon={<BookOpen className="w-5 h-5" />} link="/practice/lectura" />
-                <MissionCard title="Desafío Ciudadano" subject="Socioemocional" progress={0} reward="+100 PTS" icon={<ShieldCheck className="w-5 h-5" />} link="/practice/socioemocional" />
+                <MissionCard title="Dominio Matemático" subject="Matemáticas" progress={Math.min(100, (points / 10))} reward="+50 XP" icon={<Zap className="w-5 h-5" />} link="/practice/matematicas" />
+                <MissionCard title="Lectura Crítica" subject="Lectura Crítica" progress={0} reward="+50 XP" icon={<BookOpen className="w-5 h-5" />} link="/practice/lectura" />
+                <MissionCard title="Desafío Ciudadano" subject="Socioemocional" progress={0} reward="+50 XP" icon={<ShieldCheck className="w-5 h-5" />} link="/practice/socioemocional" />
               </div>
             </section>
           </div>
@@ -244,13 +224,13 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                      <span>Progreso de Nivel</span>
+                      <span>XP para Nivel {level + 1}</span>
                       <span className="text-accent">{Math.floor(xpProgress)}%</span>
                     </div>
                     <Progress value={xpProgress} className="h-3 rounded-full bg-muted" />
                   </div>
                   <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest bg-muted/50 py-2 rounded-xl">
-                    {points >= 5000 ? "¡Nivel Máximo Alcanzado!" : `Faltan ${500 - (points % 500)} Puntos para el Nivel ${level + 1}`}
+                    Faltan {500 - (points % 500)} XP para subir
                   </p>
                 </div>
               </CardContent>
