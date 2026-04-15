@@ -1,30 +1,19 @@
+# 🏆 Manual del Héroe: Configuración de Vercel
 
-# 🏆 Manual del Héroe: ¡Tu App en Internet Gratis!
+¡Hola, Campeón! Para que tu app funcione en Vercel, debes configurar estas variables de entorno exactamente como están aquí:
 
-¡Hola, Campeón! Ya estás en el nivel final. Como vamos a usar **Vercel**, aquí tienes los pasos para que no te pierdas.
+## 🔑 Paso 2: Environment Variables en Vercel
+Copia y pega cada una en la sección **Settings > Environment Variables** de tu proyecto en Vercel:
 
-## 🏰 Paso 1: Tu Castillo en Vercel
-1. Entra a [vercel.com](https://vercel.com) e inicia sesión con GitHub.
-2. Dale a **"Add New"** -> **"Project"**.
-3. Importa tu proyecto `entrenador-saber11`.
-
-## 🔑 Paso 2: Los Ingredientes Secretos (Environment Variables)
-Cuando Vercel te pregunte por las "Environment Variables", verás dos cuadritos. Así debes llenarlos:
-
-| Cuadrito: **Key** (Llave) | Cuadrito: **Value** (Valor) |
+| Key | Value |
 | :--- | :--- |
-| `GOOGLE_GENAI_API_KEY` | *Pega aquí tu clave de Google (la que empieza por AIza...)* |
-
-*¿No tienes tu clave?* Entra aquí: [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) y crea una **"API Key"**. Es gratis.
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | `AIzaSyD0yPaFohPwXxMa_MwL2YJypQdsUREZg-0` |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `studio-6219214237-b11ad.firebaseapp.com` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `studio-6219214237-b11ad` |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:855957968625:web:356a482c68aa977c1efb50` |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `855957968625` |
+| `GOOGLE_GENAI_API_KEY` | *Tu clave de Gemini (AI Studio)* |
 
 ## 🚀 Paso 3: ¡Despegue!
-1. Después de poner la clave, dale al botón **"Deploy"**.
-2. Espera a que los cohetes terminen de subir (verás confeti en la pantalla).
-3. ¡LISTO! Vercel te dará un enlace azul. **¡Esa es tu dirección para compartir!**
-
----
-### 💡 Preguntas de Superhéroe:
-- **¿Qué es import.env o process.env?** Es solo una forma de decir "usa el secreto". No tienes que escribirlo en Vercel, ¡Vercel ya sabe qué hacer!
-- **¿Y Firebase?** Firebase seguirá guardando los puntos y el progreso de tus amigos totalmente gratis. Solo usamos Vercel para que la página sea visible para todos.
-
-¡Mucha suerte en tu lanzamiento! Tu app está a un clic de ser real para todo el mundo. 🌟
+1. Después de poner las claves, dale al botón **"Redeploy"** en Vercel.
+2. ¡LISTO! Tu app ahora estará conectada a Firebase en tiempo real.
