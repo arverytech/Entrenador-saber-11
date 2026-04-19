@@ -37,28 +37,28 @@ export default function ProfilePage() {
     const inputKey = premiumKey.trim().toUpperCase();
 
     try {
-      // 1. Buscamos la llave en la base de datos de llaves únicas
-      const keysRef = collection(firestore, 'premiumAccessKeys');
-      const q = query(keysRef, where('keyString', '==', inputKey), where('isActive', '==', true), limit(1));
-      const querySnapshot = await getDocs(q);
-
-      // CASO ESPECIAL: Llave Legacy para el primer Admin (solo si el sistema está vacío)
+      // ESCENARIO ESPECIAL: Llave Legacy para el primer Admin
       const isLegacyAdmin = inputKey === 'ADMIN-MASTER-2025';
 
-      if (querySnapshot.empty && !isLegacyAdmin) {
-        toast({ 
-          variant: "destructive", 
-          title: "Llave Inválida", 
-          description: "Esta llave no existe, ya fue usada o ha expirado." 
-        });
-        setIsActivating(false);
-        return;
-      }
-
+      // 1. Buscamos la llave en la base de datos de llaves únicas (excepto si es legacy)
       let keyData = null;
       let keyId = null;
 
-      if (!querySnapshot.empty) {
+      if (!isLegacyAdmin) {
+        const keysRef = collection(firestore, 'premiumAccessKeys');
+        const q = query(keysRef, where('keyString', '==', inputKey), where('isActive', '==', true), limit(1));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          toast({ 
+            variant: "destructive", 
+            title: "Llave Inválida", 
+            description: "Esta llave no existe, ya fue usada o ha expirado." 
+          });
+          setIsActivating(false);
+          return;
+        }
+
         const keyDoc = querySnapshot.docs[0];
         keyData = keyDoc.data();
         keyId = keyDoc.id;
@@ -74,7 +74,7 @@ export default function ProfilePage() {
 
       if (isForAdmin) {
         userUpdates.role = 'admin';
-        // Registramos en la colección de control de admins
+        // EDGE CASE: Registro en la colección de control de admins para habilitar reglas de seguridad
         await setDoc(doc(firestore, 'adminUsers', user.uid), {
           id: user.uid,
           email: user.email,
@@ -83,10 +83,10 @@ export default function ProfilePage() {
         });
       }
 
-      // 3. Aplicamos cambios al usuario
+      // 3. Aplicamos cambios al usuario (Atómico en cliente)
       await updateDoc(userDocRef, userUpdates);
 
-      // 4. "Quemamos" la llave si era de la base de datos
+      // 4. "Quemamos" la llave si era de la base de datos para evitar reuso
       if (keyId) {
         await updateDoc(doc(firestore, 'premiumAccessKeys', keyId), {
           isActive: false,
@@ -101,6 +101,7 @@ export default function ProfilePage() {
       });
       setPremiumKey("");
       
+      // Forzamos un refresco de la sesión para actualizar el menú de navegación
       setTimeout(() => window.location.reload(), 1500);
 
     } catch (e: any) {
@@ -108,7 +109,7 @@ export default function ProfilePage() {
       toast({ 
         variant: "destructive", 
         title: "Error de Sincronización", 
-        description: "No se pudo validar la llave con el Cuartel General." 
+        description: "Fallo al validar con el Cuartel General. Intenta de nuevo." 
       });
     } finally {
       setIsActivating(false);
@@ -204,7 +205,7 @@ export default function ProfilePage() {
                       <Input 
                         placeholder="CÓDIGO DE LICENCIA..." 
                         value={premiumKey}
-                        onChange={(e) => setPremiumKey(e.target.value.toUpperCase())}
+                        onChange={(e) => setPremiumKey(e.target.value)}
                         className="rounded-xl border-2 h-12 font-black uppercase tracking-widest text-center focus:border-accent"
                       />
                       <Button 

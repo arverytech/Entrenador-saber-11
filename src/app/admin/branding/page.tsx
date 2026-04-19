@@ -11,7 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Save, Database, Loader2, BookOpen, ShieldCheck, Ticket, Plus, Trash2 } from 'lucide-react';
 import { useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from '@/components/ui/badge';
 
 export default function AdminBrandingPage() {
   const { institutionName, institutionLogo, updateBranding } = useBranding();
@@ -19,7 +21,7 @@ export default function AdminBrandingPage() {
   const [logo, setLogo] = useState(institutionLogo);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
-  const { firestore, user } = useUser();
+  const { firestore } = useUser();
   const { toast } = useToast();
 
   const keysQuery = useMemoFirebase(() => {
@@ -62,8 +64,12 @@ export default function AdminBrandingPage() {
 
   const deleteKey = async (id: string) => {
     if (!firestore) return;
-    await deleteDoc(doc(firestore, 'premiumAccessKeys', id));
-    toast({ title: "Llave Eliminada", description: "El código ha sido revocado." });
+    try {
+      await deleteDoc(doc(firestore, 'premiumAccessKeys', id));
+      toast({ title: "Llave Eliminada", description: "El código ha sido revocado." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Acceso Denegado", description: "No tienes permisos para eliminar llaves." });
+    }
   };
 
   const seedQuestions = async () => {
@@ -73,28 +79,28 @@ export default function AdminBrandingPage() {
       const sampleQuestions = [
         {
           id: `q_mat_${Date.now()}`,
-          text: "En un mapa de escala 1:100.000, la distancia entre dos ciudades es de 5 cm. ¿Cuál es la distancia real en kilómetros?",
-          options: ["5 km", "50 km", "0.5 km", "500 km"],
+          text: "¿Cuál es el valor de x en la ecuación 2x + 5 = 15?",
+          options: ["x = 5", "x = 10", "x = 20", "x = 7.5"],
           correctAnswerIndex: 0,
-          explanation: "5 cm * 100.000 = 500.000 cm = 5.000 m = 5 km.",
+          explanation: "2x = 15 - 5 => 2x = 10 => x = 5.",
           subjectId: "matematicas",
-          componentId: "Geométrico-Métrico",
+          componentId: "Numérico-Variacional",
           competencyId: "Formulación y ejecución",
-          level: "Medio",
+          level: "Básico",
           pointsAwarded: 50,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         },
         {
           id: `q_lect_${Date.now()}`,
-          text: "Cuando un autor utiliza la ironía en un texto, su intención principal suele ser:",
-          options: ["Confundir al lector", "Criticar de manera indirecta", "Definir conceptos técnicos", "Narrar hechos históricos"],
+          text: "En un texto argumentativo, la tesis principal es:",
+          options: ["Un resumen del libro", "La opinión que el autor busca defender", "Un listado de personajes", "La bibliografía utilizada"],
           correctAnswerIndex: 1,
-          explanation: "La ironía es una figura retórica de crítica indirecta.",
+          explanation: "La tesis es la idea central u opinión que se sustenta con argumentos.",
           subjectId: "lectura",
           componentId: "Semántico",
-          competencyId: "Reflexión",
-          level: "Medio",
+          competencyId: "Interpretativa",
+          level: "Básico",
           pointsAwarded: 50,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -171,7 +177,7 @@ export default function AdminBrandingPage() {
                   </Button>
                </div>
              </CardHeader>
-             <CardContent className="space-y-4 max-h-[300px] overflow-y-auto">
+             <CardContent className="space-y-4 max-h-[400px] overflow-y-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -202,6 +208,13 @@ export default function AdminBrandingPage() {
                         </TableCell>
                       </TableRow>
                     ))}
+                    {(!existingKeys || existingKeys.length === 0) && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground text-xs italic">
+                          No hay llaves generadas. Crea una para empezar.
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
              </CardContent>

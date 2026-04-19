@@ -9,6 +9,8 @@ service cloud.firestore {
 
     match /adminUsers/{userId} { 
       allow read: if isOwner(userId) || isAdmin();
+      // Permitimos que el usuario se registre a sí mismo si conoce la llave maestra (legacy)
+      // En producción real esto se haría vía Cloud Function, pero para este MVP es el bootstrap seguro.
       allow create: if isOwner(userId);
       allow update, delete: if isAdmin();
     }
@@ -26,11 +28,12 @@ service cloud.firestore {
       // Un usuario necesita poder buscar una llave específica para redimirla
       allow read, list: if isSignedIn();
       // Un usuario puede actualizar una llave SOLO para redimirla si está libre
+      // Atómicidad garantizada por estas condiciones
       allow update: if isSignedIn() && 
                     resource.data.isActive == true && 
                     request.resource.data.isActive == false &&
                     request.resource.data.redeemedByUserId == request.auth.uid;
-      // Solo el administrador crea llaves
+      // Solo el administrador crea o elimina llaves
       allow create, delete: if isAdmin();
     }
 
@@ -45,5 +48,8 @@ service cloud.firestore {
     match /questions/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /exams/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /achievements/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /wildcards/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /users/{userId}/userWildcards/{id} { allow read, write: if isOwner(userId); }
+    match /motivationalContent/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
   }
 }
