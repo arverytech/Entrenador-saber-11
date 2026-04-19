@@ -36,14 +36,13 @@ export default function RegisterPage() {
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 7);
 
-      // AUDITORÍA FORENSE: Aseguramos que el documento se cree antes de redirigir (await)
-      // Forzamos 0 XP inicial para evitar el efecto demo
+      // AUDITORÍA: Forzamos estado inicial de estudiante y 0 XP
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         email: user.email,
         displayName: name,
         role: 'student',
-        currentPoints: 0, 
+        currentPoints: 0,
         isTrial: true,
         trialEndDate: trialEndDate.toISOString(),
         institutionId: 'default',
@@ -75,7 +74,7 @@ export default function RegisterPage() {
         <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent rounded-full blur-[100px]" />
       </div>
 
-      <Card className="w-full max-w-md game-card border-primary/20 shadow-2xl z-10">
+      <Card className="w-full max-w-md game-card border-primary/20 shadow-2xl z-10 bg-card">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto bg-secondary p-3 rounded-2xl w-fit glow-secondary">
             <UserPlus className="w-8 h-8 text-white" />
@@ -101,19 +100,19 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="font-bold uppercase text-xs tracking-widest">Correo Institucional</Label>
+              <Label htmlFor="email" className="font-bold uppercase text-xs tracking-widest">Correo Personal</Label>
               <Input 
                 id="email" 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="estudiante@colegio.edu.co" 
+                placeholder="tu@correo.com" 
                 className="rounded-xl border-2 h-12" 
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="font-bold uppercase text-xs tracking-widest">Crea una Contraseña</Label>
+              <Label htmlFor="password" className="font-bold uppercase text-xs tracking-widest">Contraseña</Label>
               <Input 
                 id="password" 
                 type="password" 
@@ -128,7 +127,7 @@ export default function RegisterPage() {
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                 <p className="text-[10px] text-muted-foreground leading-tight">
-                  Al registrarte, recibes 7 días de acceso completo para dominar el examen.
+                  Recibes 7 días de acceso de prueba. Para acceso total, valida tu código en el perfil.
                 </p>
               </div>
             </div>

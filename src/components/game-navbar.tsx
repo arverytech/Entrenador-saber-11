@@ -3,10 +3,10 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useBranding } from '@/components/branding-provider';
 import { Button } from '@/components/ui/button';
-import { Trophy, Home, BookOpen, LogOut, User, ShieldAlert, GraduationCap, LayoutDashboard } from 'lucide-react';
+import { Trophy, Home, BookOpen, LogOut, User, ShieldAlert, GraduationCap, LayoutDashboard, Settings } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +24,7 @@ export function GameNavbar() {
   const { institutionName, institutionLogo } = useBranding();
   const { user, firestore, auth } = useUser();
   const router = useRouter();
+  const pathname = usePathname();
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -36,6 +37,8 @@ export function GameNavbar() {
     await signOut(auth);
     router.push('/auth/login');
   };
+
+  const isAdmin = userData?.role === 'admin';
 
   return (
     <nav className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-md border-b-2 border-primary/20 px-4 py-2">
@@ -57,13 +60,16 @@ export function GameNavbar() {
             <h1 className="font-headline font-bold text-lg leading-tight text-primary uppercase tracking-tighter">
               {institutionName}
             </h1>
-            <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">Saber 11 Intelligence</p>
+            <p className="text-[10px] font-bold text-secondary uppercase tracking-widest italic">Saber 11 Intelligence</p>
           </div>
         </Link>
 
         <div className="hidden md:flex items-center gap-2">
-          <NavLink href="/dashboard" icon={<Home className="w-4 h-4" />} label="Inicio" />
-          <NavLink href="/practice" icon={<BookOpen className="w-4 h-4" />} label="Entrenar" />
+          <NavLink href="/dashboard" active={pathname === '/dashboard'} icon={<Home className="w-4 h-4" />} label="Inicio" />
+          <NavLink href="/practice" active={pathname?.startsWith('/practice')} icon={<BookOpen className="w-4 h-4" />} label="Entrenar" />
+          {isAdmin && (
+             <NavLink href="/admin/branding" active={pathname === '/admin/branding'} icon={<Settings className="w-4 h-4 text-accent" />} label="Personalizar" />
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -76,10 +82,10 @@ export function GameNavbar() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-primary p-0 overflow-hidden ring-offset-background transition-all hover:scale-110">
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full border-2 border-primary p-0 overflow-hidden ring-offset-background transition-all hover:scale-110 shadow-lg">
                 <Avatar className="h-full w-full">
                   <AvatarImage src={user?.photoURL || ""} />
-                  <AvatarFallback className="bg-primary text-white font-bold uppercase">
+                  <AvatarFallback className="bg-primary text-white font-black uppercase">
                     {(userData?.displayName || user?.displayName || user?.email || "?")[0]}
                   </AvatarFallback>
                 </Avatar>
@@ -89,7 +95,7 @@ export function GameNavbar() {
               <DropdownMenuLabel className="font-normal mb-2">
                 <div className="flex flex-col space-y-1 p-3 bg-primary/5 rounded-xl border border-primary/10">
                   <p className="text-sm font-black leading-none uppercase tracking-tight text-primary truncate">
-                    {userData?.displayName || user?.displayName || 'Aspirante'}
+                    {userData?.displayName || user?.displayName || 'Héroe'}
                   </p>
                   <p className="text-[9px] font-bold leading-none text-muted-foreground uppercase tracking-widest truncate">
                     {user?.email}
@@ -100,22 +106,23 @@ export function GameNavbar() {
               <DropdownMenuItem asChild className="cursor-pointer focus:bg-primary/5 rounded-lg py-2.5">
                 <Link href="/profile" className="flex items-center w-full">
                   <User className="mr-3 h-4 w-4 text-primary" />
-                  <span className="font-black uppercase text-[10px] tracking-widest">Mi Perfil</span>
+                  <span className="font-black uppercase text-[10px] tracking-widest">Mi Perfil / Códigos</span>
                 </Link>
               </DropdownMenuItem>
               
-              {userData?.role === 'admin' && (
+              {isAdmin && (
                 <>
-                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-primary/5 rounded-lg py-2.5">
-                    <Link href="/admin/dashboard" className="flex items-center w-full text-primary">
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild className="cursor-pointer focus:bg-primary/5 rounded-lg py-2.5 text-primary">
+                    <Link href="/admin/dashboard" className="flex items-center w-full">
                       <LayoutDashboard className="mr-3 h-4 w-4" />
-                      <span className="font-black uppercase text-[10px] tracking-widest">Logros Globales</span>
+                      <span className="font-black uppercase text-[10px] tracking-widest">Panel Comandante</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer focus:bg-accent/5 rounded-lg py-2.5 text-accent">
                     <Link href="/admin/branding" className="flex items-center w-full">
                       <ShieldAlert className="mr-3 h-4 w-4" />
-                      <span className="font-black uppercase text-[10px] tracking-widest">Personalizar Academia</span>
+                      <span className="font-black uppercase text-[10px] tracking-widest">Cargar Preguntas</span>
                     </Link>
                   </DropdownMenuItem>
                 </>
@@ -124,7 +131,7 @@ export function GameNavbar() {
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:bg-destructive/5 rounded-lg py-2.5">
                 <LogOut className="mr-3 h-4 w-4" />
-                <span className="font-black uppercase text-[10px] tracking-widest">Cerrar Sesión</span>
+                <span className="font-black uppercase text-[10px] tracking-widest">Finalizar Misión</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -134,11 +141,12 @@ export function GameNavbar() {
   );
 }
 
-function NavLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+function NavLink({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
   return (
     <Link 
       href={href} 
-      className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all uppercase tracking-wider"
+      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all uppercase tracking-wider
+        ${active ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-primary hover:bg-primary/5'}`}
     >
       {icon}
       <span>{label}</span>
