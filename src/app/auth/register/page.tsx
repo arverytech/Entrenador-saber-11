@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Rocket, CheckCircle2, UserPlus, Mail } from 'lucide-react';
+import { Rocket, UserPlus, Mail, Loader2 } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -25,22 +25,21 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
 
     try {
+      // PASO 1: Crear usuario en Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Actualizamos perfil
+      // PASO 2: Actualizar perfil básico
       await updateProfile(user, { displayName: name });
-      
-      // Enviamos verificación de email (PUNTO A)
-      await sendEmailVerification(user);
 
+      // PASO 3: Crear documento en Firestore (Esencial para las reglas de seguridad)
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 7);
 
-      // Creamos registro en Firestore
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         email: user.email,
@@ -54,13 +53,21 @@ export default function RegisterPage() {
         updatedAt: serverTimestamp()
       });
 
+      // PASO 4: Intentar enviar verificación (Si falla, el usuario ya existe y puede reintentar luego)
+      try {
+        await sendEmailVerification(user);
+      } catch (emailError) {
+        console.warn("Error al enviar verificación:", emailError);
+      }
+
       toast({
         title: "¡Avatar Creado!",
-        description: "Revisa tu correo para verificar tu cuenta. Tu entrenamiento empieza ahora.",
+        description: "Cuenta registrada con éxito. Revisa tu correo para verificar tu acceso.",
       });
 
       router.push('/dashboard');
     } catch (error: any) {
+      console.error("Error en registro:", error);
       toast({
         variant: "destructive",
         title: "Error al registrar",
@@ -141,8 +148,8 @@ export default function RegisterPage() {
               disabled={isLoading}
               className="w-full game-button bg-secondary h-12 text-lg shadow-lg glow-secondary"
             >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Rocket className="mr-2 w-5 h-5" />}
               {isLoading ? "Creando Avatar..." : "Iniciar Misión"}
-              <Rocket className="ml-2 w-5 h-5" />
             </Button>
           </form>
 

@@ -1,3 +1,4 @@
+
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyD0yPaFohPwXxMa_MwL2YJypQdsUREZg-0",
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "studio-6219214237-b11ad.firebaseapp.com",

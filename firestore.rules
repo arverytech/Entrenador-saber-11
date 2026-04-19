@@ -14,7 +14,8 @@ service cloud.firestore {
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
 
     // Permitimos que un usuario cree su propio registro de admin si es el dueño.
-    // La validación real del código secreto se hace en la lógica del cliente para este MVP.
+    // En producción esto debería ser validado por una Cloud Function, pero para este MVP
+    // usamos la validación del código secreto en el cliente.
     match /adminUsers/{userId} { 
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId);
@@ -26,6 +27,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
+      // Permitimos la creación si el usuario está autenticado y es él mismo.
       allow create: if isOwner(userId);
       allow update: if (isOwner(userId) || isAdmin());
     }
