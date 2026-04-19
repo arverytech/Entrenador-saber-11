@@ -1,20 +1,19 @@
-
 "use client";
 
 import { useState, useMemo } from 'react';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Sparkles, Timer, Zap, AlertCircle, CheckCircle2, Shield, BrainCircuit, ArrowRight, Loader2, Wand2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sparkles, Timer, Zap, AlertCircle, CheckCircle2, Shield, BrainCircuit, ArrowRight, Loader2, Wand2, Info, GraduationCap, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/firebase';
 import { doc, increment, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow';
+import { generateExplanation, type DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
 
-// AUDITORÍA TÉCNICA: Banco de preguntas extendido (2021-2025)
 const SUBJECT_DATA: Record<string, any[]> = {
   matematicas: [
     {
@@ -36,16 +35,6 @@ const SUBJECT_DATA: Record<string, any[]> = {
       competency: "Interpretación y Representación",
       level: "Básico",
       explanation: "Radio = 5. Área = π * r² = 3.14 * 25 = 78.5."
-    },
-    {
-      id: "math_23_03",
-      title: "Si el 20% de un número es 40, ¿cuál es el 50% de ese mismo número?",
-      options: ["A) 80", "B) 100", "C) 120", "D) 200"],
-      correctIndex: 1,
-      component: "Numérico - Variacional",
-      competency: "Razonamiento",
-      level: "Medio",
-      explanation: "Si 20% es 40, el número total es 200. El 50% de 200 es 100."
     }
   ],
   lectura: [
@@ -58,16 +47,6 @@ const SUBJECT_DATA: Record<string, any[]> = {
       competency: "Reflexión sobre el contenido",
       level: "Medio",
       explanation: "La paradoja implica una contradicción que encierra una verdad o situación irónica."
-    },
-    {
-      id: "lc_23_02",
-      title: "En un texto argumentativo, el objetivo de la 'tesis' es:",
-      options: ["A) Resumir la historia", "B) Presentar la opinión principal a defender", "C) Introducir a los personajes", "D) Listar las fuentes bibliográficas"],
-      correctIndex: 1,
-      component: "Pragmático",
-      competency: "Comprender cómo se articulan las partes de un texto",
-      level: "Básico",
-      explanation: "La tesis es la postura o idea central que el autor busca sustentar con argumentos."
     }
   ],
   socioemocional: [
@@ -80,62 +59,6 @@ const SUBJECT_DATA: Record<string, any[]> = {
       competency: "Toma de Perspectiva",
       level: "Ciudadano",
       explanation: "La empatía requiere reconocer el sentimiento ajeno y actuar de forma constructiva."
-    },
-    {
-      id: "se_23_02",
-      title: "Ante un desacuerdo en un debate escolar, la mejor estrategia de manejo de conflictos es:",
-      options: ["A) Gritar más fuerte", "B) Escuchar activamente y buscar puntos comunes", "C) Retirarse del aula", "D) Atacar personalmente al oponente"],
-      correctIndex: 1,
-      component: "Manejo de Emociones",
-      competency: "Comunicación Asertiva",
-      level: "Medio",
-      explanation: "La resolución pacífica de conflictos se basa en el diálogo y la escucha de la otra parte."
-    }
-  ],
-  naturales: [
-    {
-      id: "cn_24_05",
-      title: "En un ecosistema, ¿cuál es el papel principal de los organismos descomponedores?",
-      options: ["A) Producir oxígeno", "B) Reciclar materia orgánica", "C) Consumir herbívoros", "D) Captar energía solar"],
-      correctIndex: 1,
-      component: "Biológico",
-      competency: "Uso comprensivo del conocimiento",
-      level: "Básico",
-      explanation: "Los descomponedores transforman la materia orgánica muerta en inorgánica para que las plantas la usen."
-    },
-    {
-      id: "cn_23_06",
-      title: "Si aumentamos la temperatura de un gas en un recipiente cerrado, su presión:",
-      options: ["A) Disminuye", "B) Se mantiene igual", "C) Aumenta", "D) Desaparece"],
-      correctIndex: 2,
-      component: "Físico",
-      competency: "Explicación de fenómenos",
-      level: "Medio",
-      explanation: "Según la ley de Gay-Lussac, a volumen constante, la presión es directamente proporcional a la temperatura."
-    }
-  ],
-  sociales: [
-    {
-      id: "ss_24_01",
-      title: "¿Qué rama del poder público en Colombia se encarga de legislar y crear leyes?",
-      options: ["A) Ejecutiva", "B) Judicial", "C) Legislativa", "D) Electoral"],
-      correctIndex: 2,
-      component: "Pensamiento Social",
-      competency: "Conocimientos Ciudadanos",
-      level: "Básico",
-      explanation: "La rama legislativa (Congreso) es la encargada de redactar y aprobar las leyes."
-    }
-  ],
-  ingles: [
-    {
-      id: "in_24_01",
-      title: "Complete: 'If it rains tomorrow, I _______ to the park.'",
-      options: ["A) don't go", "B) won't go", "C) wouldn't go", "D) am not going"],
-      correctIndex: 1,
-      component: "Grammar",
-      competency: "First Conditional",
-      level: "A2-B1",
-      explanation: "El primer condicional usa 'If + present simple, will/won't + verb'."
     }
   ]
 };
@@ -146,7 +69,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [aiExplanation, setAiExplanation] = useState("");
+  const [aiAnalysis, setAiAnalysis] = useState<DynamicAnswerExplanationOutput | null>(null);
   const [generatedQuestion, setGeneratedQuestion] = useState<GenerateQuestionOutput | null>(null);
   
   const { user, firestore } = useUser();
@@ -163,24 +86,20 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
   const handleCheck = async () => {
     if (selectedOption === null) return;
     
-    const correctIndex = (currentQuestion.correctIndex !== undefined) ? currentQuestion.correctIndex : currentQuestion.correctAnswerIndex;
-    const correct = selectedOption === correctIndex;
+    const correctIdx = (currentQuestion.correctIndex !== undefined) ? currentQuestion.correctIndex : currentQuestion.correctAnswerIndex;
+    const correct = selectedOption === correctIdx;
     setIsCorrect(correct);
 
     if (correct) {
       toast({ title: "¡Excelente!", description: "+50 XP ganados para tu cuenta real." });
       if (user && firestore) {
         const userRef = doc(firestore, 'users', user.uid);
-        updateDocumentNonBlocking(userRef, { 
-          currentPoints: increment(50),
-          updatedAt: serverTimestamp()
-        });
+        updateDocumentNonBlocking(userRef, { currentPoints: increment(50), updatedAt: serverTimestamp() });
       }
     } else {
-      toast({ title: "Intenta de nuevo", description: "Revisa la justificación técnica abajo.", variant: "destructive" });
+      toast({ title: "Intenta de nuevo", description: "Analiza la explicación visual.", variant: "destructive" });
     }
 
-    // AUDITORÍA: Guardamos cada intento para que la IA aprenda del usuario
     if (user && firestore) {
       const attemptsRef = collection(firestore, 'users', user.uid, 'quizAttempts');
       addDoc(attemptsRef, {
@@ -196,7 +115,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     }
   };
 
-  const handleAiExplanation = async () => {
+  const handleAiAnalysis = async () => {
     if (selectedOption === null) return;
     setIsExplaining(true);
     try {
@@ -204,45 +123,24 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         question: currentQuestion.title || currentQuestion.text,
         userAnswer: currentQuestion.options[selectedOption],
         correctAnswer: currentQuestion.options[(currentQuestion.correctIndex !== undefined) ? currentQuestion.correctIndex : currentQuestion.correctAnswerIndex],
-        context: `Asignatura: ${currentSubject}, Componente: ${currentQuestion.component}`
+        options: currentQuestion.options,
+        subject: currentSubject,
+        component: currentQuestion.metadata?.component || currentQuestion.component,
+        competency: currentQuestion.metadata?.competency || currentQuestion.competency,
       });
-      setAiExplanation(result.explanation);
+      setAiAnalysis(result);
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "IA Ocupada", description: "No pudimos conectar con el tutor en este momento." });
+      toast({ variant: "destructive", title: "IA Ocupada", description: "No pudimos conectar con el tutor." });
     } finally {
       setIsExplaining(false);
-    }
-  };
-
-  const handleGenerateAiQuestion = async () => {
-    setIsGenerating(true);
-    setGeneratedQuestion(null);
-    setIsCorrect(null);
-    setSelectedOption(null);
-    setAiExplanation("");
-
-    try {
-      const question = await generateIcfesQuestion({
-        subject: currentSubject,
-        component: currentQuestion.component || "General",
-        competency: currentQuestion.competency || "General",
-        level: "Medio"
-      });
-      setGeneratedQuestion(question);
-      toast({ title: "¡Nuevo Ítem Generado!", description: "La IA ha creado un desafío basado en el DCE." });
-    } catch (e) {
-      console.error(e);
-      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el ítem." });
-    } finally {
-      setIsGenerating(false);
     }
   };
 
   const handleNext = () => {
     setIsCorrect(null);
     setSelectedOption(null);
-    setAiExplanation("");
+    setAiAnalysis(null);
     setGeneratedQuestion(null);
     setCurrentQuestionIndex(prev => prev + 1);
   };
@@ -252,38 +150,40 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
       <GameNavbar />
       
       <main className="max-w-6xl mx-auto p-6 flex flex-col gap-8">
-        <div className="flex flex-col md:flex-row items-center justify-between bg-card p-6 rounded-3xl border-2 border-primary/10 shadow-sm gap-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2 text-primary font-black uppercase tracking-widest text-sm">
+        {/* Cabecera Técnica */}
+        <div className="flex flex-col md:flex-row items-center justify-between bg-card p-6 rounded-3xl border-2 border-primary/10 shadow-sm gap-4 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none bg-[radial-gradient(circle,hsl(var(--primary))_1px,transparent_1px)] bg-[size:20px_20px]" />
+          <div className="flex flex-wrap items-center gap-4 relative z-10">
+            <div className="flex items-center gap-2 text-primary font-black uppercase tracking-widest text-xs">
               <Timer className="w-5 h-5" />
-              Saber 11 Real-Time
+              Entrenamiento Sabio
             </div>
             <div className="hidden md:block h-6 w-[2px] bg-muted" />
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-bold text-[10px] uppercase">
-                {currentQuestion.metadata?.component || currentQuestion.component}
+                Comp: {currentQuestion.metadata?.component || currentQuestion.component}
               </Badge>
-              <Badge variant="outline" className="bg-secondary/5 border-secondary/20 text-secondary font-bold text-[10px] uppercase">
-                {currentQuestion.metadata?.level || currentQuestion.level}
+              <Badge variant="outline" className="bg-accent/5 border-accent/20 text-accent font-bold text-[10px] uppercase">
+                Nivel: {currentQuestion.metadata?.level || currentQuestion.level}
               </Badge>
             </div>
           </div>
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={handleGenerateAiQuestion} 
-            disabled={isGenerating}
-            className="game-button border-accent/50 text-accent hover:bg-accent/10"
+            onClick={() => setGeneratedQuestion(null) || handleNext()} 
+            className="game-button border-primary/20 text-primary hover:bg-primary/10"
           >
-            {isGenerating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Wand2 className="w-4 h-4 mr-2" />}
-            Desafío IA Personalizado
+            <Wand2 className="w-4 h-4 mr-2" />
+            Nuevo Desafío IA
           </Button>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
+          {/* Columna Pregunta */}
           <Card className={`lg:col-span-2 game-card border-primary/20 shadow-xl overflow-hidden bg-card ${isGenerating ? 'opacity-50' : ''}`}>
-            <div className="bg-gradient-to-r from-primary/5 to-transparent p-10 border-b-2 border-primary/10">
-              <h2 className="text-2xl md:text-3xl font-bold leading-snug text-foreground">
+            <div className="bg-gradient-to-r from-primary/5 to-transparent p-10 border-b-2 border-primary/10 relative">
+              <h2 className="text-2xl md:text-3xl font-bold leading-snug text-foreground relative z-10">
                 {currentQuestion.title || currentQuestion.text}
               </h2>
             </div>
@@ -291,7 +191,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
               {currentQuestion.options.map((opt: string, idx: number) => (
                 <button
                   key={idx}
-                  disabled={isCorrect !== null || isGenerating}
+                  disabled={isCorrect !== null}
                   onClick={() => setSelectedOption(idx)}
                   className={`w-full p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center justify-between group
                     ${selectedOption === idx ? 'border-primary bg-primary/5 shadow-md scale-[1.01]' : 'border-muted hover:border-primary/40 hover:bg-muted/30'}
@@ -304,9 +204,19 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   {isCorrect === false && selectedOption === idx && <AlertCircle className="text-destructive shrink-0 ml-4 w-6 h-6" />}
                 </button>
               ))}
+              
+              {!isCorrect && isCorrect !== null && (
+                <div className="mt-6 p-4 bg-primary/5 rounded-2xl border border-primary/20 flex gap-3 items-start animate-in fade-in slide-in-from-bottom-2">
+                  <Info className="w-5 h-5 text-primary shrink-0" />
+                  <p className="text-xs font-bold text-muted-foreground italic">
+                    Sugerencia Técnica: Analiza la competencia "{currentQuestion.metadata?.competency || currentQuestion.competency}" para entender la lógica de esta pregunta.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
+          {/* Columna Acción / Explicación Visual */}
           <div className="space-y-6">
             {isCorrect === null ? (
               <div className="p-10 rounded-3xl bg-card border-2 border-dashed border-primary/20 flex flex-col items-center justify-center text-center gap-6 h-full min-h-[400px]">
@@ -314,69 +224,117 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   <BrainCircuit className="w-12 h-12 text-primary animate-pulse" />
                 </div>
                 <div className="space-y-2">
-                  <p className="text-primary font-black uppercase tracking-widest text-xs">Modo Entrenamiento</p>
+                  <p className="text-primary font-black uppercase tracking-widest text-xs">Evaluación en Tiempo Real</p>
                   <p className="text-muted-foreground text-sm italic leading-relaxed">
-                    Analiza bien la pregunta antes de confirmar. Tu progreso se guardará en tu perfil real.
+                    Tómate un momento para analizar las opciones. ¡Tu éxito académico depende de tu paciencia!
                   </p>
                 </div>
                 <Button 
                   className="game-button bg-primary w-full h-14 text-lg text-white shadow-lg glow-primary" 
-                  disabled={selectedOption === null || isGenerating}
+                  disabled={selectedOption === null}
                   onClick={handleCheck}
                 >
-                  Confirmar Respuesta
+                  Confirmar Selección
                 </Button>
               </div>
             ) : (
               <div className="space-y-4 animate-in fade-in slide-in-from-right-8 duration-500">
-                <Card className={`game-card border-2 ${isCorrect ? 'border-secondary/40 glow-secondary' : 'border-destructive/40 shadow-destructive/10'}`}>
-                  <CardContent className="p-8 space-y-6">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${isCorrect ? 'bg-secondary text-white' : 'bg-destructive text-white'}`}>
-                        {isCorrect ? <CheckCircle2 className="w-8 h-8" /> : <AlertCircle className="w-8 h-8" />}
+                <Card className={`game-card border-2 ${isCorrect ? 'border-secondary/40 glow-secondary' : 'border-destructive/40 shadow-lg'}`}>
+                  <CardContent className="p-0">
+                    <div className={`p-6 flex items-center gap-4 ${isCorrect ? 'bg-secondary/10' : 'bg-destructive/10'}`}>
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-lg ${isCorrect ? 'bg-secondary text-white' : 'bg-destructive text-white'}`}>
+                        {isCorrect ? <CheckCircle2 className="w-7 h-7" /> : <XCircle className="w-7 h-7" />}
                       </div>
                       <div>
-                        <h3 className="text-2xl font-black uppercase tracking-tight text-foreground">{isCorrect ? '¡CORRECTO!' : 'INCENDIO'}</h3>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{isCorrect ? '+50 XP GANADOS' : 'ANÁLISIS DE ERROR'}</p>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-foreground">{isCorrect ? '¡Misión Cumplida!' : 'Análisis Técnico'}</h3>
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Revisa el desglose pedagógico abajo.</p>
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="p-5 bg-muted/40 rounded-2xl border border-primary/10">
-                        <p className="font-black text-primary uppercase text-[10px] tracking-widest mb-3 flex items-center gap-2">
-                          <Shield className="w-3 h-3" /> Justificación Técnica:
-                        </p>
-                        <p className="text-sm text-muted-foreground leading-relaxed italic">
-                          {currentQuestion.explanation}
-                        </p>
-                      </div>
-
-                      {aiExplanation ? (
-                        <div className="p-5 bg-primary/5 rounded-2xl border border-primary/20 animate-in fade-in zoom-in-95">
-                          <p className="font-black text-primary uppercase text-[10px] tracking-widest mb-3 flex items-center gap-2">
-                            <Sparkles className="w-3 h-3 text-accent" /> Explicación IA Personalizada:
-                          </p>
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            {aiExplanation}
-                          </p>
-                        </div>
-                      ) : (
+                    {!aiAnalysis ? (
+                      <div className="p-6 space-y-4">
                         <Button 
-                          variant="outline" 
-                          className="w-full game-button border-primary/30 text-primary h-12"
-                          onClick={handleAiExplanation}
+                          className="w-full game-button bg-primary text-white h-12 glow-primary"
+                          onClick={handleAiAnalysis}
                           disabled={isExplaining}
                         >
-                          {isExplaining ? "Pensando..." : "Solicitar Tutoría IA"}
-                          <BrainCircuit className="ml-2 w-4 h-4" />
+                          {isExplaining ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analizando...</> : "Generar Explicación Master IA"}
                         </Button>
-                      )}
-                    </div>
+                        <Button variant="ghost" className="w-full h-12 uppercase font-black text-[10px] tracking-widest" onClick={handleNext}>
+                          Omitir y Siguiente
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-muted/20">
+                        <Tabs defaultValue="planteamiento" className="w-full">
+                          <TabsList className="grid w-full grid-cols-3 bg-background/50 border border-primary/10 h-10 p-1">
+                            <TabsTrigger value="planteamiento" className="text-[9px] font-black uppercase tracking-widest">1. Plan</TabsTrigger>
+                            <TabsTrigger value="solucion" className="text-[9px] font-black uppercase tracking-widest">2. Sol</TabsTrigger>
+                            <TabsTrigger value="errores" className="text-[9px] font-black uppercase tracking-widest">3. Errores</TabsTrigger>
+                          </TabsList>
+                          
+                          <TabsContent value="planteamiento" className="mt-4 space-y-4 animate-in zoom-in-95 duration-300">
+                             <div className="bg-background p-4 rounded-xl border border-primary/20 relative overflow-hidden">
+                               <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+                               <div className="flex justify-between items-center mb-3 relative z-10">
+                                 <Badge className="bg-primary/20 text-primary border-none text-[8px] font-black uppercase px-2">{aiAnalysis.slide1.metadata.origin}</Badge>
+                                 <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Fase 01/03</span>
+                               </div>
+                               <p className="text-xs text-muted-foreground leading-relaxed italic relative z-10">
+                                 {aiAnalysis.slide1.contextSummary}
+                               </p>
+                               <div className="mt-4 pt-4 border-t border-primary/10 flex flex-col gap-1 relative z-10">
+                                 <p className="text-[8px] font-black text-primary uppercase tracking-widest leading-none">Competencia Evaluada:</p>
+                                 <p className="text-[10px] font-bold text-foreground leading-tight">{aiAnalysis.slide1.metadata.competency}</p>
+                               </div>
+                             </div>
+                          </TabsContent>
 
-                    <Button className="w-full game-button bg-primary text-white h-14 shadow-lg text-lg" onClick={handleNext}>
-                      Siguiente Desafío
-                      <ArrowRight className="ml-2 w-5 h-5" />
-                    </Button>
+                          <TabsContent value="solucion" className="mt-4 space-y-4 animate-in zoom-in-95 duration-300">
+                             <div className="bg-secondary/5 p-4 rounded-xl border border-secondary/20 glow-secondary">
+                               <div className="flex items-center gap-2 mb-3">
+                                 <GraduationCap className="w-4 h-4 text-secondary" />
+                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-secondary">Solución Paso a Paso</h4>
+                               </div>
+                               <div className="space-y-3">
+                                 {aiAnalysis.slide2.stepByStep.map((step, i) => (
+                                   <div key={i} className="flex gap-3 text-xs">
+                                     <span className="text-secondary font-black">{i + 1}.</span>
+                                     <p className="text-muted-foreground">{step}</p>
+                                   </div>
+                                 ))}
+                               </div>
+                               <div className="mt-4 p-3 bg-white/50 rounded-lg border border-secondary/10">
+                                 <p className="text-[9px] font-black text-secondary uppercase mb-1">Lección:</p>
+                                 <p className="text-[10px] italic text-muted-foreground">{aiAnalysis.slide2.pedagogicalConclusion}</p>
+                               </div>
+                             </div>
+                          </TabsContent>
+
+                          <TabsContent value="errores" className="mt-4 space-y-4 animate-in zoom-in-95 duration-300">
+                             <div className="bg-destructive/5 p-4 rounded-xl border border-destructive/20">
+                               <h4 className="text-[10px] font-black uppercase tracking-widest text-destructive mb-4">Análisis de Errores Comunes</h4>
+                               <div className="space-y-3">
+                                 {aiAnalysis.slide3.distractors.map((dist, i) => (
+                                   <div key={i} className="p-3 bg-background rounded-lg border border-muted-foreground/10">
+                                     <div className="flex items-center gap-2 mb-1">
+                                       <Badge variant="outline" className="h-4 px-1 text-[8px] border-destructive text-destructive">{dist.option}</Badge>
+                                       <p className="text-[9px] font-black text-foreground uppercase tracking-tighter">{dist.errorType}</p>
+                                     </div>
+                                     <p className="text-[9px] text-muted-foreground leading-tight italic">{dist.explanation}</p>
+                                   </div>
+                                 ))}
+                               </div>
+                             </div>
+                          </TabsContent>
+                        </Tabs>
+                        
+                        <Button className="w-full game-button bg-primary text-white h-12 mt-4 shadow-lg" onClick={handleNext}>
+                          Siguiente Desafío
+                          <ArrowRight className="ml-2 w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

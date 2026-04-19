@@ -27,8 +27,10 @@ const GenerateQuestionOutputSchema = z.object({
   metadata: z.object({
     component: z.string(),
     competency: z.string(),
+    competencyDescription: z.string().describe('Descripción detallada de qué evalúa esta competencia.'),
     level: z.string(),
-    evidence: z.string().describe('La evidencia técnica que se está evaluando con este ítem')
+    evidence: z.string().describe('La evidencia técnica que se está evaluando con este ítem'),
+    origin: z.string().default('Original inspirada en el estilo ICFES')
   })
 });
 
@@ -56,6 +58,7 @@ REGLAS TÉCNICAS (Metodología DCE):
 3. Los distractores (opciones incorrectas) deben ser plausibles, es decir, deben nacer de errores comunes de razonamiento en este tema.
 4. La clave (respuesta correcta) debe ser única e indiscutible.
 5. Debes definir la EVIDENCIA técnica: ¿Qué acción específica del estudiante demuestra que domina la competencia?
+6. Describe brevemente la COMPETENCIA evaluada para que el estudiante entienda su importancia académica.
 
 Historial del estudiante (opcional): {{{studentPerformanceHistory}}}
 

@@ -1,40 +1,53 @@
 'use server';
 /**
- * @fileOverview This file implements a Genkit flow to generate detailed explanations for student answers.
- *
- * - generateExplanation - A function that generates a detailed explanation for a given question and answer.
- * - DynamicAnswerExplanationInput - The input type for the generateExplanation function.
- * - DynamicAnswerExplanationOutput - The return type for the generateExplanation function.
+ * @fileOverview Generador de explicaciones estructuradas en 3 fases (Diapositivas).
+ * 
+ * - Planteamiento: Contexto y Competencia.
+ * - Solución: Paso a paso pedagógico.
+ * - Análisis de Errores: Desglose de distractores.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const DynamicAnswerExplanationInputSchema = z.object({
-  question: z.string().describe('The full text of the question.'),
-  userAnswer: z.string().describe('The answer provided by the student.'),
-  correctAnswer: z.string().describe('The correct answer to the question.'),
-  context: z
-    .string()
-    .optional()
-    .describe(
-      'Optional: Additional context related to the question, such as the subject, topic, or source material.'
-    ),
+  question: z.string().describe('El texto completo de la pregunta.'),
+  userAnswer: z.string().describe('La respuesta elegida por el estudiante.'),
+  correctAnswer: z.string().describe('La respuesta correcta.'),
+  options: z.array(z.string()).describe('Todas las opciones de respuesta disponibles.'),
+  subject: z.string().describe('Asignatura.'),
+  component: z.string().describe('Componente evaluado.'),
+  competency: z.string().describe('Competencia evaluada.'),
 });
-export type DynamicAnswerExplanationInput = z.infer<
-  typeof DynamicAnswerExplanationInputSchema
->;
+
+export type DynamicAnswerExplanationInput = z.infer<typeof DynamicAnswerExplanationInputSchema>;
 
 const DynamicAnswerExplanationOutputSchema = z.object({
-  explanation: z
-    .string()
-    .describe(
-      'A detailed explanation clarifying why the user\'s answer was correct or incorrect, and elaborating on the correct concept.'
-    ),
+  slide1: z.object({
+    title: z.string().describe('Número de pregunta y título.'),
+    metadata: z.object({
+      component: z.string(),
+      competency: z.string(),
+      origin: z.enum(['Adaptada del ICFES', 'Original inspirada en el estilo ICFES']),
+    }),
+    contextSummary: z.string().describe('Resumen del planteamiento técnico.'),
+  }),
+  slide2: z.object({
+    correctAnswerText: z.string(),
+    stepByStep: z.array(z.string()).describe('Pasos detallados de la solución.'),
+    pedagogicalConclusion: z.string().describe('Resumen de la lección aprendida.'),
+  }),
+  slide3: z.object({
+    title: z.string().default('Análisis de Errores'),
+    distractors: z.array(z.object({
+      option: z.string().describe('La letra de la opción (A, B, C o D).'),
+      errorType: z.string().describe('El error cometido (ej: Error de cálculo, mala lectura).'),
+      explanation: z.string().describe('Por qué esta opción es incorrecta.'),
+    })).describe('Análisis detallado de cada distractor.'),
+  }),
 });
-export type DynamicAnswerExplanationOutput = z.infer<
-  typeof DynamicAnswerExplanationOutputSchema
->;
+
+export type DynamicAnswerExplanationOutput = z.infer<typeof DynamicAnswerExplanationOutputSchema>;
 
 export async function generateExplanation(
   input: DynamicAnswerExplanationInput
@@ -46,7 +59,31 @@ const prompt = ai.definePrompt({
   name: 'dynamicAnswerExplanationPrompt',
   input: {schema: DynamicAnswerExplanationInputSchema},
   output: {schema: DynamicAnswerExplanationOutputSchema},
-  prompt: `Eres un tutor experto en el área de estudio del Saber 11. Tu tarea es proporcionar una explicación detallada y contextualizada sobre la respuesta a una pregunta, indicando si la respuesta del estudiante fue correcta o incorrecta y por qué. Siempre debes explicar el concepto correcto.\n\nPregunta: {{{question}}}\nRespuesta del estudiante: {{{userAnswer}}}\nRespuesta correcta: {{{correctAnswer}}}\n{{#if context}}Contexto adicional: {{{context}}}\n{{/if}}\nBasado en esto, por favor, genera una explicación detallada.`,
+  prompt: `Eres un experto pedagogo del ICFES. Tu misión es generar una explicación maestra dividida en 3 fases para la siguiente pregunta:
+
+Pregunta: {{{question}}}
+Opciones: {{#each options}}- {{{this}}} {{/each}}
+Respuesta Correcta: {{{correctAnswer}}}
+Respuesta del Estudiante: {{{userAnswer}}}
+Asignatura: {{{subject}}}
+Componente: {{{component}}}
+Competencia: {{{competency}}}
+
+ESTRUCTURA OBLIGATORIA:
+
+DIAPOSITIVA 1: PLANTEAMIENTO
+- Define si es "Adaptada del ICFES" o "Original inspirada en el estilo ICFES".
+- Resume el contexto técnico y qué se está evaluando realmente.
+
+DIAPOSITIVA 2: SOLUCIÓN (ESTILO CLASE)
+- Explica la respuesta correcta con un desarrollo paso a paso claro y pedagógico.
+- Usa un lenguaje que un estudiante de grado 11 entienda perfectamente.
+
+DIAPOSITIVA 3: ANÁLISIS DE ERRORES
+- Analiza por qué las otras opciones NO son correctas.
+- Identifica el error de razonamiento o proceso que lleva a elegir cada distractor.
+
+Genera la respuesta siguiendo estrictamente el esquema JSON proporcionado.`,
 });
 
 const dynamicAnswerExplanationFlow = ai.defineFlow(
