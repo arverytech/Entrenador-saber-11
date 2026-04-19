@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Trophy, LogIn } from 'lucide-react';
+import { Trophy, LogIn, KeySquare } from 'lucide-react';
 import { useFirebase } from '@/firebase';
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -126,6 +126,11 @@ export default function LoginPage() {
             <div className="space-y-2">
               <Label htmlFor="password" className="font-bold uppercase text-xs tracking-widest">Contraseña</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border-2 h-12" required />
+            </div>
+            <div className="text-right">
+              <Link href="/auth/forgot-password" className="text-xs font-bold text-primary hover:underline flex items-center justify-end gap-1">
+                <KeySquare className="w-3 h-3" /> ¿Olvidaste tu contraseña?
+              </Link>
             </div>
             <Button type="submit" disabled={isLoading} className="w-full game-button bg-primary text-white h-12 text-lg shadow-lg glow-primary">
               {isLoading ? "Entrando..." : "Iniciar Sesión"}

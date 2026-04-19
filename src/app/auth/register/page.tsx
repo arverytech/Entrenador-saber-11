@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Rocket, CheckCircle2, UserPlus } from 'lucide-react';
+import { Rocket, CheckCircle2, UserPlus, Mail } from 'lucide-react';
 import { useFirebase } from '@/firebase';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
@@ -31,12 +31,16 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
+      // Actualizamos perfil
       await updateProfile(user, { displayName: name });
+      
+      // Enviamos verificación de email (PUNTO A)
+      await sendEmailVerification(user);
 
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 7);
 
-      // AUDITORÍA: Forzamos estado inicial de estudiante y 0 XP
+      // Creamos registro en Firestore
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         email: user.email,
@@ -52,7 +56,7 @@ export default function RegisterPage() {
 
       toast({
         title: "¡Avatar Creado!",
-        description: "Tu entrenamiento empieza ahora con 0 XP. ¡Demuestra tu poder!",
+        description: "Revisa tu correo para verificar tu cuenta. Tu entrenamiento empieza ahora.",
       });
 
       router.push('/dashboard');
@@ -125,9 +129,9 @@ export default function RegisterPage() {
 
             <div className="p-3 bg-muted/30 rounded-xl border border-muted-foreground/10">
               <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                <Mail className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                 <p className="text-[10px] text-muted-foreground leading-tight">
-                  Recibes 7 días de acceso de prueba. Para acceso total, valida tu código en el perfil.
+                  Te enviaremos un correo de verificación. Revisa tu bandeja de entrada después de registrarte.
                 </p>
               </div>
             </div>

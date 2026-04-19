@@ -1,17 +1,19 @@
+
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Flame, Target, BookOpen, Star, ArrowRight, Zap, GraduationCap, Clock, BrainCircuit, Sparkles, ShieldCheck, Loader2 } from 'lucide-react';
+import { Trophy, Flame, Target, BookOpen, Star, Zap, GraduationCap, Clock, BrainCircuit, Sparkles, ShieldCheck, Loader2, Sword } from 'lucide-react';
 import Link from 'next/link';
 import { useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
 import { doc, collection, query, limit, orderBy } from 'firebase/firestore';
 import { adaptLearningPath, type AdaptiveLearningPathOutput } from '@/ai/flows/adaptive-learning-path';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 
 export default function DashboardPage() {
   const { user, isUserLoading, firestore } = useUser();
@@ -26,7 +28,7 @@ export default function DashboardPage() {
 
   const attemptsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'users', user.uid, 'quizAttempts'), orderBy('timestamp', 'desc'), limit(10));
+    return query(collection(firestore, 'users', user.uid, 'quizAttempts'), orderBy('timestamp', 'desc'), limit(50));
   }, [firestore, user]);
 
   const { data: userData, isLoading: isDataLoading } = useDoc(userDocRef);
@@ -37,6 +39,27 @@ export default function DashboardPage() {
       router.push('/auth/login');
     }
   }, [user, isUserLoading, router]);
+
+  const radarData = useMemo(() => {
+    if (!attempts) return [];
+    
+    const subjects = [
+      { id: 'matematicas', label: 'Matemáticas' },
+      { id: 'lectura', label: 'Lectura' },
+      { id: 'naturales', label: 'Naturales' },
+      { id: 'sociales', label: 'Sociales' },
+      { id: 'ingles', label: 'Inglés' },
+      { id: 'socioemocional', label: 'Socioemoc' }
+    ];
+
+    return subjects.map(s => {
+      const subjectAttempts = attempts.filter(a => a.subject === s.id);
+      const total = subjectAttempts.length;
+      const correct = subjectAttempts.filter(a => a.isCorrect).length;
+      const score = total > 0 ? (correct / total) * 100 : 0;
+      return { subject: s.label, A: Math.max(20, score), full: 100 };
+    });
+  }, [attempts]);
 
   const generateMission = async () => {
     if (!user) return;
@@ -170,6 +193,36 @@ export default function DashboardPage() {
                   </div>
                 </Card>
               )}
+            </section>
+
+            <section className="space-y-6">
+              <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3 text-secondary">
+                <Sword className="w-6 h-6" />
+                Radar de Poder Académico
+              </h3>
+              <Card className="game-card border-secondary/20 bg-card p-6 min-h-[400px]">
+                <div className="h-[350px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
+                      <PolarGrid stroke="hsl(var(--muted-foreground))" strokeOpacity={0.2} />
+                      <PolarAngleAxis 
+                        dataKey="subject" 
+                        tick={{ fill: 'hsl(var(--foreground))', fontSize: 10, fontWeight: 'bold' }} 
+                      />
+                      <Radar
+                        name="Rendimiento"
+                        dataKey="A"
+                        stroke="hsl(var(--primary))"
+                        fill="hsl(var(--primary))"
+                        fillOpacity={0.4}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="text-center mt-4">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Desempeño basado en tus últimos 50 intentos</p>
+                </div>
+              </Card>
             </section>
           </div>
 
