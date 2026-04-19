@@ -48,34 +48,43 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
+      // Verificamos o creamos el perfil en Firestore
       const userDocRef = doc(firestore, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        const trialEndDate = new Date();
-        trialEndDate.setDate(trialEndDate.getDate() + 7);
+      try {
+        const userDoc = await getDoc(userDocRef);
+        if (!userDoc.exists()) {
+          const trialEndDate = new Date();
+          trialEndDate.setDate(trialEndDate.getDate() + 7);
 
-        await setDoc(userDocRef, {
-          id: user.uid,
-          email: user.email,
-          displayName: user.displayName || 'Héroe',
-          role: 'student',
-          currentPoints: 0,
-          isTrial: true,
-          trialEndDate: trialEndDate.toISOString(),
-          institutionId: 'default',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
+          await setDoc(userDocRef, {
+            id: user.uid,
+            email: user.email,
+            displayName: user.displayName || 'Héroe',
+            role: 'student',
+            currentPoints: 0,
+            isTrial: true,
+            trialEndDate: trialEndDate.toISOString(),
+            institutionId: 'default',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        }
+      } catch (dbError) {
+        console.warn("Error al sincronizar perfil en DB:", dbError);
+        // No bloqueamos el login si el perfil ya existe o hay un retraso en Firestore
       }
       
       router.push('/dashboard');
     } catch (error: any) {
       console.error("Error Google Auth:", error);
+      let message = "No se pudo iniciar sesión con Google.";
+      if (error.code === 'auth/unauthorized-domain') {
+        message = "Este dominio no está autorizado en la consola de Firebase. Añade 'entrenador-saber-11.vercel.app'.";
+      }
       toast({
         variant: "destructive",
-        title: "Error con Google",
-        description: "Asegúrate de haber autorizado este dominio en la consola de Firebase.",
+        title: "Fallo de Autenticación",
+        description: message,
       });
     } finally {
       setIsLoading(false);
@@ -86,7 +95,6 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-6 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-10">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary rounded-full blur-[100px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary rounded-full blur-[100px]" />
       </div>
 
       <Card className="w-full max-w-md game-card border-primary/20 shadow-2xl z-10 bg-card">
@@ -106,7 +114,7 @@ export default function LoginPage() {
             variant="outline" 
             disabled={isLoading}
             onClick={handleGoogleLogin}
-            className="w-full game-button border-2 h-12 font-bold flex items-center justify-center gap-3 hover:bg-muted transition-all"
+            className="w-full game-button border-2 h-12 font-bold flex items-center justify-center gap-3 hover:bg-muted"
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
               <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
@@ -121,35 +129,29 @@ export default function LoginPage() {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-muted" />
+              <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase font-bold">
-              <span className="bg-card px-2 text-muted-foreground tracking-widest">O usa tu correo</span>
+              <span className="bg-card px-2 text-muted-foreground">O usa tu correo</span>
             </div>
           </div>
 
           <form onSubmit={handleEmailLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="font-bold uppercase text-xs tracking-widest">Correo Electrónico</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="rounded-xl border-2 h-12" required />
+              <Label htmlFor="email">Correo Electrónico</Label>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="font-bold uppercase text-xs tracking-widest">Contraseña</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="rounded-xl border-2 h-12" required />
+              <Label htmlFor="password">Contraseña</Label>
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
-            <div className="text-right">
-              <Link href="/auth/forgot-password" className="text-xs font-bold text-primary hover:underline flex items-center justify-end gap-1">
-                <KeySquare className="w-3 h-3" /> ¿Olvidaste tu contraseña?
-              </Link>
-            </div>
-            <Button type="submit" disabled={isLoading} className="w-full game-button bg-primary text-white h-12 text-lg shadow-lg glow-primary">
-              {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <LogIn className="mr-2 w-5 h-5" />}
+            <Button type="submit" disabled={isLoading} className="w-full game-button bg-primary text-white h-12">
               {isLoading ? "Entrando..." : "Iniciar Sesión"}
             </Button>
           </form>
 
           <div className="text-center">
-            <p className="text-sm text-muted-foreground font-medium">
+            <p className="text-sm text-muted-foreground">
               ¿Eres nuevo? <Link href="/auth/register" className="font-black text-primary hover:underline">¡Crea tu cuenta!</Link>
             </p>
           </div>
