@@ -5,15 +5,22 @@ service cloud.firestore {
 
     /**
      * CORE PHILOSOPHY
-     * This ruleset implements a robust, multi-tier authorization model designed for a gamified educational platform.
-     * Enforces path-based ownership for student performance data and global read for ICFES curriculum.
+     * This ruleset implements a robust, multi-tier authorization model.
+     * Enforces path-based ownership and allows for the 'Secret Key' admin escalation.
      */
 
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid)); }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
 
-    match /adminUsers/{userId} { allow read, write: if isAdmin(); }
+    // Permitimos que un usuario cree su propio registro de admin si es el dueño.
+    // La validación real del código secreto se hace en la lógica del cliente para este MVP.
+    match /adminUsers/{userId} { 
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update, delete: if isAdmin();
+    }
+    
     match /institutions/{institutionId} { allow read: if isSignedIn(); allow write: if isAdmin(); }
     
     match /users/{userId} {

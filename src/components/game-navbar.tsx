@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useBranding } from '@/components/branding-provider';
 import { Button } from '@/components/ui/button';
-import { Trophy, Home, BookOpen, LogOut, User, ShieldAlert, GraduationCap, LayoutDashboard, Settings } from 'lucide-react';
+import { Trophy, Home, BookOpen, LogOut, User, ShieldAlert, GraduationCap, LayoutDashboard, Settings, Sparkles } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,7 +44,7 @@ export function GameNavbar() {
     <nav className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-md border-b-2 border-primary/20 px-4 py-2">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-3 group">
-          <div className="relative w-12 h-12 rounded-xl overflow-hidden border-2 border-primary group-hover:glow-primary transition-all bg-white flex items-center justify-center">
+          <div className="relative w-12 h-12 rounded-xl overflow-hidden border-2 border-primary group-hover:glow-primary transition-all bg-white flex items-center justify-center shadow-sm">
             {institutionLogo ? (
               <Image 
                 src={institutionLogo} 
@@ -60,7 +60,7 @@ export function GameNavbar() {
             <h1 className="font-headline font-bold text-lg leading-tight text-primary uppercase tracking-tighter">
               {institutionName}
             </h1>
-            <p className="text-[10px] font-bold text-secondary uppercase tracking-widest italic">Saber 11 Intelligence</p>
+            <p className="text-[10px] font-bold text-secondary uppercase tracking-widest italic leading-none">Intelligence Hub</p>
           </div>
         </Link>
 
@@ -68,7 +68,13 @@ export function GameNavbar() {
           <NavLink href="/dashboard" active={pathname === '/dashboard'} icon={<Home className="w-4 h-4" />} label="Inicio" />
           <NavLink href="/practice" active={pathname?.startsWith('/practice')} icon={<BookOpen className="w-4 h-4" />} label="Entrenar" />
           {isAdmin && (
-             <NavLink href="/admin/branding" active={pathname === '/admin/branding'} icon={<Settings className="w-4 h-4 text-accent" />} label="Personalizar" />
+             <NavLink 
+               href="/admin/branding" 
+               active={pathname === '/admin/branding'} 
+               icon={<Settings className="w-4 h-4 text-accent" />} 
+               label="Personalizar" 
+               isSpecial
+             />
           )}
         </div>
 
@@ -116,13 +122,13 @@ export function GameNavbar() {
                   <DropdownMenuItem asChild className="cursor-pointer focus:bg-primary/5 rounded-lg py-2.5 text-primary">
                     <Link href="/admin/dashboard" className="flex items-center w-full">
                       <LayoutDashboard className="mr-3 h-4 w-4" />
-                      <span className="font-black uppercase text-[10px] tracking-widest">Panel Comandante</span>
+                      <span className="font-black uppercase text-[10px] tracking-widest">Cuartel General</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer focus:bg-accent/5 rounded-lg py-2.5 text-accent">
                     <Link href="/admin/branding" className="flex items-center w-full">
-                      <ShieldAlert className="mr-3 h-4 w-4" />
-                      <span className="font-black uppercase text-[10px] tracking-widest">Cargar Preguntas</span>
+                      <Sparkles className="mr-3 h-4 w-4" />
+                      <span className="font-black uppercase text-[10px] tracking-widest">Cargar Contenido</span>
                     </Link>
                   </DropdownMenuItem>
                 </>
@@ -141,12 +147,13 @@ export function GameNavbar() {
   );
 }
 
-function NavLink({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active?: boolean }) {
+function NavLink({ href, icon, label, active, isSpecial = false }: { href: string; icon: React.ReactNode; label: string; active?: boolean; isSpecial?: boolean }) {
   return (
     <Link 
       href={href} 
       className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all uppercase tracking-wider
-        ${active ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-primary hover:bg-primary/5'}`}
+        ${active ? 'bg-primary text-white shadow-md' : 'text-muted-foreground hover:text-primary hover:bg-primary/5'}
+        ${isSpecial ? 'border border-accent/20 hover:bg-accent/10' : ''}`}
     >
       {icon}
       <span>{label}</span>
