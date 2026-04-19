@@ -7,8 +7,8 @@
  * - Análisis de Errores: Desglose de distractores.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
 
 const DynamicAnswerExplanationInputSchema = z.object({
   question: z.string().describe('El texto completo de la pregunta.'),
@@ -24,41 +24,35 @@ export type DynamicAnswerExplanationInput = z.infer<typeof DynamicAnswerExplanat
 
 const DynamicAnswerExplanationOutputSchema = z.object({
   slide1: z.object({
-    title: z.string().describe('Número de pregunta y título.'),
+    title: z.string(),
     metadata: z.object({
       component: z.string(),
       competency: z.string(),
       origin: z.enum(['Adaptada del ICFES', 'Original inspirada en el estilo ICFES']),
     }),
-    contextSummary: z.string().describe('Resumen del planteamiento técnico.'),
+    contextSummary: z.string(),
   }),
   slide2: z.object({
     correctAnswerText: z.string(),
-    stepByStep: z.array(z.string()).describe('Pasos detallados de la solución.'),
-    pedagogicalConclusion: z.string().describe('Resumen de la lección aprendida.'),
+    stepByStep: z.array(z.string()),
+    pedagogicalConclusion: z.string(),
   }),
   slide3: z.object({
     title: z.string().default('Análisis de Errores'),
     distractors: z.array(z.object({
-      option: z.string().describe('La letra de la opción (A, B, C o D).'),
-      errorType: z.string().describe('El error cometido (ej: Error de cálculo, mala lectura).'),
-      explanation: z.string().describe('Por qué esta opción es incorrecta.'),
-    })).describe('Análisis detallado de cada distractor.'),
+      option: z.string(),
+      errorType: z.string(),
+      explanation: z.string(),
+    })),
   }),
 });
 
 export type DynamicAnswerExplanationOutput = z.infer<typeof DynamicAnswerExplanationOutputSchema>;
 
-export async function generateExplanation(
-  input: DynamicAnswerExplanationInput
-): Promise<DynamicAnswerExplanationOutput> {
-  return dynamicAnswerExplanationFlow(input);
-}
-
 const prompt = ai.definePrompt({
   name: 'dynamicAnswerExplanationPrompt',
-  input: {schema: DynamicAnswerExplanationInputSchema},
-  output: {schema: DynamicAnswerExplanationOutputSchema},
+  input: { schema: DynamicAnswerExplanationInputSchema },
+  output: { schema: DynamicAnswerExplanationOutputSchema },
   prompt: `Eres un experto pedagogo del ICFES. Tu misión es generar una explicación maestra dividida en 3 fases para la siguiente pregunta:
 
 Pregunta: {{{question}}}
@@ -69,31 +63,36 @@ Asignatura: {{{subject}}}
 Componente: {{{component}}}
 Competencia: {{{competency}}}
 
-ESTRUCTURA OBLIGATORIA:
+ESTRUCTURA OBLIGATORIA (Sé conciso para evitar timeouts):
 
 DIAPOSITIVA 1: PLANTEAMIENTO
-- Define si es "Adaptada del ICFES" o "Original inspirada en el estilo ICFES".
-- Resume el contexto técnico y qué se está evaluando realmente.
+- Define si es "Adaptada del ICFES" o "Original".
+- Resume qué se está evaluando técnicamente.
 
-DIAPOSITIVA 2: SOLUCIÓN (ESTILO CLASE)
-- Explica la respuesta correcta con un desarrollo paso a paso claro y pedagógico.
-- Usa un lenguaje que un estudiante de grado 11 entienda perfectamente.
+DIAPOSITIVA 2: SOLUCIÓN
+- Explica la respuesta correcta con desarrollo paso a paso.
 
 DIAPOSITIVA 3: ANÁLISIS DE ERRORES
-- Analiza por qué las otras opciones NO son correctas.
-- Identifica el error de razonamiento o proceso que lleva a elegir cada distractor.
+- Analiza por qué las otras opciones NO son correctas basándote en errores comunes.
 
 Genera la respuesta siguiendo estrictamente el esquema JSON proporcionado.`,
 });
 
-const dynamicAnswerExplanationFlow = ai.defineFlow(
+export async function generateExplanation(
+  input: DynamicAnswerExplanationInput
+): Promise<DynamicAnswerExplanationOutput> {
+  const { output } = await prompt(input);
+  if (!output) throw new Error("No se pudo generar la explicación");
+  return output;
+}
+
+export const dynamicAnswerExplanationFlow = ai.defineFlow(
   {
     name: 'dynamicAnswerExplanationFlow',
     inputSchema: DynamicAnswerExplanationInputSchema,
     outputSchema: DynamicAnswerExplanationOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    return generateExplanation(input);
   }
 );
