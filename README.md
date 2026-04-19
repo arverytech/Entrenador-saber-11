@@ -1,11 +1,11 @@
-# 🏆 Manual del Héroe: Configuración de Vercel
+# 🏆 Entrenador Saber 11 - Academia de Héroes
 
-¡Hola, Comandante! Para que tu app funcione en producción con Inteligencia Artificial real, debes configurar estas variables de entorno en Vercel:
+¡Bienvenido, Comandante! Para que tu plataforma funcione al 100% en el entorno real de Vercel, sigue estos pasos:
 
-## 🔑 Paso 2: Environment Variables en Vercel
-Copia y pega cada una en la sección **Settings > Environment Variables** de tu proyecto en Vercel:
+## 🔑 1. Configuración de Variables de Entorno en Vercel
+Copia y pega estas variables en la sección **Settings > Environment Variables** de tu proyecto en Vercel:
 
-| Key | Value |
+| Variable | Valor Recomendado |
 | :--- | :--- |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | `AIzaSyD0yPaFohPwXxMa_MwL2YJypQdsUREZg-0` |
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `studio-6219214237-b11ad.firebaseapp.com` |
@@ -14,9 +14,16 @@ Copia y pega cada una en la sección **Settings > Environment Variables** de tu 
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `855957968625` |
 | `GOOGLE_GENAI_API_KEY` | *Tu clave de Gemini (AI Studio)* |
 
-## 🚀 Paso 3: ¡Activación!
-1. Después de poner las claves, dale al botón **"Redeploy"**.
-2. Entra a tu perfil (`/profile`) y usa el código `ADMIN-MASTER-2025` para activar tus privilegios.
-3. Ve a **Personalizar Academia** y pulsa **"Cargar Preguntas Oficiales"** para llenar tu base de datos.
+## 🚀 2. Activación de Administrador
+1. Regístrate en la plataforma.
+2. Ve a la sección de **Perfil** (`/profile`).
+3. En el campo de validación de códigos, escribe: `ADMIN-MASTER-2025`.
+4. Esto desbloqueará el menú de **Administración** en tu barra de navegación.
 
-¡LISTO! Tu plataforma ahora es un motor de aprendizaje real.
+## 📊 3. Carga de Datos Oficiales
+Una vez seas administrador:
+1. Ve a **Personalizar Academia**.
+2. Haz clic en el botón **"Cargar Preguntas Oficiales"**.
+3. Esto llenará tu base de datos de Firestore con las preguntas de entrenamiento.
+
+¡Listo! Tu academia ya no es una demo, es un motor de aprendizaje real.

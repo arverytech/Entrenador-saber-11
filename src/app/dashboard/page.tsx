@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -60,7 +59,6 @@ export default function DashboardPage() {
     }
   };
 
-  // AUDITORÍA FORENSE: Estado de carga real para evitar "Efecto Demo"
   if (isUserLoading || isDataLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
@@ -72,10 +70,9 @@ export default function DashboardPage() {
     );
   }
 
-  // LÓGICA DE PROGRESO REAL: Empieza en 0 si no hay datos
   const points = userData?.currentPoints ?? 0;
   const level = Math.floor(points / 500) + 1;
-  const xpProgress = (points % 500) / 5; // 500 XP por nivel
+  const xpProgress = (points % 500) / 5; 
   
   const trialEndDate = userData?.trialEndDate ? new Date(userData.trialEndDate) : null;
   const now = new Date();
@@ -87,7 +84,7 @@ export default function DashboardPage() {
       
       <main className="max-w-7xl mx-auto p-6 space-y-8">
         {userData?.isTrial && (
-          <div className="bg-orange-500/10 border-2 border-orange-500/30 p-5 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="bg-orange-500/10 border-2 border-orange-500/30 p-5 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="bg-orange-500 p-2 rounded-xl text-white shadow-lg">
                 <Clock className="w-6 h-6" />
@@ -104,7 +101,7 @@ export default function DashboardPage() {
         )}
 
         <div className="grid lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-2 p-10 rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-blue-600 text-white relative overflow-hidden glow-primary shadow-2xl">
+          <div className="lg:col-span-2 p-10 rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-blue-600 text-white relative overflow-hidden shadow-2xl">
             <div className="absolute top-0 right-0 p-4 opacity-10">
               <ShieldCheck className="w-48 h-48 -rotate-12" />
             </div>
@@ -136,74 +133,43 @@ export default function DashboardPage() {
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             <section className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3 text-primary">
-                  <BrainCircuit className="w-6 h-6" />
-                  Misión Adaptativa IA
-                </h3>
-              </div>
-
+              <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3 text-primary">
+                <BrainCircuit className="w-6 h-6" />
+                Misión Adaptativa IA
+              </h3>
               {!aiMission ? (
                 <Card className="game-card bg-primary/5 border-primary/20 p-8 border-dashed flex flex-col items-center justify-center text-center gap-6">
-                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-primary/10">
-                    <Sparkles className="w-8 h-8 text-accent" />
-                  </div>
+                  <Sparkles className="w-8 h-8 text-accent" />
                   <div className="space-y-2">
-                    <h4 className="font-bold text-lg uppercase tracking-tight text-foreground">Analizar mi Desempeño</h4>
-                    <p className="text-xs text-muted-foreground max-w-sm italic">
-                      Nuestra IA revisará tus últimos intentos para crear una misión que fortalezca tus debilidades.
-                    </p>
+                    <h4 className="font-bold text-lg uppercase tracking-tight">Analizar mi Desempeño</h4>
+                    <p className="text-xs text-muted-foreground max-w-sm italic">Nuestra IA revisará tus últimos intentos para crear una misión que fortalezca tus debilidades.</p>
                   </div>
-                  <Button 
-                    onClick={generateMission} 
-                    disabled={isGeneratingMission}
-                    className="game-button bg-primary text-white h-12 px-10 shadow-lg glow-primary"
-                  >
-                    {isGeneratingMission ? <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analizando...</> : "Generar Misión Personalizada"}
+                  <Button onClick={generateMission} disabled={isGeneratingMission} className="game-button bg-primary text-white h-12 px-10">
+                    {isGeneratingMission ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Generar Misión Personalizada"}
                   </Button>
                 </Card>
               ) : (
-                <Card className="game-card bg-card border-accent/30 glow-accent p-8 animate-in zoom-in-95 duration-500">
+                <Card className="game-card bg-card border-accent/30 p-8">
                   <div className="flex flex-col md:flex-row gap-8 items-start">
-                    <div className="bg-accent/10 p-5 rounded-3xl text-accent border border-accent/20">
-                      <Target className="w-10 h-10" />
-                    </div>
+                    <Target className="w-10 h-10 text-accent" />
                     <div className="flex-1 space-y-6">
-                      <div>
-                        <Badge className="bg-accent text-white uppercase font-black text-[9px] mb-2">Recomendación IA</Badge>
-                        <h4 className="text-2xl font-black uppercase italic leading-none">{aiMission.recommendationType === 'mission' ? 'Misión Especial' : 'Sugerencia de Estudio'}</h4>
-                      </div>
+                      <h4 className="text-2xl font-black uppercase italic leading-none">{aiMission.recommendationType === 'mission' ? 'Misión Especial' : 'Sugerencia de Estudio'}</h4>
                       <div className="space-y-4">
                         {aiMission.recommendations.map((rec, i) => (
-                          <div key={i} className="flex gap-3 p-4 bg-muted/30 rounded-2xl border border-muted-foreground/10 text-sm font-bold">
+                          <div key={i} className="flex gap-3 p-4 bg-muted/30 rounded-2xl border text-sm font-bold">
                             <Zap className="w-4 h-4 text-accent shrink-0" />
                             <p>{rec.text}</p>
                           </div>
                         ))}
                       </div>
-                      <div className="p-4 bg-primary/5 rounded-2xl border-l-4 border-primary">
-                        <p className="text-xs font-bold text-primary uppercase italic mb-1">Feedback del Tutor:</p>
-                        <p className="text-sm italic text-muted-foreground">"{aiMission.motivationMessage}"</p>
-                      </div>
-                      <Button className="game-button bg-accent text-white h-12 px-8 shadow-lg" asChild>
+                      <p className="text-sm italic text-muted-foreground">"{aiMission.motivationMessage}"</p>
+                      <Button className="game-button bg-accent text-white h-12 px-8" asChild>
                         <Link href="/practice">Aceptar Desafío</Link>
                       </Button>
                     </div>
                   </div>
                 </Card>
               )}
-            </section>
-
-            <section className="space-y-6">
-              <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
-                <Target className="text-primary w-6 h-6" />
-                Áreas de Entrenamiento
-              </h3>
-              <div className="grid gap-4">
-                <MissionCard title="Dominio Matemático" subject="Matemáticas" progress={Math.min(100, Math.floor((points / 1000) * 100))} reward="+50 XP" icon={<Zap className="w-5 h-5" />} link="/practice/matematicas" />
-                <MissionCard title="Lectura Crítica" subject="Lectura Crítica" progress={0} reward="+50 XP" icon={<BookOpen className="w-5 h-5" />} link="/practice/lectura" />
-                <MissionCard title="Desafío Socioemocional" subject="Socioemocional" progress={0} reward="+50 XP" icon={<ShieldCheck className="w-5 h-5" />} link="/practice/socioemocional" />
-              </div>
             </section>
           </div>
 
@@ -214,22 +180,15 @@ export default function DashboardPage() {
             </h3>
             <Card className="game-card border-accent/20 shadow-xl bg-card">
               <CardContent className="p-8 space-y-8 text-center">
-                <div className="relative w-44 h-44 mx-auto">
-                  <div className="absolute inset-0 rounded-full border-[12px] border-muted shadow-inner" />
-                  <div className="absolute inset-0 rounded-full border-[12px] border-accent border-t-transparent transition-all duration-1000" style={{ transform: `rotate(${xpProgress * 3.6}deg)` }} />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-6xl font-black text-foreground italic leading-none">{level}</span>
-                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] mt-1">Nivel</span>
-                  </div>
+                <div className="relative w-44 h-44 mx-auto flex items-center justify-center">
+                   <div className="absolute inset-0 rounded-full border-[12px] border-muted" />
+                   <div className="flex flex-col items-center">
+                      <span className="text-6xl font-black text-foreground italic leading-none">{level}</span>
+                      <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Nivel</span>
+                   </div>
                 </div>
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                      <span>Progreso del Nivel</span>
-                      <span className="text-accent">{Math.floor(xpProgress)}%</span>
-                    </div>
-                    <Progress value={xpProgress} className="h-3 rounded-full bg-muted" />
-                  </div>
+                  <Progress value={xpProgress} className="h-3 rounded-full bg-muted" />
                   <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest bg-muted/50 py-2 rounded-xl">
                     Próximo Nivel en {500 - (points % 500)} XP
                   </p>
@@ -251,40 +210,10 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
           {icon}
         </div>
         <div>
-          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">{label}</p>
-          <p className="text-3xl font-black tabular-nums text-foreground">{value}</p>
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{label}</p>
+          <p className="text-3xl font-black tabular-nums">{value}</p>
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function MissionCard({ title, subject, progress, reward, icon, link }: { title: string; subject: string; progress: number; reward: string; icon: React.ReactNode, link: string }) {
-  return (
-    <Link href={link} className="block game-card bg-card p-6 border-muted group cursor-pointer hover:border-primary/40 hover:shadow-xl transition-all">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
-            {icon}
-          </div>
-          <div>
-            <h4 className="font-black text-xl leading-none uppercase tracking-tighter text-foreground">{title}</h4>
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{subject}</span>
-          </div>
-        </div>
-        <div className="text-right">
-          <span className="text-[10px] font-black text-secondary bg-secondary/10 px-4 py-1 rounded-full border border-secondary/20">{reward}</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-6">
-        <div className="flex-1">
-          <Progress value={progress} className="h-2 rounded-full" />
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-black tabular-nums text-foreground">{progress}%</span>
-          <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-all" />
-        </div>
-      </div>
-    </Link>
   );
 }
