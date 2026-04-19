@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
 import { useBranding } from '@/components/branding-provider';
 import { Button } from '@/components/ui/button';
-import { Trophy, Home, BookOpen, LogOut, User, ShieldAlert, GraduationCap, LayoutDashboard, Settings, Sparkles } from 'lucide-react';
+import { Trophy, Home, BookOpen, LogOut, User, GraduationCap, LayoutDashboard, Settings, Sparkles, Target } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +67,7 @@ export function GameNavbar() {
         <div className="hidden md:flex items-center gap-2">
           <NavLink href="/dashboard" active={pathname === '/dashboard'} icon={<Home className="w-4 h-4" />} label="Inicio" />
           <NavLink href="/practice" active={pathname?.startsWith('/practice')} icon={<BookOpen className="w-4 h-4" />} label="Entrenar" />
+          <NavLink href="/exams" active={pathname?.startsWith('/exams')} icon={<Target className="w-4 h-4" />} label="Simulacros" />
           {isAdmin && (
              <NavLink 
                href="/admin/branding" 
