@@ -29,17 +29,15 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // PASO 1: Crear usuario en Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // PASO 2: Actualizar perfil básico
       await updateProfile(user, { displayName: name });
 
-      // PASO 3: Crear documento en Firestore (Esencial para las reglas de seguridad)
       const trialEndDate = new Date();
       trialEndDate.setDate(trialEndDate.getDate() + 7);
 
+      // CRÍTICO: Aseguramos que el usuario nazca en modo TRIAL
       await setDoc(doc(firestore, 'users', user.uid), {
         id: user.uid,
         email: user.email,
@@ -53,25 +51,19 @@ export default function RegisterPage() {
         updatedAt: serverTimestamp()
       });
 
-      // PASO 4: Intentar enviar verificación (Si falla, el usuario ya existe y puede reintentar luego)
-      try {
-        await sendEmailVerification(user);
-      } catch (emailError) {
-        console.warn("Error al enviar verificación:", emailError);
-      }
+      await sendEmailVerification(user);
 
       toast({
-        title: "¡Avatar Creado!",
-        description: "Cuenta registrada con éxito. Revisa tu correo para verificar tu acceso.",
+        title: "¡Héroe Registrado!",
+        description: "Cuenta creada. Revisa tu correo para verificar tu acceso.",
       });
 
       router.push('/dashboard');
     } catch (error: any) {
-      console.error("Error en registro:", error);
       toast({
         variant: "destructive",
-        title: "Error al registrar",
-        description: error.message || "No se pudo crear la cuenta.",
+        title: "Fallo en Registro",
+        description: error.message || "No se pudo crear el avatar.",
       });
     } finally {
       setIsLoading(false);
@@ -82,7 +74,6 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-background p-6 relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-10">
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-primary rounded-full blur-[100px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent rounded-full blur-[100px]" />
       </div>
 
       <Card className="w-full max-w-md game-card border-primary/20 shadow-2xl z-10 bg-card">
@@ -100,18 +91,18 @@ export default function RegisterPage() {
         <CardContent className="space-y-6">
           <form onSubmit={handleRegister} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name" className="font-bold uppercase text-xs tracking-widest">Tu Nombre de Héroe</Label>
+              <Label htmlFor="name" className="font-bold uppercase text-xs tracking-widest">Nombre Completo</Label>
               <Input 
                 id="name" 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ej. Nicolas Buenaventura" 
+                placeholder="Tu nombre de héroe" 
                 className="rounded-xl border-2 h-12" 
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email" className="font-bold uppercase text-xs tracking-widest">Correo Personal</Label>
+              <Label htmlFor="email" className="font-bold uppercase text-xs tracking-widest">Correo Electrónico</Label>
               <Input 
                 id="email" 
                 type="email" 
@@ -134,29 +125,19 @@ export default function RegisterPage() {
               />
             </div>
 
-            <div className="p-3 bg-muted/30 rounded-xl border border-muted-foreground/10">
-              <div className="flex items-start gap-3">
-                <Mail className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
-                <p className="text-[10px] text-muted-foreground leading-tight">
-                  Te enviaremos un correo de verificación. Revisa tu bandeja de entrada después de registrarte.
-                </p>
-              </div>
-            </div>
-
             <Button 
               type="submit"
               disabled={isLoading}
               className="w-full game-button bg-secondary h-12 text-lg shadow-lg glow-secondary"
             >
               {isLoading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Rocket className="mr-2 w-5 h-5" />}
-              {isLoading ? "Creando Avatar..." : "Iniciar Misión"}
+              {isLoading ? "Registrando..." : "Empezar Misión"}
             </Button>
           </form>
 
           <div className="text-center">
             <p className="text-sm text-muted-foreground">
-              ¿Ya tienes una cuenta?{" "}
-              <Link href="/auth/login" className="font-bold text-primary hover:underline">Inicia Sesión</Link>
+              ¿Ya tienes cuenta? <Link href="/auth/login" className="font-bold text-primary hover:underline">Inicia Sesión</Link>
             </p>
           </div>
         </CardContent>

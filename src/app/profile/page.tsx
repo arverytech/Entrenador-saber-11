@@ -8,11 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ShieldCheck, Key, LogOut, CheckCircle2, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, Key, LogOut, CheckCircle2, Loader2, Sparkles, AlertTriangle, Ticket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, serverTimestamp, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 
@@ -34,55 +34,81 @@ export default function ProfilePage() {
     if (!premiumKey || !firestore || !user || !userDocRef) return;
 
     setIsActivating(true);
-    const key = premiumKey.trim().toUpperCase();
-    const isAdminKey = key === 'ADMIN-MASTER-2025';
-    const isPremiumKey = key === 'ICFES-PRO-2025';
-
-    if (!isAdminKey && !isPremiumKey) {
-      toast({ 
-        variant: "destructive", 
-        title: "Código de Error", 
-        description: "El código ingresado no pertenece a nuestro sistema de comandantes." 
-      });
-      setIsActivating(false);
-      return;
-    }
+    const inputKey = premiumKey.trim().toUpperCase();
 
     try {
-      // 1. Elevamos privilegios en la colección de usuarios
-      const updates: any = { 
+      // 1. Buscamos la llave en la base de datos de llaves únicas
+      const keysRef = collection(firestore, 'premiumAccessKeys');
+      const q = query(keysRef, where('keyString', '==', inputKey), where('isActive', '==', true), limit(1));
+      const querySnapshot = await getDocs(q);
+
+      // CASO ESPECIAL: Llave Legacy para el primer Admin (solo si el sistema está vacío)
+      const isLegacyAdmin = inputKey === 'ADMIN-MASTER-2025';
+
+      if (querySnapshot.empty && !isLegacyAdmin) {
+        toast({ 
+          variant: "destructive", 
+          title: "Llave Inválida", 
+          description: "Esta llave no existe, ya fue usada o ha expirado." 
+        });
+        setIsActivating(false);
+        return;
+      }
+
+      let keyData = null;
+      let keyId = null;
+
+      if (!querySnapshot.empty) {
+        const keyDoc = querySnapshot.docs[0];
+        keyData = keyDoc.data();
+        keyId = keyDoc.id;
+      }
+
+      // 2. Definimos las actualizaciones del usuario
+      const userUpdates: any = { 
         isTrial: false, 
         updatedAt: serverTimestamp() 
       };
 
-      if (isAdminKey) {
-        updates.role = 'admin';
-        // 2. Creamos la entrada en la colección de control de administradores
+      const isForAdmin = isLegacyAdmin || (keyData && keyData.type === 'admin_access');
+
+      if (isForAdmin) {
+        userUpdates.role = 'admin';
+        // Registramos en la colección de control de admins
         await setDoc(doc(firestore, 'adminUsers', user.uid), {
           id: user.uid,
           email: user.email,
           activatedAt: serverTimestamp(),
-          keyUsed: 'ADMIN-MASTER-2025'
+          keyUsed: inputKey
         });
       }
 
-      await updateDoc(userDocRef, updates);
-      
+      // 3. Aplicamos cambios al usuario
+      await updateDoc(userDocRef, userUpdates);
+
+      // 4. "Quemamos" la llave si era de la base de datos
+      if (keyId) {
+        await updateDoc(doc(firestore, 'premiumAccessKeys', keyId), {
+          isActive: false,
+          redeemedByUserId: user.uid,
+          redeemedAt: serverTimestamp()
+        });
+      }
+
       toast({ 
         title: "¡Protocolo Activado!", 
-        description: `Has desbloqueado el rango de ${isAdminKey ? 'Comandante de Academia' : 'Héroe Premium'}. Reinicia la plataforma para ver los cambios.` 
+        description: `Has desbloqueado el rango de ${isForAdmin ? 'Comandante' : 'Héroe Premium'}.` 
       });
       setPremiumKey("");
       
-      // Forzamos recarga para actualizar el navbar y permisos
       setTimeout(() => window.location.reload(), 1500);
 
     } catch (e: any) {
       console.error(e);
       toast({ 
         variant: "destructive", 
-        title: "Fallo de Comunicación", 
-        description: "No se pudo sincronizar con el Cuartel General. Intenta de nuevo." 
+        title: "Error de Sincronización", 
+        description: "No se pudo validar la llave con el Cuartel General." 
       });
     } finally {
       setIsActivating(false);
@@ -107,7 +133,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Lógica estricta de validación
   const isActuallyActivated = userData?.isTrial === false;
 
   return (
@@ -165,19 +190,19 @@ export default function ProfilePage() {
           <Card className={`game-card border-2 ${!isActuallyActivated ? 'border-accent/40 bg-accent/5' : 'border-secondary/20 bg-card'}`}>
             <CardHeader>
               <CardTitle className="text-xl font-bold uppercase flex items-center gap-2 text-accent">
-                <Key className="w-5 h-5" /> Centro de Validación
+                <Ticket className="w-5 h-5" /> Centro de Licencias
               </CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase">Usa tu llave para desbloquear el máximo poder</CardDescription>
+              <CardDescription className="text-[10px] font-bold uppercase">Canjea tu llave única de acceso</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {!isActuallyActivated || userData?.role !== 'admin' ? (
                 <div className="space-y-4">
                    <p className="text-xs italic text-muted-foreground leading-relaxed">
-                     Ingresa el código secreto `ADMIN-MASTER-2025` para activar el panel de administración global.
+                     Ingresa tu código de licencia personal para activar el modo Premium o Administrador.
                    </p>
                    <div className="flex flex-col gap-3">
                       <Input 
-                        placeholder="CÓDIGO SECRETO..." 
+                        placeholder="CÓDIGO DE LICENCIA..." 
                         value={premiumKey}
                         onChange={(e) => setPremiumKey(e.target.value.toUpperCase())}
                         className="rounded-xl border-2 h-12 font-black uppercase tracking-widest text-center focus:border-accent"
@@ -198,8 +223,8 @@ export default function ProfilePage() {
                     <CheckCircle2 className="w-10 h-10 text-secondary" />
                   </div>
                   <div>
-                    <p className="font-black text-secondary text-xl uppercase italic">¡Identidad Verificada!</p>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold mt-1">Eres un Comandante de la Academia.</p>
+                    <p className="font-black text-secondary text-xl uppercase italic">¡Acceso Verificado!</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold mt-1">Tu cuenta está vinculada a una licencia oficial.</p>
                   </div>
                 </div>
               )}
