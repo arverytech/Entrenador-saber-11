@@ -10,14 +10,16 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Flame, Target, BookOpen, Star, Zap, GraduationCap, Clock, BrainCircuit, Sparkles, ShieldCheck, Loader2, Sword } from 'lucide-react';
 import Link from 'next/link';
-import { useUser, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { useToast } from '@/hooks/use-toast';
 import { doc, collection, query, limit, orderBy } from 'firebase/firestore';
 import { adaptLearningPath, type AdaptiveLearningPathOutput } from '@/ai/flows/adaptive-learning-path';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 
 export default function DashboardPage() {
-  const { user, isUserLoading, firestore } = useUser();
+  const { user, isUserLoading, firestore } = useFirebase();
   const router = useRouter();
+  const { toast } = useToast();
   const [aiMission, setAiMission] = useState<AdaptiveLearningPathOutput | null>(null);
   const [isGeneratingMission, setIsGeneratingMission] = useState(false);
 
@@ -75,8 +77,10 @@ export default function DashboardPage() {
         currentContext: "Inicio de fase de entrenamiento intensivo"
       });
       setAiMission(mission);
-    } catch (e) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error desconocido";
       console.error(e);
+      toast({ variant: "destructive", title: "Error de IA", description: `No se pudo generar la misión. Verifica que la variable GOOGLE_GENAI_API_KEY esté configurada en el servidor. Detalle: ${msg}` });
     } finally {
       setIsGeneratingMission(false);
     }

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ShieldCheck, LogOut, CheckCircle2, Loader2, Sparkles, Ticket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc, setDoc, serverTimestamp, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -18,9 +18,15 @@ import { useRouter } from 'next/navigation';
 export default function ProfilePage() {
   const [premiumKey, setPremiumKey] = useState("");
   const [isActivating, setIsActivating] = useState(false);
-  const { user, firestore, auth } = useUser();
+  const { user, firestore, auth, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -30,7 +36,12 @@ export default function ProfilePage() {
   const { data: userData, isLoading: isDataLoading } = useDoc(userDocRef);
 
   const handleActivatePremium = async () => {
-    if (!premiumKey || !firestore || !user || !userDocRef) return;
+    if (!premiumKey) return;
+
+    if (!firestore || !user || !userDocRef) {
+      toast({ variant: "destructive", title: "Sesión no encontrada", description: "Recarga la página e inicia sesión nuevamente." });
+      return;
+    }
 
     setIsActivating(true);
     const inputKey = premiumKey.trim().toUpperCase();
@@ -42,18 +53,21 @@ export default function ProfilePage() {
 
       if (!isLegacyAdmin) {
         const keysRef = collection(firestore, 'premiumAccessKeys');
-        const q = query(keysRef, where('keyString', '==', inputKey), where('isActive', '==', true), limit(1));
+        // Single-field query to avoid requiring a composite Firestore index.
+        // We filter isActive in memory after fetching.
+        const q = query(keysRef, where('keyString', '==', inputKey), limit(5));
         const querySnapshot = await getDocs(q);
 
-        if (querySnapshot.empty) {
+        const activeDoc = querySnapshot.docs.find(d => d.data().isActive === true);
+
+        if (!activeDoc) {
           toast({ variant: "destructive", title: "Llave Inválida", description: "Código inexistente o ya usado." });
           setIsActivating(false);
           return;
         }
 
-        const keyDoc = querySnapshot.docs[0];
-        keyData = keyDoc.data();
-        keyId = keyDoc.id;
+        keyData = activeDoc.data();
+        keyId = activeDoc.id;
       }
 
       const userUpdates: any = { isTrial: false, updatedAt: serverTimestamp() };
@@ -69,7 +83,7 @@ export default function ProfilePage() {
         });
       }
 
-      await updateDoc(userDocRef, userUpdates);
+      await setDoc(userDocRef, userUpdates, { merge: true });
 
       if (keyId) {
         await updateDoc(doc(firestore, 'premiumAccessKeys', keyId), {
@@ -84,15 +98,22 @@ export default function ProfilePage() {
       setTimeout(() => window.location.reload(), 1500);
 
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo validar el código." });
+      console.error('handleActivatePremium error:', e);
+      toast({ variant: "destructive", title: "Error al activar", description: e?.message || "No se pudo validar el código." });
     } finally {
       setIsActivating(false);
     }
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/auth/login');
+    try {
+      await signOut(auth);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error desconocido";
+      console.error('Error al cerrar sesión:', msg);
+    } finally {
+      router.push('/auth/login');
+    }
   };
 
   const trialDaysLeft = userData?.trialEndDate 

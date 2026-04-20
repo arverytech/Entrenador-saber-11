@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,16 +10,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Timer, AlertCircle, CheckCircle2, BrainCircuit, ArrowRight, Loader2, Wand2, GraduationCap, XCircle, ShieldCheck, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, increment, collection, addDoc, serverTimestamp, query, where, limit } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { generateExplanation, type DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
 
 export default function PracticeRoomPage({ params }: { params: { subject: string } }) {
-  const { user, firestore, isUserLoading } = useUser();
+  const { user, firestore, isUserLoading } = useFirebase();
   const { toast } = useToast();
+  const router = useRouter();
   const currentSubject = params.subject.toLowerCase();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const questionsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -32,6 +40,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiGenerationError, setAiGenerationError] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<DynamicAnswerExplanationOutput | null>(null);
   const [genQuestion, setGenQuestion] = useState<GenerateQuestionOutput | null>(null);
 
@@ -46,6 +55,24 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     }
     return null;
   }, [activeQuestions, currentIdx, genQuestion]);
+
+  // Auto-generate an AI question when the DB bank is empty and loading is done
+  useEffect(() => {
+    if (isDbLoading || isUserLoading) return;
+    if (activeQuestions.length === 0 && !genQuestion && !isGenerating) {
+      setAiGenerationError(null);
+      setIsGenerating(true);
+      generateIcfesQuestion({ subject: currentSubject, component: "General", competency: "Resolución de problemas", level: "Medio" })
+        .then(result => setGenQuestion(result))
+        .catch((e: unknown) => {
+          const msg = e instanceof Error ? e.message : "Error desconocido";
+          setAiGenerationError(`No hay preguntas en el banco y la IA no pudo generar una. Detalle: ${msg}`);
+          toast({ variant: "destructive", title: "Sin preguntas disponibles", description: `Banco vacío. Verifica la API Key de IA en la configuración del servidor.` });
+        })
+        .finally(() => setIsGenerating(false));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDbLoading, isUserLoading, activeQuestions.length]);
 
   const handleCheck = async () => {
     if (selected === null || !currentQ) return;
@@ -88,8 +115,9 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         competency: currentQ.competencyId || "Razonamiento",
       });
       setAiAnalysis(result);
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo generar la explicación." });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error desconocido";
+      toast({ variant: "destructive", title: "Error de Explicación IA", description: `No se pudo generar la explicación. Verifica la API Key de IA. Detalle: ${msg}` });
     } finally {
       setIsExplaining(false);
     }
@@ -100,6 +128,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     setSelected(null);
     setAiAnalysis(null);
     setGenQuestion(null);
+    setAiGenerationError(null);
 
     // Si ya no hay más preguntas en el banco de datos, generamos una nueva automáticamente
     if (currentIdx + 1 >= activeQuestions.length) {
@@ -112,8 +141,10 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           level: "Medio"
         });
         setGenQuestion(result);
-      } catch (e) {
-        toast({ variant: "destructive", title: "Error", description: "Falla al cargar siguiente pregunta." });
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Error desconocido";
+        setAiGenerationError(`La IA no pudo generar una pregunta. Detalle: ${msg}`);
+        toast({ variant: "destructive", title: "Error al generar pregunta IA", description: `Verifica que la API Key de Gemini esté configurada en el servidor. Detalle: ${msg}` });
       } finally {
         setIsGenerating(false);
       }
@@ -153,11 +184,22 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           <Card className="lg:col-span-2 game-card border-primary/20 bg-card">
             <div className="p-10 border-b-2 border-primary/5">
               <h2 className="text-2xl font-black uppercase italic leading-snug">
-                {isGenerating ? <div className="flex items-center gap-3"><Loader2 className="w-6 h-6 animate-spin" /> Generando nueva pregunta...</div> : (currentQ?.text || currentQ?.title)}
+                {isGenerating
+                  ? <div className="flex items-center gap-3"><Loader2 className="w-6 h-6 animate-spin" /> Generando nueva pregunta con IA...</div>
+                  : aiGenerationError
+                    ? <div className="flex items-center gap-3 text-destructive"><AlertCircle className="w-6 h-6" /> Error al cargar pregunta</div>
+                    : (currentQ?.text || currentQ?.title)}
               </h2>
             </div>
             <CardContent className="p-10 space-y-4">
-              {currentQ?.options.map((opt: string, i: number) => (
+              {aiGenerationError ? (
+                <div className="p-6 rounded-2xl border-2 border-destructive/30 bg-destructive/5 text-sm text-destructive font-bold space-y-3">
+                  <p>{aiGenerationError}</p>
+                  <p className="text-xs font-normal text-muted-foreground">
+                    Para cargar preguntas al banco: ve al <strong>Panel Admin → Cargar Preguntas Oficiales</strong>. Para activar la IA: configura la variable de entorno <code>GOOGLE_GENAI_API_KEY</code> en Firebase App Hosting.
+                  </p>
+                </div>
+              ) : currentQ?.options.map((opt: string, i: number) => (
                 <button
                   key={i}
                   disabled={isCorrect !== null || isGenerating}
@@ -184,7 +226,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Analiza la situación</p>
                   <h4 className="font-bold text-sm italic">"El conocimiento es tu mejor arma"</h4>
                 </div>
-                <Button className="game-button bg-primary w-full h-14 text-white shadow-lg glow-primary" disabled={selected === null || isGenerating} onClick={handleCheck}>
+                <Button className="game-button bg-primary w-full h-14 text-white shadow-lg glow-primary" disabled={selected === null || isGenerating || !!aiGenerationError} onClick={handleCheck}>
                   Confirmar Respuesta
                 </Button>
               </div>

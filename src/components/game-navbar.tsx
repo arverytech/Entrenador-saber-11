@@ -16,13 +16,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/avatar-adapter";
-import { useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export function GameNavbar() {
   const { institutionName, institutionLogo } = useBranding();
-  const { user, firestore, auth } = useUser();
+  const { user, firestore, auth } = useFirebase();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -34,8 +34,14 @@ export function GameNavbar() {
   const { data: userData } = useDoc(userDocRef);
 
   const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/auth/login');
+    try {
+      await signOut(auth);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error desconocido";
+      console.error('Error al cerrar sesión:', msg);
+    } finally {
+      router.push('/auth/login');
+    }
   };
 
   const isAdmin = userData?.role === 'admin';

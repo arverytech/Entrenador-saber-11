@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, limit } from 'firebase/firestore';
 import { Timer, ArrowLeft, ArrowRight, ShieldCheck, Flag, AlertTriangle, Loader2, Target, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function ExamSimulationPage({ params }: { params: { id: string } }) {
-  const { user, firestore, isUserLoading } = useUser();
+  const { user, firestore, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -30,6 +30,12 @@ export default function ExamSimulationPage({ params }: { params: { id: string } 
   const [userAnswers, setUserAnswers] = useState<Record<string, number>>({});
   const [timeLeft, setTimeLeft] = useState(4.5 * 60 * 60); // 4.5 horas en segundos
   const [isFinished, setIsFinished] = useState(false);
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
 
   useEffect(() => {
     if (timeLeft > 0 && !isFinished) {
