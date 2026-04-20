@@ -11,7 +11,7 @@ import { ShieldCheck, LogOut, CheckCircle2, Loader2, Sparkles, Ticket } from 'lu
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, limit, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, serverTimestamp, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 
