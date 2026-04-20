@@ -29,10 +29,13 @@ service cloud.firestore {
       allow read, list: if isSignedIn();
       // Un usuario puede actualizar una llave SOLO para redimirla si está libre
       // Atómicidad garantizada por estas condiciones
+      // redeemedAt es opcional (serverTimestamp) — se permite su presencia pero no se valida su valor
       allow update: if isSignedIn() && 
                     resource.data.isActive == true && 
                     request.resource.data.isActive == false &&
-                    request.resource.data.redeemedByUserId == request.auth.uid;
+                    request.resource.data.redeemedByUserId == request.auth.uid &&
+                    request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['isActive', 'redeemedByUserId', 'redeemedAt']);
       // Solo el administrador crea o elimina llaves
       allow create, delete: if isAdmin();
     }
