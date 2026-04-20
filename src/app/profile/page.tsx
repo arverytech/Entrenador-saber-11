@@ -11,7 +11,7 @@ import { ShieldCheck, LogOut, CheckCircle2, Loader2, Sparkles, Ticket } from 'lu
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
-import { doc, updateDoc, setDoc, serverTimestamp, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs, limit, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 
@@ -36,7 +36,12 @@ export default function ProfilePage() {
   const { data: userData, isLoading: isDataLoading } = useDoc(userDocRef);
 
   const handleActivatePremium = async () => {
-    if (!premiumKey || !firestore || !user || !userDocRef) return;
+    if (!premiumKey) return;
+
+    if (!firestore || !user || !userDocRef) {
+      toast({ variant: "destructive", title: "Sesión no encontrada", description: "Recarga la página e inicia sesión nuevamente." });
+      return;
+    }
 
     setIsActivating(true);
     const inputKey = premiumKey.trim().toUpperCase();
@@ -78,7 +83,7 @@ export default function ProfilePage() {
         });
       }
 
-      await updateDoc(userDocRef, userUpdates);
+      await setDoc(userDocRef, userUpdates, { merge: true });
 
       if (keyId) {
         await updateDoc(doc(firestore, 'premiumAccessKeys', keyId), {

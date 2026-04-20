@@ -163,6 +163,7 @@ describe('Access Key (Llave de Acceso) – ProfilePage', () => {
         data: () => ({ keyString: 'VALID-STUDENT-KEY', isActive: true, type: 'student_access' }),
       }],
     });
+    mockSetDoc.mockResolvedValue(undefined);
     mockUpdateDoc.mockResolvedValue(undefined);
 
     render(<ProfilePage />);
@@ -170,6 +171,9 @@ describe('Access Key (Llave de Acceso) – ProfilePage', () => {
     await userEvent.click(screen.getByRole('button', { name: /Validar Acceso/i }));
 
     await waitFor(() => {
+      // User document is updated via setDoc with merge (works even if doc doesn't exist)
+      expect(mockSetDoc).toHaveBeenCalled();
+      // Premium key document is marked inactive via updateDoc
       expect(mockUpdateDoc).toHaveBeenCalled();
       expect(mockToast).toHaveBeenCalledWith(
         expect.objectContaining({ title: '¡Acceso Activado!' })
