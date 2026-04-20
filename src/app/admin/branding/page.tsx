@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Save, Database, Loader2, BookOpen, ShieldCheck, Ticket, Plus, Trash2 } from 'lucide-react';
-import { useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,7 @@ export default function AdminBrandingPage() {
   const [logo, setLogo] = useState(institutionLogo);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
-  const { firestore } = useUser();
+  const { firestore } = useFirebase();
   const { toast } = useToast();
 
   const keysQuery = useMemoFirebase(() => {

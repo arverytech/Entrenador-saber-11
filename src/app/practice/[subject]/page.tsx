@@ -9,14 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Timer, AlertCircle, CheckCircle2, BrainCircuit, ArrowRight, Loader2, Wand2, GraduationCap, XCircle, ShieldCheck, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, increment, collection, addDoc, serverTimestamp, query, where, limit } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { generateExplanation, type DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
 
 export default function PracticeRoomPage({ params }: { params: { subject: string } }) {
-  const { user, firestore, isUserLoading } = useUser();
+  const { user, firestore, isUserLoading } = useFirebase();
   const { toast } = useToast();
   const currentSubject = params.subject.toLowerCase();
 

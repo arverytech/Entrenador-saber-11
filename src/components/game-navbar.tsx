@@ -16,13 +16,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/avatar-adapter";
-import { useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 
 export function GameNavbar() {
   const { institutionName, institutionLogo } = useBranding();
-  const { user, firestore, auth } = useUser();
+  const { user, firestore, auth } = useFirebase();
   const router = useRouter();
   const pathname = usePathname();
 

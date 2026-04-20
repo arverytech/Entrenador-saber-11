@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ShieldCheck, LogOut, CheckCircle2, Loader2, Sparkles, Ticket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useDoc, useMemoFirebase } from '@/firebase';
+import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
 import { doc, updateDoc, setDoc, serverTimestamp, collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation';
 export default function ProfilePage() {
   const [premiumKey, setPremiumKey] = useState("");
   const [isActivating, setIsActivating] = useState(false);
-  const { user, firestore, auth } = useUser();
+  const { user, firestore, auth } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
 

@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, limit } from 'firebase/firestore';
 import { Timer, ArrowLeft, ArrowRight, ShieldCheck, Flag, AlertTriangle, Loader2, Target, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function ExamSimulationPage({ params }: { params: { id: string } }) {
-  const { user, firestore, isUserLoading } = useUser();
+  const { user, firestore, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
   
