@@ -77,9 +77,10 @@ export default function DashboardPage() {
         currentContext: "Inicio de fase de entrenamiento intensivo"
       });
       setAiMission(mission);
-    } catch (e) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error desconocido";
       console.error(e);
-      toast({ variant: "destructive", title: "Error de IA", description: "No se pudo generar la misión. Verifica la configuración del API key." });
+      toast({ variant: "destructive", title: "Error de IA", description: `No se pudo generar la misión. Verifica que la variable GOOGLE_GENAI_API_KEY esté configurada en el servidor. Detalle: ${msg}` });
     } finally {
       setIsGeneratingMission(false);
     }

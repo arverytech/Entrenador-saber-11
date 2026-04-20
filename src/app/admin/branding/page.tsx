@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Save, Database, Loader2, BookOpen, ShieldCheck, Ticket, Plus, Trash2 } from 'lucide-react';
+import { Settings, Save, Database, Loader2, BookOpen, ShieldCheck, Ticket, Plus, Trash2, Link2, CheckCircle2 } from 'lucide-react';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -22,6 +22,9 @@ export default function AdminBrandingPage() {
   const [logo, setLogo] = useState(institutionLogo);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ count: number; note: string } | null>(null);
   const { firestore, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
@@ -77,6 +80,38 @@ export default function AdminBrandingPage() {
       toast({ title: "Llave Eliminada", description: "El código ha sido revocado." });
     } catch (e) {
       toast({ variant: "destructive", title: "Acceso Denegado", description: "No tienes permisos para eliminar llaves." });
+    }
+  };
+
+  const importQuestionsFromUrl = async () => {
+    if (!importUrl.trim() || !firestore) return;
+    setIsImporting(true);
+    setImportResult(null);
+    try {
+      const res = await fetch('/api/import-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: importUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `Error del servidor: ${res.status}`);
+      }
+      const { questions, sourceNote } = data as { questions: any[]; sourceNote: string };
+      for (const q of questions) {
+        await addDoc(collection(firestore, 'questions'), {
+          ...q,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      setImportResult({ count: questions.length, note: sourceNote });
+      toast({ title: "Importación Exitosa", description: `${questions.length} pregunta(s) importada(s) desde la URL.` });
+      setImportUrl('');
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Error de Importación", description: e?.message || "No se pudo importar desde esa URL." });
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -228,6 +263,49 @@ export default function AdminBrandingPage() {
              </CardContent>
           </Card>
         </div>
+
+        {/* ── Importar preguntas desde URL ─────────────────────────── */}
+        <Card className="game-card border-secondary/20 bg-card shadow-xl">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold uppercase flex items-center gap-2 text-secondary">
+              <Link2 className="w-5 h-5" /> Importar Preguntas desde URL
+            </CardTitle>
+            <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
+              Pega la URL de un sitio web, PDF público o documento y la IA extraerá o generará preguntas ICFES a partir de su contenido.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-3">
+              <Input
+                placeholder="https://ejemplo.com/guia-matematicas"
+                value={importUrl}
+                onChange={(e) => { setImportUrl(e.target.value); setImportResult(null); }}
+                className="h-12 border-2 flex-1 font-mono text-sm"
+                disabled={isImporting}
+              />
+              <Button
+                className="game-button bg-secondary text-white h-12 px-8 shadow-lg whitespace-nowrap"
+                onClick={importQuestionsFromUrl}
+                disabled={isImporting || !importUrl.trim()}
+              >
+                {isImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Link2 className="w-4 h-4 mr-2" />}
+                {isImporting ? 'Importando con IA...' : 'Importar Preguntas'}
+              </Button>
+            </div>
+            {importResult && (
+              <div className="flex items-start gap-3 p-4 bg-secondary/5 rounded-2xl border border-secondary/20 text-sm">
+                <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-black text-secondary">{importResult.count} pregunta(s) importada(s) correctamente.</p>
+                  <p className="text-xs text-muted-foreground italic mt-1">{importResult.note}</p>
+                </div>
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+              <strong>Nota:</strong> La URL debe ser accesible públicamente. Se procesan los primeros 8 000 caracteres del contenido. Si la página no tiene preguntas, la IA generará preguntas originales basadas en el tema detectado.
+            </p>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

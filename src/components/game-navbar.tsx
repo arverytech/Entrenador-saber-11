@@ -36,8 +36,9 @@ export function GameNavbar() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-    } catch (e) {
-      console.error('Error al cerrar sesión:', e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Error desconocido";
+      console.error('Error al cerrar sesión:', msg);
     } finally {
       router.push('/auth/login');
     }
