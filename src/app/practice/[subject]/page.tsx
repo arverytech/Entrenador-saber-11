@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,7 +19,14 @@ import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/g
 export default function PracticeRoomPage({ params }: { params: { subject: string } }) {
   const { user, firestore, isUserLoading } = useFirebase();
   const { toast } = useToast();
+  const router = useRouter();
   const currentSubject = params.subject.toLowerCase();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const questionsQuery = useMemoFirebase(() => {
     if (!firestore) return null;

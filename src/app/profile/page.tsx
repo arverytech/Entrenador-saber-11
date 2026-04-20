@@ -97,9 +97,9 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut(auth);
     router.push('/auth/login');
-    signOut(auth);
   };
 
   const trialDaysLeft = userData?.trialEndDate 
