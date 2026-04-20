@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Trophy, Flame, Target, BookOpen, Star, Zap, GraduationCap, Clock, BrainCircuit, Sparkles, ShieldCheck, Loader2, Sword } from 'lucide-react';
 import Link from 'next/link';
 import { useFirebase, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { useToast } from '@/hooks/use-toast';
 import { doc, collection, query, limit, orderBy } from 'firebase/firestore';
 import { adaptLearningPath, type AdaptiveLearningPathOutput } from '@/ai/flows/adaptive-learning-path';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } from 'recharts';
@@ -18,6 +19,7 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer } fro
 export default function DashboardPage() {
   const { user, isUserLoading, firestore } = useFirebase();
   const router = useRouter();
+  const { toast } = useToast();
   const [aiMission, setAiMission] = useState<AdaptiveLearningPathOutput | null>(null);
   const [isGeneratingMission, setIsGeneratingMission] = useState(false);
 
@@ -77,6 +79,7 @@ export default function DashboardPage() {
       setAiMission(mission);
     } catch (e) {
       console.error(e);
+      toast({ variant: "destructive", title: "Error de IA", description: "No se pudo generar la misión. Verifica la configuración del API key." });
     } finally {
       setIsGeneratingMission(false);
     }

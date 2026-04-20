@@ -48,18 +48,21 @@ export default function ProfilePage() {
 
       if (!isLegacyAdmin) {
         const keysRef = collection(firestore, 'premiumAccessKeys');
-        const q = query(keysRef, where('keyString', '==', inputKey), where('isActive', '==', true), limit(1));
+        // Single-field query to avoid requiring a composite Firestore index.
+        // We filter isActive in memory after fetching.
+        const q = query(keysRef, where('keyString', '==', inputKey), limit(5));
         const querySnapshot = await getDocs(q);
 
-        if (querySnapshot.empty) {
+        const activeDoc = querySnapshot.docs.find(d => d.data().isActive === true);
+
+        if (!activeDoc) {
           toast({ variant: "destructive", title: "Llave Inválida", description: "Código inexistente o ya usado." });
           setIsActivating(false);
           return;
         }
 
-        const keyDoc = querySnapshot.docs[0];
-        keyData = keyDoc.data();
-        keyId = keyDoc.id;
+        keyData = activeDoc.data();
+        keyId = activeDoc.id;
       }
 
       const userUpdates: any = { isTrial: false, updatedAt: serverTimestamp() };
@@ -98,8 +101,13 @@ export default function ProfilePage() {
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/auth/login');
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error('Error al cerrar sesión:', e);
+    } finally {
+      router.push('/auth/login');
+    }
   };
 
   const trialDaysLeft = userData?.trialEndDate 
