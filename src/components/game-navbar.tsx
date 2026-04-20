@@ -33,9 +33,9 @@ export function GameNavbar() {
 
   const { data: userData } = useDoc(userDocRef);
 
-  const handleLogout = async () => {
-    await signOut(auth);
+  const handleLogout = () => {
     router.push('/auth/login');
+    signOut(auth);
   };
 
   const isAdmin = userData?.role === 'admin';

@@ -32,6 +32,12 @@ export default function ExamSimulationPage({ params }: { params: { id: string } 
   const [isFinished, setIsFinished] = useState(false);
 
   useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  useEffect(() => {
     if (timeLeft > 0 && !isFinished) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);

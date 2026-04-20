@@ -1,20 +1,32 @@
 
 "use client";
 
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { GameNavbar } from '@/components/game-navbar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
-import { Users, Trophy, Target, TrendingUp, ShieldCheck, GraduationCap, ArrowUpRight, BarChart3 } from 'lucide-react';
+import { Users, Trophy, Target, TrendingUp, ShieldCheck, GraduationCap, ArrowUpRight, BarChart3, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
 
 export default function AdminGlobalDashboard() {
-  const usersQuery = useMemoFirebase(() => query(collection(useMemoFirebase(() => require('@/firebase').initializeFirebase().firestore, [])!, 'users'), orderBy('currentPoints', 'desc'), limit(50)), []);
+  const { firestore, user, isUserLoading } = useFirebase();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  const usersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'users'), orderBy('currentPoints', 'desc'), limit(50));
+  }, [firestore]);
   const { data: students, isLoading } = useCollection(usersQuery);
 
   const totalXP = students?.reduce((acc, curr) => acc + (curr.currentPoints || 0), 0) || 0;
@@ -31,7 +43,7 @@ export default function AdminGlobalDashboard() {
     { day: "Dom", intentos: 15 },
   ];
 
-  if (isLoading) {
+  if (isUserLoading || isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <GraduationCap className="w-12 h-12 text-primary animate-bounce" />

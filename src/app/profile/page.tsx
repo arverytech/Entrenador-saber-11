@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,9 +18,15 @@ import { useRouter } from 'next/navigation';
 export default function ProfilePage() {
   const [premiumKey, setPremiumKey] = useState("");
   const [isActivating, setIsActivating] = useState(false);
-  const { user, firestore, auth } = useFirebase();
+  const { user, firestore, auth, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const userDocRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -84,15 +90,16 @@ export default function ProfilePage() {
       setTimeout(() => window.location.reload(), 1500);
 
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo validar el código." });
+      console.error('handleActivatePremium error:', e);
+      toast({ variant: "destructive", title: "Error al activar", description: e?.message || "No se pudo validar el código." });
     } finally {
       setIsActivating(false);
     }
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
+  const handleLogout = () => {
     router.push('/auth/login');
+    signOut(auth);
   };
 
   const trialDaysLeft = userData?.trialEndDate 

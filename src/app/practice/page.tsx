@@ -75,7 +75,9 @@ export default function PracticePage() {
               <p className="text-sm text-muted-foreground italic">Nuestra IA crea preguntas basadas en lo que más te cuesta aprender.</p>
             </div>
           </div>
-          <Button className="game-button bg-primary text-white px-8 h-12 shadow-lg">Generar Misión Personalizada</Button>
+          <Button className="game-button bg-primary text-white px-8 h-12 shadow-lg" asChild>
+            <Link href="/dashboard">Generar Misión Personalizada</Link>
+          </Button>
         </section>
       </main>
     </div>

@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { GameNavbar } from '@/components/game-navbar';
 import { useBranding } from '@/components/branding-provider';
 import { Button } from '@/components/ui/button';
@@ -21,8 +22,15 @@ export default function AdminBrandingPage() {
   const [logo, setLogo] = useState(institutionLogo);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
-  const { firestore } = useFirebase();
+  const { firestore, user, isUserLoading } = useFirebase();
+  const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/auth/login');
+    }
+  }, [user, isUserLoading, router]);
 
   const keysQuery = useMemoFirebase(() => {
     if (!firestore) return null;
