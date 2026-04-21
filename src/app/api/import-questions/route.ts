@@ -129,6 +129,7 @@ export async function POST(req: NextRequest) {
     const chunks = splitIntoChunks(rawText);
     const allQuestions: Record<string, unknown>[] = [];
     let combinedNote = '';
+    let failedChunks = 0;
 
     for (const chunk of chunks) {
       try {
@@ -138,8 +139,9 @@ export async function POST(req: NextRequest) {
         });
         allQuestions.push(...(result.questions as Record<string, unknown>[]));
         if (!combinedNote) combinedNote = result.sourceNote;
-      } catch {
-        // Skip a failed chunk and continue with the rest
+      } catch (chunkErr) {
+        failedChunks++;
+        console.warn(`[import-questions] chunk ${failedChunks} failed:`, chunkErr instanceof Error ? chunkErr.message : chunkErr);
       }
     }
 
@@ -152,6 +154,7 @@ export async function POST(req: NextRequest) {
 
     // ── Optionally pre-generate 3-slide AI explanations ───────────────────
     let finalQuestions: Record<string, unknown>[] = allQuestions;
+    let explanationFailures = 0;
 
     if (preGenerateExplanations) {
       finalQuestions = await Promise.all(
@@ -177,18 +180,26 @@ export async function POST(req: NextRequest) {
             });
 
             return { ...q, aiExplanation };
-          } catch {
-            // If explanation generation fails, save the question without it
+          } catch (explErr) {
+            explanationFailures++;
+            console.warn(`[import-questions] explanation pre-generation failed for question "${q.text}":`, explErr instanceof Error ? explErr.message : explErr);
+            // Save the question without a pre-generated explanation; the student
+            // can still request it on-demand from the practice page.
             return q;
           }
         })
       );
     }
 
+    const chunkNote = failedChunks > 0 ? `, ${failedChunks} fragmento(s) fallido(s)` : '';
+    const explNote = preGenerateExplanations
+      ? `, explicaciones IA pre-generadas${explanationFailures > 0 ? ` (${explanationFailures} fallida(s))` : ''}`
+      : '';
+
     const note =
       `${combinedNote} ` +
       `(${chunks.length} fragmento(s) procesado(s) — ${finalQuestions.length} pregunta(s) extraída(s)` +
-      `${preGenerateExplanations ? ', con explicaciones IA pre-generadas' : ''})`;
+      `${chunkNote}${explNote})`;
 
     return NextResponse.json({ questions: finalQuestions, sourceNote: note });
   } catch (err: unknown) {
