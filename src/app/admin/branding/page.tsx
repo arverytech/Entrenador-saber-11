@@ -421,7 +421,7 @@ export default function AdminBrandingPage() {
               <UploadCloud className="w-5 h-5" /> Importar Preguntas
             </CardTitle>
             <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
-              Elige un método: URL pública, archivo de texto (.txt / .csv) o pega el contenido directamente.
+              Elige un método: URL pública, archivo de texto (.txt / .csv / .md / .pdf) o pega el contenido directamente.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -467,12 +467,12 @@ export default function AdminBrandingPage() {
                 <div className="flex flex-col md:flex-row gap-3 items-start">
                   <div className="flex-1 space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                      Archivo de texto (.txt, .csv o .md)
+                      Archivo de texto (.txt, .csv, .md o .pdf)
                     </Label>
                     <Input
                       ref={fileInputRef}
                       type="file"
-                      accept=".txt,.csv,.md"
+                      accept=".txt,.csv,.md,.pdf"
                       onChange={(e) => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null); }}
                       className="h-12 border-2 cursor-pointer"
                       disabled={isImporting}
