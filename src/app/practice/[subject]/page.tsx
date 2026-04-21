@@ -205,6 +205,12 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                     ? <div className="flex items-center gap-3 text-destructive"><AlertCircle className="w-6 h-6" /> Error al cargar pregunta</div>
                     : (currentQ?.text || currentQ?.title)}
               </h2>
+              {!isGenerating && !aiGenerationError && currentQ?.svgData && (
+                <div
+                  className="mt-6 rounded-2xl overflow-hidden border border-primary/20 bg-muted/30 flex justify-center"
+                  dangerouslySetInnerHTML={{ __html: currentQ.svgData }}
+                />
+              )}
             </div>
             <CardContent className="p-10 space-y-4">
               {aiGenerationError ? (

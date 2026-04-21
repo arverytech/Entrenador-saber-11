@@ -25,6 +25,7 @@ const ExtractedQuestionSchema = z.object({
   competencyId: z.string().describe('Competencia específica evaluada.'),
   level: z.enum(['Básico', 'Medio', 'Avanzado']).describe('Nivel de dificultad.'),
   pointsAwarded: z.number().default(50),
+  svgData: z.string().optional().describe('Código SVG completo (sin etiqueta XML) si la pregunta requiere una figura, gráfica, mapa, tabla o diagrama. Omitir si no aplica.'),
 });
 
 const ImportQuestionsOutputSchema = z.object({
@@ -62,6 +63,25 @@ REGLAS para las preguntas:
 - Los distractores deben ser plausibles (errores comunes de razonamiento).
 - El enunciado debe ser claro y formal, al estilo de los cuadernillos ICFES.
 - Asigna el subjectId correcto: matematicas | lectura | naturales | sociales | ingles | socioemocional
+
+REGLAS PARA EL CAMPO svgData (figuras, gráficas, mapas, tablas, diagramas):
+- Genera svgData ÚNICAMENTE cuando la pregunta necesite un elemento visual para ser comprendida (gráfica de barras, recta numérica, figura geométrica, mapa conceptual, tabla de datos, diagrama de flujo, etc.).
+- Si la pregunta NO requiere ningún elemento visual, omite el campo svgData por completo.
+- El SVG debe tener siempre viewBox="0 0 400 300" width="400" height="300".
+- Usa SOLO elementos SVG nativos: <rect>, <circle>, <line>, <polyline>, <polygon>, <path>, <text>, <g>, <defs>, <marker>.
+- Colores permitidos: #1a1a2e (fondo oscuro), #16213e (azul oscuro), #0f3460 (azul medio), #e94560 (rojo acento), #ffffff (blanco), #f5f5f5 (gris claro), #4a90d9 (azul claro), #27ae60 (verde), #f39c12 (naranja).
+- Todo texto dentro del SVG debe usar font-family="Arial, sans-serif" y un tamaño legible (mínimo font-size="12").
+- Las líneas de ejes deben usar stroke-width="2"; las líneas de datos stroke-width="1.5".
+- Incluye siempre etiquetas de texto explicativas en los ejes o elementos clave.
+- El SVG debe ser autónomo (sin dependencias externas ni JavaScript).
+- No uses etiquetas <?xml?> ni <!DOCTYPE>; el svgData debe comenzar directamente con <svg ...>.
+- Valida mentalmente que el SVG sea coherente con el enunciado antes de incluirlo.
+
+Tipos de figuras según la materia:
+- matematicas: gráficas cartesianas, figuras geométricas, rectas numéricas, tablas de valores.
+- naturales: diagramas de ciclos, tablas comparativas, gráficas de experimentos.
+- sociales: líneas de tiempo, mapas esquemáticos, diagramas de relaciones.
+- lectura/ingles: tablas de datos textuales si el enunciado las requiere.
 
 Genera entre 2 y 10 preguntas dependiendo de la riqueza del contenido.
 Responde estrictamente con el esquema JSON proporcionado.`,
