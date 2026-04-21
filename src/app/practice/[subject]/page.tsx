@@ -3,6 +3,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import DOMPurify from 'dompurify';
 import { GameNavbar } from '@/components/game-navbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -208,7 +209,11 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
               {!isGenerating && !aiGenerationError && currentQ?.svgData && (
                 <div
                   className="mt-6 rounded-2xl overflow-hidden border border-primary/20 bg-muted/30 flex justify-center"
-                  dangerouslySetInnerHTML={{ __html: currentQ.svgData }}
+                  dangerouslySetInnerHTML={{
+                    __html: DOMPurify.sanitize(currentQ.svgData, {
+                      USE_PROFILES: { svg: true, svgFilters: true },
+                    }),
+                  }}
                 />
               )}
             </div>
