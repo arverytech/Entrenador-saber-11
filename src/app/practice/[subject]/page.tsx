@@ -77,7 +77,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
 
   const handleCheck = async () => {
     if (selected === null || !currentQ) return;
-    const correctIdx = currentQ.correctAnswerIndex ?? currentQ.correctIndex;
+    const correctIdx = currentQ.correctAnswerIndex;
     const correct = selected === correctIdx;
     setIsCorrect(correct);
 
@@ -117,9 +117,9 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: currentQ.text || currentQ.title,
+          question: currentQ.text,
           userAnswer: currentQ.options[selected],
-          correctAnswer: currentQ.options[currentQ.correctAnswerIndex ?? currentQ.correctIndex],
+          correctAnswer: currentQ.options[currentQ.correctAnswerIndex],
           options: currentQ.options,
           subject: currentSubject,
           component: currentQ.componentId || 'General',
@@ -204,7 +204,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   ? <div className="flex items-center gap-3"><Loader2 className="w-6 h-6 animate-spin" /> Generando nueva pregunta con IA...</div>
                   : aiGenerationError
                     ? <div className="flex items-center gap-3 text-destructive"><AlertCircle className="w-6 h-6" /> Error al cargar pregunta</div>
-                    : (currentQ?.text || currentQ?.title)}
+                    : (currentQ?.text)}
               </h2>
               {!isGenerating && !aiGenerationError && currentQ?.svgData && (
                 <div
@@ -232,12 +232,12 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   onClick={() => setSelected(i)}
                   className={`w-full p-6 rounded-2xl border-2 text-left font-bold transition-all flex items-center justify-between
                     ${selected === i ? 'border-primary bg-primary/5' : 'border-muted hover:bg-muted/50'}
-                    ${isCorrect && i === (currentQ.correctAnswerIndex ?? currentQ.correctIndex) ? 'border-secondary bg-secondary/10' : ''}
+                    ${isCorrect && i === currentQ.correctAnswerIndex ? 'border-secondary bg-secondary/10' : ''}
                     ${isCorrect === false && selected === i ? 'border-destructive bg-destructive/10' : ''}
                   `}
                 >
                   <span className="italic">{opt}</span>
-                  {isCorrect && i === (currentQ.correctAnswerIndex ?? currentQ.correctIndex) && <CheckCircle2 className="text-secondary w-6 h-6" />}
+                  {isCorrect && i === currentQ.correctAnswerIndex && <CheckCircle2 className="text-secondary w-6 h-6" />}
                   {isCorrect === false && selected === i && <AlertCircle className="text-destructive w-6 h-6" />}
                 </button>
               ))}
