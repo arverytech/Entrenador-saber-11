@@ -1,70 +1,196 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { importQuestionsFromContent } from '@/ai/flows/import-questions-from-url-flow';
+import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow';
 
 /**
  * POST /api/import-questions
- * Body: { url: string }
  *
- * Fetches the page at `url` server-side (avoiding CORS), then uses AI to
- * extract or generate Saber-11-style questions from the content.
+ * Accepts three input modes:
+ *   1. JSON body  { url, generateExplanations? }         — fetches a web page server-side
+ *   2. FormData   { file, generateExplanations? }        — plain-text file upload (.txt/.csv)
+ *   3. FormData   { text, generateExplanations? }        — raw text pasted by the admin
+ *
+ * Large content is split into 10 000-character chunks so the AI can handle
+ * documents of any size. After extraction, if `generateExplanations` is true,
+ * a structured 3-slide explanation is pre-generated for every question and
+ * stored in the `aiExplanation` field so students see them instantly.
  */
+
+const CHUNK_SIZE = 10_000;
+/** Hard cap to avoid runaway processing (100 000 chars ≈ 100 KB of text). */
+const MAX_CONTENT = 100_000;
+
+function cleanHtml(raw: string): string {
+  return raw
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function splitIntoChunks(text: string): string[] {
+  const limited = text.slice(0, MAX_CONTENT);
+  const chunks: string[] = [];
+  for (let i = 0; i < limited.length; i += CHUNK_SIZE) {
+    chunks.push(limited.slice(i, i + CHUNK_SIZE));
+  }
+  return chunks;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { url } = body as { url?: string };
+    let rawText = '';
+    let sourceLabel = 'contenido';
+    let preGenerateExplanations = false;
 
-    if (!url || typeof url !== 'string') {
-      return NextResponse.json({ error: 'Debes proporcionar una URL válida.' }, { status: 400 });
-    }
+    const contentType = req.headers.get('content-type') ?? '';
 
-    // Basic URL validation
-    let parsedUrl: URL;
-    try {
-      parsedUrl = new URL(url);
-    } catch {
-      return NextResponse.json({ error: 'La URL proporcionada no tiene un formato válido.' }, { status: 400 });
-    }
+    if (contentType.includes('multipart/form-data')) {
+      // ── File upload or pasted text ──────────────────────────────────────
+      const formData = await req.formData();
+      const file = formData.get('file') as File | null;
+      const text = formData.get('text') as string | null;
+      preGenerateExplanations = formData.get('generateExplanations') === 'true';
 
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      return NextResponse.json({ error: 'Solo se permiten URLs con protocolo http o https.' }, { status: 400 });
-    }
-
-    // Fetch the remote page (server-side — no CORS issues)
-    let pageContent: string;
-    try {
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'EntrenadorSaber11/1.0 (content-import)' },
-        signal: AbortSignal.timeout(15_000),
-      });
-
-      if (!response.ok) {
+      if (file && file.size > 0) {
+        rawText = await file.text();
+        sourceLabel = file.name;
+      } else if (text && text.trim()) {
+        rawText = text.trim();
+        sourceLabel = 'texto pegado directamente';
+      } else {
         return NextResponse.json(
-          { error: `No se pudo acceder a la URL. El servidor respondió con: ${response.status} ${response.statusText}` },
-          { status: 502 }
+          { error: 'Se requiere un archivo o texto.' },
+          { status: 400 }
+        );
+      }
+    } else {
+      // ── URL (JSON body) ─────────────────────────────────────────────────
+      const body = await req.json();
+      const { url, generateExplanations } = body as {
+        url?: string;
+        generateExplanations?: boolean;
+      };
+      preGenerateExplanations = generateExplanations === true;
+
+      if (!url || typeof url !== 'string') {
+        return NextResponse.json(
+          { error: 'Debes proporcionar una URL válida, un archivo o texto.' },
+          { status: 400 }
         );
       }
 
-      const raw = await response.text();
-      // Strip HTML tags and collapse whitespace to get plain text for the AI
-      pageContent = raw
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[\s\S]*?<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s{2,}/g, ' ')
-        .trim()
-        .substring(0, 8_000); // keep within token budget
-    } catch (fetchErr: unknown) {
-      const msg = fetchErr instanceof Error ? fetchErr.message : 'Error de red desconocido';
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        return NextResponse.json(
+          { error: 'La URL proporcionada no tiene un formato válido.' },
+          { status: 400 }
+        );
+      }
+
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        return NextResponse.json(
+          { error: 'Solo se permiten URLs con protocolo http o https.' },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const response = await fetch(url, {
+          headers: { 'User-Agent': 'EntrenadorSaber11/1.0 (content-import)' },
+          signal: AbortSignal.timeout(15_000),
+        });
+
+        if (!response.ok) {
+          return NextResponse.json(
+            {
+              error: `No se pudo acceder a la URL. El servidor respondió con: ${response.status} ${response.statusText}`,
+            },
+            { status: 502 }
+          );
+        }
+
+        rawText = cleanHtml(await response.text());
+        sourceLabel = url;
+      } catch (fetchErr: unknown) {
+        const msg =
+          fetchErr instanceof Error ? fetchErr.message : 'Error de red desconocido';
+        return NextResponse.json(
+          { error: `No se pudo descargar el contenido de la URL. Detalle: ${msg}` },
+          { status: 502 }
+        );
+      }
+    }
+
+    // ── Split into chunks and process each with the AI ────────────────────
+    const chunks = splitIntoChunks(rawText);
+    const allQuestions: Record<string, unknown>[] = [];
+    let combinedNote = '';
+
+    for (const chunk of chunks) {
+      try {
+        const result = await importQuestionsFromContent({
+          url: sourceLabel,
+          content: chunk,
+        });
+        allQuestions.push(...(result.questions as Record<string, unknown>[]));
+        if (!combinedNote) combinedNote = result.sourceNote;
+      } catch {
+        // Skip a failed chunk and continue with the rest
+      }
+    }
+
+    if (allQuestions.length === 0) {
       return NextResponse.json(
-        { error: `No se pudo descargar el contenido de la URL. Detalle: ${msg}` },
-        { status: 502 }
+        { error: 'No se pudieron extraer preguntas del contenido proporcionado.' },
+        { status: 422 }
       );
     }
 
-    // Call the AI flow
-    const result = await importQuestionsFromContent({ url, content: pageContent });
+    // ── Optionally pre-generate 3-slide AI explanations ───────────────────
+    let finalQuestions: Record<string, unknown>[] = allQuestions;
 
-    return NextResponse.json({ questions: result.questions, sourceNote: result.sourceNote });
+    if (preGenerateExplanations) {
+      finalQuestions = await Promise.all(
+        allQuestions.map(async (q) => {
+          try {
+            const options = q.options as string[];
+            const correctIdx = q.correctAnswerIndex as number;
+            const correctAnswer = options[correctIdx];
+            // Use the first wrong option as the simulated student answer so
+            // the explanation covers both why the correct answer is right and
+            // why the distractor is wrong.
+            const wrongAnswer =
+              options.find((_, i) => i !== correctIdx) ?? correctAnswer;
+
+            const aiExplanation = await generateExplanation({
+              question: q.text as string,
+              userAnswer: wrongAnswer,
+              correctAnswer,
+              options,
+              subject: q.subjectId as string,
+              component: (q.componentId as string) || 'General',
+              competency: (q.competencyId as string) || 'Razonamiento',
+            });
+
+            return { ...q, aiExplanation };
+          } catch {
+            // If explanation generation fails, save the question without it
+            return q;
+          }
+        })
+      );
+    }
+
+    const note =
+      `${combinedNote} ` +
+      `(${chunks.length} fragmento(s) procesado(s) — ${finalQuestions.length} pregunta(s) extraída(s)` +
+      `${preGenerateExplanations ? ', con explicaciones IA pre-generadas' : ''})`;
+
+    return NextResponse.json({ questions: finalQuestions, sourceNote: note });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error desconocido';
     return NextResponse.json(

@@ -1,16 +1,18 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { GameNavbar } from '@/components/game-navbar';
 import { useBranding } from '@/components/branding-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Save, Database, Loader2, BookOpen, ShieldCheck, Ticket, Plus, Trash2, Link2, CheckCircle2 } from 'lucide-react';
+import { Settings, Save, Database, Loader2, BookOpen, Ticket, Trash2, Link2, CheckCircle2, UploadCloud, AlignLeft, Sparkles } from 'lucide-react';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,8 +25,12 @@ export default function AdminBrandingPage() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
   const [importUrl, setImportUrl] = useState('');
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importText, setImportText] = useState('');
+  const [generateExplanations, setGenerateExplanations] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ count: number; note: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { firestore, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
@@ -83,20 +89,40 @@ export default function AdminBrandingPage() {
     }
   };
 
-  const importQuestionsFromUrl = async () => {
-    if (!importUrl.trim() || !firestore) return;
+  const handleImport = async (mode: 'url' | 'file' | 'text') => {
+    if (!firestore) return;
+    if (mode === 'url' && !importUrl.trim()) return;
+    if (mode === 'file' && !importFile) return;
+    if (mode === 'text' && !importText.trim()) return;
+
     setIsImporting(true);
     setImportResult(null);
+
     try {
-      const res = await fetch('/api/import-questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: importUrl.trim() }),
-      });
+      let res: Response;
+
+      if (mode === 'url') {
+        res = await fetch('/api/import-questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: importUrl.trim(), generateExplanations }),
+        });
+      } else {
+        const formData = new FormData();
+        if (mode === 'file' && importFile) {
+          formData.append('file', importFile);
+        } else {
+          formData.append('text', importText.trim());
+        }
+        formData.append('generateExplanations', String(generateExplanations));
+        res = await fetch('/api/import-questions', { method: 'POST', body: formData });
+      }
+
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || `Error del servidor: ${res.status}`);
       }
+
       const { questions, sourceNote } = data as { questions: any[]; sourceNote: string };
       for (const q of questions) {
         await addDoc(collection(firestore, 'questions'), {
@@ -105,11 +131,15 @@ export default function AdminBrandingPage() {
           updatedAt: new Date().toISOString(),
         });
       }
+
       setImportResult({ count: questions.length, note: sourceNote });
-      toast({ title: "Importación Exitosa", description: `${questions.length} pregunta(s) importada(s) desde la URL.` });
-      setImportUrl('');
+      toast({ title: "Importación Exitosa", description: `${questions.length} pregunta(s) guardada(s) en la base de datos.` });
+
+      if (mode === 'url') setImportUrl('');
+      if (mode === 'file') { setImportFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }
+      if (mode === 'text') setImportText('');
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error de Importación", description: e?.message || "No se pudo importar desde esa URL." });
+      toast({ variant: "destructive", title: "Error de Importación", description: e?.message || "No se pudo importar el contenido." });
     } finally {
       setIsImporting(false);
     }
@@ -264,46 +294,144 @@ export default function AdminBrandingPage() {
           </Card>
         </div>
 
-        {/* ── Importar preguntas desde URL ─────────────────────────── */}
+        {/* ── Importar preguntas ──────────────────────────────────────────── */}
         <Card className="game-card border-secondary/20 bg-card shadow-xl">
           <CardHeader>
             <CardTitle className="text-xl font-bold uppercase flex items-center gap-2 text-secondary">
-              <Link2 className="w-5 h-5" /> Importar Preguntas desde URL
+              <UploadCloud className="w-5 h-5" /> Importar Preguntas
             </CardTitle>
             <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
-              Pega la URL de un sitio web, PDF público o documento y la IA extraerá o generará preguntas ICFES a partir de su contenido.
+              Elige un método: URL pública, archivo de texto (.txt / .csv) o pega el contenido directamente.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col md:flex-row gap-3">
-              <Input
-                placeholder="https://ejemplo.com/guia-matematicas"
-                value={importUrl}
-                onChange={(e) => { setImportUrl(e.target.value); setImportResult(null); }}
-                className="h-12 border-2 flex-1 font-mono text-sm"
+          <CardContent className="space-y-6">
+            <Tabs defaultValue="url">
+              <TabsList className="grid w-full grid-cols-3 bg-muted h-12">
+                <TabsTrigger value="url" className="text-[10px] font-black uppercase data-[state=active]:bg-secondary data-[state=active]:text-white flex items-center gap-1">
+                  <Link2 className="w-3 h-3" /> URL
+                </TabsTrigger>
+                <TabsTrigger value="file" className="text-[10px] font-black uppercase data-[state=active]:bg-secondary data-[state=active]:text-white flex items-center gap-1">
+                  <UploadCloud className="w-3 h-3" /> Archivo
+                </TabsTrigger>
+                <TabsTrigger value="text" className="text-[10px] font-black uppercase data-[state=active]:bg-secondary data-[state=active]:text-white flex items-center gap-1">
+                  <AlignLeft className="w-3 h-3" /> Texto
+                </TabsTrigger>
+              </TabsList>
+
+              {/* URL tab */}
+              <TabsContent value="url" className="mt-4 space-y-3">
+                <div className="flex flex-col md:flex-row gap-3">
+                  <Input
+                    placeholder="https://ejemplo.com/guia-matematicas"
+                    value={importUrl}
+                    onChange={(e) => { setImportUrl(e.target.value); setImportResult(null); }}
+                    className="h-12 border-2 flex-1 font-mono text-sm"
+                    disabled={isImporting}
+                  />
+                  <Button
+                    className="game-button bg-secondary text-white h-12 px-8 shadow-lg whitespace-nowrap"
+                    onClick={() => handleImport('url')}
+                    disabled={isImporting || !importUrl.trim()}
+                  >
+                    {isImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Link2 className="w-4 h-4 mr-2" />}
+                    {isImporting ? 'Procesando con IA...' : 'Importar desde URL'}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  La URL debe ser accesible públicamente. El contenido se procesa en fragmentos de 10 000 caracteres (máx. 100 000 caracteres totales).
+                </p>
+              </TabsContent>
+
+              {/* File upload tab */}
+              <TabsContent value="file" className="mt-4 space-y-3">
+                <div className="flex flex-col md:flex-row gap-3 items-start">
+                  <div className="flex-1 space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                      Archivo de texto (.txt o .csv)
+                    </Label>
+                    <Input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.csv,.md"
+                      onChange={(e) => { setImportFile(e.target.files?.[0] ?? null); setImportResult(null); }}
+                      className="h-12 border-2 cursor-pointer"
+                      disabled={isImporting}
+                    />
+                    {importFile && (
+                      <p className="text-[10px] text-secondary font-bold">
+                        Seleccionado: {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    className="game-button bg-secondary text-white h-12 px-8 shadow-lg whitespace-nowrap mt-6"
+                    onClick={() => handleImport('file')}
+                    disabled={isImporting || !importFile}
+                  >
+                    {isImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                    {isImporting ? 'Procesando con IA...' : 'Importar Archivo'}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Sube un archivo de texto plano con el contenido académico. El sistema lo fragmentará y extraerá todas las preguntas posibles.
+                </p>
+              </TabsContent>
+
+              {/* Paste text tab */}
+              <TabsContent value="text" className="mt-4 space-y-3">
+                <Textarea
+                  placeholder="Pega aquí el contenido del documento, guía de estudio o banco de preguntas..."
+                  value={importText}
+                  onChange={(e) => { setImportText(e.target.value); setImportResult(null); }}
+                  className="border-2 min-h-[180px] font-mono text-sm resize-y"
+                  disabled={isImporting}
+                />
+                <div className="flex justify-end">
+                  <Button
+                    className="game-button bg-secondary text-white h-12 px-8 shadow-lg"
+                    onClick={() => handleImport('text')}
+                    disabled={isImporting || !importText.trim()}
+                  >
+                    {isImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <AlignLeft className="w-4 h-4 mr-2" />}
+                    {isImporting ? 'Procesando con IA...' : 'Importar Texto'}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground italic">
+                  Ideal para pegar directamente el contenido de Google Docs u otras fuentes. Sin límite de tamaño (máx. 100 000 caracteres procesados).
+                </p>
+              </TabsContent>
+            </Tabs>
+
+            {/* Pre-generate explanations option */}
+            <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
+              <input
+                type="checkbox"
+                id="generateExplanations"
+                checked={generateExplanations}
+                onChange={(e) => setGenerateExplanations(e.target.checked)}
+                className="mt-1 w-4 h-4 accent-primary cursor-pointer"
                 disabled={isImporting}
               />
-              <Button
-                className="game-button bg-secondary text-white h-12 px-8 shadow-lg whitespace-nowrap"
-                onClick={importQuestionsFromUrl}
-                disabled={isImporting || !importUrl.trim()}
-              >
-                {isImporting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Link2 className="w-4 h-4 mr-2" />}
-                {isImporting ? 'Importando con IA...' : 'Importar Preguntas'}
-              </Button>
+              <div>
+                <label htmlFor="generateExplanations" className="text-xs font-black uppercase text-primary cursor-pointer">
+                  <Sparkles className="w-3 h-3 inline mr-1" />
+                  Pre-generar Explicaciones Maestro IA
+                </label>
+                <p className="text-[10px] text-muted-foreground mt-1 italic">
+                  Genera automáticamente las explicaciones de 3 fases para cada pregunta al importar. Los estudiantes las verán al instante sin esperar. <strong>Nota: aumenta el tiempo de importación.</strong>
+                </p>
+              </div>
             </div>
+
             {importResult && (
               <div className="flex items-start gap-3 p-4 bg-secondary/5 rounded-2xl border border-secondary/20 text-sm">
                 <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-black text-secondary">{importResult.count} pregunta(s) importada(s) correctamente.</p>
+                  <p className="font-black text-secondary">{importResult.count} pregunta(s) guardada(s) correctamente.</p>
                   <p className="text-xs text-muted-foreground italic mt-1">{importResult.note}</p>
                 </div>
               </div>
             )}
-            <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-              <strong>Nota:</strong> La URL debe ser accesible públicamente. Se procesan los primeros 8 000 caracteres del contenido. Si la página no tiene preguntas, la IA generará preguntas originales basadas en el tema detectado.
-            </p>
           </CardContent>
         </Card>
       </main>

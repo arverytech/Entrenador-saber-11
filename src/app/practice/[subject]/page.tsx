@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, increment, collection, addDoc, serverTimestamp, query, where, limit } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { generateExplanation, type DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
+import type { DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
 
 export default function PracticeRoomPage({ params }: { params: { subject: string } }) {
@@ -103,21 +103,36 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
 
   const handleAiAnalysis = async () => {
     if (selected === null || !currentQ) return;
+
+    // If the question was imported with pre-generated explanations, use them instantly
+    if (currentQ.aiExplanation) {
+      setAiAnalysis(currentQ.aiExplanation as DynamicAnswerExplanationOutput);
+      return;
+    }
+
     setIsExplaining(true);
     try {
-      const result = await generateExplanation({
-        question: currentQ.text || currentQ.title,
-        userAnswer: currentQ.options[selected],
-        correctAnswer: currentQ.options[currentQ.correctAnswerIndex ?? currentQ.correctIndex],
-        options: currentQ.options,
-        subject: currentSubject,
-        component: currentQ.componentId || "General",
-        competency: currentQ.competencyId || "Razonamiento",
+      const res = await fetch('/api/explain-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: currentQ.text || currentQ.title,
+          userAnswer: currentQ.options[selected],
+          correctAnswer: currentQ.options[currentQ.correctAnswerIndex ?? currentQ.correctIndex],
+          options: currentQ.options,
+          subject: currentSubject,
+          component: currentQ.componentId || 'General',
+          competency: currentQ.competencyId || 'Razonamiento',
+        }),
       });
-      setAiAnalysis(result);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `Error del servidor: ${res.status}`);
+      }
+      setAiAnalysis(data.explanation);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Error desconocido";
-      toast({ variant: "destructive", title: "Error de Explicación IA", description: `No se pudo generar la explicación. Verifica la API Key de IA. Detalle: ${msg}` });
+      const msg = e instanceof Error ? e.message : 'Error desconocido';
+      toast({ variant: "destructive", title: "Error de Explicación IA", description: msg });
     } finally {
       setIsExplaining(false);
     }
