@@ -13,7 +13,7 @@ import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow
  *
  * Accepts the same three input modes as /api/import-questions:
  *   1. JSON body  { url, generateExplanations? }
- *   2. FormData   { file, generateExplanations? }
+ *   2. FormData   { file, generateExplanations? }        — file upload (.txt/.csv/.md/.pdf)
  *   3. FormData   { text, generateExplanations? }
  *
  * Event stream format (each message is `data: <JSON>\n\n`):
@@ -59,6 +59,14 @@ const SSE_HEADERS = {
   'X-Accel-Buffering': 'no', // disable proxy buffering so events arrive immediately
 };
 
+async function extractPdfText(file: File): Promise<string> {
+  const { default: pdf } = await import('pdf-parse/lib/pdf-parse.js');
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const pdfData = await pdf(buffer);
+  return pdfData.text;
+}
+
 export async function POST(req: NextRequest) {
   let rawText = '';
   let sourceLabel = 'contenido';
@@ -75,7 +83,12 @@ export async function POST(req: NextRequest) {
       preGenerateExplanations = formData.get('generateExplanations') === 'true';
 
       if (file && file.size > 0) {
-        rawText = await file.text();
+        const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+        if (isPdf) {
+          rawText = await extractPdfText(file);
+        } else {
+          rawText = await file.text();
+        }
         sourceLabel = file.name;
       } else if (text && text.trim()) {
         rawText = text.trim();
