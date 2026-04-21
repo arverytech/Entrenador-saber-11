@@ -10,7 +10,7 @@ import { z } from 'genkit';
 
 const ImportQuestionsInputSchema = z.object({
   url: z.string().describe('La URL de origen del contenido.'),
-  content: z.string().describe('El contenido de texto de la página o documento (máx. 8 000 caracteres).'),
+  content: z.string().describe('El contenido de texto de la página o documento (máx. 40 000 caracteres).'),
 });
 
 export type ImportQuestionsInput = z.infer<typeof ImportQuestionsInputSchema>;

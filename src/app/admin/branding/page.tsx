@@ -24,7 +24,7 @@ export default function AdminBrandingPage() {
   const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
   const [importUrl, setImportUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ count: number; note: string } | null>(null);
+  const [importResult, setImportResult] = useState<{ count: number; note: string; explanationsGenerated: number } | null>(null);
   const { firestore, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
@@ -97,7 +97,7 @@ export default function AdminBrandingPage() {
       if (!res.ok) {
         throw new Error(data.error || `Error del servidor: ${res.status}`);
       }
-      const { questions, sourceNote } = data as { questions: any[]; sourceNote: string };
+      const { questions, sourceNote, explanationsGenerated = 0 } = data as { questions: any[]; sourceNote: string; explanationsGenerated?: number };
       for (const q of questions) {
         await addDoc(collection(firestore, 'questions'), {
           ...q,
@@ -105,7 +105,7 @@ export default function AdminBrandingPage() {
           updatedAt: new Date().toISOString(),
         });
       }
-      setImportResult({ count: questions.length, note: sourceNote });
+      setImportResult({ count: questions.length, note: sourceNote, explanationsGenerated });
       toast({ title: "Importación Exitosa", description: `${questions.length} pregunta(s) importada(s) desde la URL.` });
       setImportUrl('');
     } catch (e: any) {
@@ -297,12 +297,24 @@ export default function AdminBrandingPage() {
                 <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                 <div>
                   <p className="font-black text-secondary">{importResult.count} pregunta(s) importada(s) correctamente.</p>
+                  {importResult.explanationsGenerated > 0 && (
+                    <p className="text-xs font-bold text-secondary/80 mt-0.5">
+                      ✦ {importResult.explanationsGenerated} explicación(es) maestra IA pre-generada(s) — los estudiantes no tendrán que esperar.
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground italic mt-1">{importResult.note}</p>
                 </div>
               </div>
             )}
             <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-              <strong>Nota:</strong> La URL debe ser accesible públicamente. Se procesan los primeros 8 000 caracteres del contenido. Si la página no tiene preguntas, la IA generará preguntas originales basadas en el tema detectado.
+              <strong>Nota:</strong> La URL debe ser accesible públicamente. Se procesan hasta 40 000 caracteres del contenido. La IA clasifica automáticamente cada pregunta por área, competencia y nivel, y pre-genera las explicaciones para que los estudiantes las vean al instante.
+            </p>
+            <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+              <strong>Google Drive:</strong> Puedes pegar la URL directa de compartir de un Google Doc, Google Sheet o archivo PDF. Ejemplos:<br />
+              • <span className="font-mono">https://docs.google.com/document/d/ID/edit</span> → Google Docs<br />
+              • <span className="font-mono">https://docs.google.com/spreadsheets/d/ID/edit</span> → Google Sheets<br />
+              • <span className="font-mono">https://drive.google.com/file/d/ID/view</span> → PDF / archivo<br />
+              Asegúrate de que el archivo sea compartido como <em>"Cualquier persona con el enlace puede ver"</em>.
             </p>
           </CardContent>
         </Card>

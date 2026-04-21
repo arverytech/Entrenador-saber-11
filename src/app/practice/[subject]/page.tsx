@@ -16,6 +16,24 @@ import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { generateExplanation, type DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
 
+/** Shape of a question document as stored in Firestore. */
+interface DbQuestion {
+  id?: string;
+  text?: string;
+  title?: string;
+  options: string[];
+  correctAnswerIndex?: number;
+  correctIndex?: number;
+  componentId?: string;
+  competencyId?: string;
+  /** Pre-generated 3-phase AI explanation saved at import time (optional). */
+  aiExplanation?: DynamicAnswerExplanationOutput;
+  [key: string]: unknown;
+}
+
+/** Union type for the active question — either from Firestore or AI-generated. */
+type ActiveQuestion = DbQuestion | GenerateQuestionOutput;
+
 export default function PracticeRoomPage({ params }: { params: { subject: string } }) {
   const { user, firestore, isUserLoading } = useFirebase();
   const { toast } = useToast();
@@ -103,6 +121,14 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
 
   const handleAiAnalysis = async () => {
     if (selected === null || !currentQ) return;
+
+    // Use the pre-generated explanation saved at import time (instant — no API call)
+    const dbQ = currentQ as DbQuestion;
+    if (dbQ.aiExplanation) {
+      setAiAnalysis(dbQ.aiExplanation);
+      return;
+    }
+
     setIsExplaining(true);
     try {
       const result = await generateExplanation({
@@ -246,7 +272,8 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
                   {!aiAnalysis ? (
                     <div className="p-6 space-y-4">
                       <Button className="w-full game-button bg-primary text-white h-12 shadow-md" onClick={handleAiAnalysis} disabled={isExplaining}>
-                        {isExplaining ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Generar Explicación Maestro IA"}
+                        {isExplaining ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                        {(currentQ as DbQuestion)?.aiExplanation ? "Ver Explicación Maestra IA" : "Generar Explicación Maestro IA"}
                       </Button>
                       <Button variant="ghost" className="w-full font-black uppercase text-[10px] tracking-widest" onClick={handleNext}>Omitir e ir a la Siguiente</Button>
                     </div>
