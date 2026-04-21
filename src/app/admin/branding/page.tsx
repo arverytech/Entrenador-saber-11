@@ -30,7 +30,13 @@ export default function AdminBrandingPage() {
   const [generateExplanations, setGenerateExplanations] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ count: number; note: string } | null>(null);
+  const [importProgress, setImportProgress] = useState<{
+    chunksProcessed: number;
+    totalChunks: number;
+    questionsFound: number;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { firestore, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
@@ -97,15 +103,20 @@ export default function AdminBrandingPage() {
 
     setIsImporting(true);
     setImportResult(null);
+    setImportProgress(null);
+
+    const abort = new AbortController();
+    abortControllerRef.current = abort;
 
     try {
       let res: Response;
 
       if (mode === 'url') {
-        res = await fetch('/api/import-questions', {
+        res = await fetch('/api/import-questions-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: importUrl.trim(), generateExplanations }),
+          signal: abort.signal,
         });
       } else {
         const formData = new FormData();
@@ -115,34 +126,127 @@ export default function AdminBrandingPage() {
           formData.append('text', importText.trim());
         }
         formData.append('generateExplanations', String(generateExplanations));
-        res = await fetch('/api/import-questions', { method: 'POST', body: formData });
-      }
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || `Error del servidor: ${res.status}`);
-      }
-
-      const { questions, sourceNote } = data as { questions: any[]; sourceNote: string };
-      for (const q of questions) {
-        await addDoc(collection(firestore, 'questions'), {
-          ...q,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+        res = await fetch('/api/import-questions-stream', {
+          method: 'POST',
+          body: formData,
+          signal: abort.signal,
         });
       }
 
-      setImportResult({ count: questions.length, note: sourceNote });
-      toast({ title: "Importación Exitosa", description: `${questions.length} pregunta(s) guardada(s) en la base de datos.` });
+      if (!res.body) throw new Error('La respuesta del servidor no contiene datos.');
 
-      if (mode === 'url') setImportUrl('');
-      if (mode === 'file') { setImportFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }
-      if (mode === 'text') setImportText('');
+      // For non-2xx before stream starts, read the SSE error event
+      if (!res.ok) {
+        const text = await res.text();
+        const dataLine = text.split('\n').find((l) => l.startsWith('data: '));
+        if (dataLine) {
+          try {
+            const evt = JSON.parse(dataLine.slice(6));
+            throw new Error(evt.message || `Error del servidor: ${res.status}`);
+          } catch (inner) {
+            if (inner instanceof SyntaxError) throw new Error(`Error del servidor: ${res.status}`);
+            throw inner;
+          }
+        }
+        throw new Error(`Error del servidor: ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let totalSaved = 0;
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE events are separated by double newlines
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() ?? '';
+
+        for (const block of blocks) {
+          const dataLine = block.split('\n').find((l) => l.startsWith('data: '));
+          if (!dataLine) continue;
+
+          let event: { type: string; [key: string]: any };
+          try {
+            event = JSON.parse(dataLine.slice(6));
+          } catch {
+            continue;
+          }
+
+          switch (event.type) {
+            case 'start':
+              setImportProgress({ chunksProcessed: 0, totalChunks: event.totalChunks, questionsFound: 0 });
+              break;
+
+            case 'chunk': {
+              const timestamp = new Date().toISOString();
+              await Promise.all(
+                (event.questions as Record<string, unknown>[]).map((q) =>
+                  addDoc(collection(firestore, 'questions'), {
+                    ...q,
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
+                  })
+                )
+              );
+              totalSaved += event.questionsInChunk as number;
+              setImportProgress({
+                chunksProcessed: event.chunkIndex as number,
+                totalChunks: event.totalChunks as number,
+                questionsFound: totalSaved,
+              });
+              break;
+            }
+
+            case 'chunkError':
+              setImportProgress((prev) =>
+                prev ? { ...prev, chunksProcessed: event.chunkIndex as number } : null
+              );
+              break;
+
+            case 'done':
+              setImportResult({ count: totalSaved, note: event.sourceNote as string });
+              toast({
+                title: 'Importación Exitosa',
+                description: `${totalSaved} pregunta(s) guardada(s) en la base de datos.`,
+              });
+              if (mode === 'url') setImportUrl('');
+              if (mode === 'file') {
+                setImportFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }
+              if (mode === 'text') setImportText('');
+              break;
+
+            case 'error':
+              throw new Error(event.message as string);
+          }
+        }
+      }
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Error de Importación", description: e?.message || "No se pudo importar el contenido." });
+      if (e?.name === 'AbortError') {
+        toast({ title: 'Importación Cancelada', description: 'El proceso fue detenido.' });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error de Importación',
+          description: e?.message || 'No se pudo importar el contenido.',
+        });
+      }
     } finally {
       setIsImporting(false);
+      setImportProgress(null);
+      abortControllerRef.current = null;
     }
+  };
+
+  const cancelImport = () => {
+    abortControllerRef.current?.abort();
   };
 
   const seedQuestions = async () => {
@@ -338,7 +442,7 @@ export default function AdminBrandingPage() {
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground italic">
-                  La URL debe ser accesible públicamente. El contenido se procesa en fragmentos de 10 000 caracteres (máx. 100 000 caracteres totales).
+                  La URL debe ser accesible públicamente. El contenido se procesa en fragmentos de 10 000 caracteres sin límite de tamaño total, con progreso en tiempo real.
                 </p>
               </TabsContent>
 
@@ -397,10 +501,44 @@ export default function AdminBrandingPage() {
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground italic">
-                  Ideal para pegar directamente el contenido de Google Docs u otras fuentes. Sin límite de tamaño (máx. 100 000 caracteres procesados).
+                  Ideal para pegar directamente el contenido de Google Docs u otras fuentes. Sin límite de tamaño; el progreso se muestra en tiempo real mientras se procesan los fragmentos.
                 </p>
               </TabsContent>
             </Tabs>
+
+            {/* Live progress bar (only visible while streaming) */}
+            {isImporting && importProgress && (
+              <div className="p-4 bg-muted/50 rounded-2xl border border-secondary/20 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-secondary">
+                    Fragmento {importProgress.chunksProcessed} de {importProgress.totalChunks}...
+                  </span>
+                  <span className="text-xs font-black text-secondary">
+                    {importProgress.questionsFound} pregunta(s) guardada(s)
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-secondary h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${Math.round(
+                        (importProgress.chunksProcessed / Math.max(1, importProgress.totalChunks)) * 100
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={cancelImport}
+                    className="text-xs text-destructive border-destructive/50 hover:bg-destructive/5 h-7"
+                  >
+                    Cancelar importación
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Pre-generate explanations option */}
             <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">

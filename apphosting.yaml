@@ -5,6 +5,7 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
-  # Allow enough time for large document imports with AI processing.
-  # Default is 60 s; 300 s (5 min) covers chunked imports + explanation pre-generation.
-  timeoutSeconds: 300
+  # SSE streaming import can process arbitrarily large ICFES booklets.
+  # Each 10 000-char chunk takes ~5 s of AI processing; 3600 s (1 hour)
+  # is the maximum Cloud Run allows and covers booklets of any size.
+  timeoutSeconds: 3600
