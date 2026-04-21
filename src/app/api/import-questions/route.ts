@@ -17,7 +17,12 @@ import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow
  */
 
 const CHUNK_SIZE = 10_000;
-/** Hard cap to avoid runaway processing (100 000 chars ≈ 100 KB of text). */
+/**
+ * Hard cap kept intentionally for this non-streaming endpoint so that
+ * one-shot JSON responses remain predictable and within Cloud Run's
+ * response-size limits. For unlimited document sizes use the SSE route
+ * at /api/import-questions-stream instead.
+ */
 const MAX_CONTENT = 100_000;
 
 function cleanHtml(raw: string): string {

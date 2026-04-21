@@ -18,6 +18,21 @@ import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 
+/** Discriminated union of all SSE events emitted by /api/import-questions-stream. */
+type SSEImportEvent =
+  | { type: 'start'; totalChunks: number; totalChars: number }
+  | {
+      type: 'chunk';
+      chunkIndex: number;
+      totalChunks: number;
+      questions: Record<string, unknown>[];
+      questionsInChunk: number;
+      totalQuestionsSoFar: number;
+    }
+  | { type: 'chunkError'; chunkIndex: number; totalChunks: number; message: string }
+  | { type: 'done'; totalQuestions: number; sourceNote: string }
+  | { type: 'error'; message: string };
+
 export default function AdminBrandingPage() {
   const { institutionName, institutionLogo, updateBranding } = useBranding();
   const [name, setName] = useState(institutionName);
@@ -171,9 +186,9 @@ export default function AdminBrandingPage() {
           const dataLine = block.split('\n').find((l) => l.startsWith('data: '));
           if (!dataLine) continue;
 
-          let event: { type: string; [key: string]: any };
+          let event: SSEImportEvent;
           try {
-            event = JSON.parse(dataLine.slice(6));
+            event = JSON.parse(dataLine.slice(6)) as SSEImportEvent;
           } catch {
             continue;
           }
@@ -186,7 +201,7 @@ export default function AdminBrandingPage() {
             case 'chunk': {
               const timestamp = new Date().toISOString();
               await Promise.all(
-                (event.questions as Record<string, unknown>[]).map((q) =>
+                event.questions.map((q) =>
                   addDoc(collection(firestore, 'questions'), {
                     ...q,
                     createdAt: timestamp,
@@ -194,10 +209,10 @@ export default function AdminBrandingPage() {
                   })
                 )
               );
-              totalSaved += event.questionsInChunk as number;
+              totalSaved += event.questionsInChunk;
               setImportProgress({
-                chunksProcessed: event.chunkIndex as number,
-                totalChunks: event.totalChunks as number,
+                chunksProcessed: event.chunkIndex,
+                totalChunks: event.totalChunks,
                 questionsFound: totalSaved,
               });
               break;
@@ -205,12 +220,12 @@ export default function AdminBrandingPage() {
 
             case 'chunkError':
               setImportProgress((prev) =>
-                prev ? { ...prev, chunksProcessed: event.chunkIndex as number } : null
+                prev ? { ...prev, chunksProcessed: event.chunkIndex } : null
               );
               break;
 
             case 'done':
-              setImportResult({ count: totalSaved, note: event.sourceNote as string });
+              setImportResult({ count: totalSaved, note: event.sourceNote });
               toast({
                 title: 'Importación Exitosa',
                 description: `${totalSaved} pregunta(s) guardada(s) en la base de datos.`,
@@ -224,18 +239,19 @@ export default function AdminBrandingPage() {
               break;
 
             case 'error':
-              throw new Error(event.message as string);
+              throw new Error(event.message);
           }
         }
       }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') {
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === 'AbortError') {
         toast({ title: 'Importación Cancelada', description: 'El proceso fue detenido.' });
       } else {
+        const msg = e instanceof Error ? e.message : 'No se pudo importar el contenido.';
         toast({
           variant: 'destructive',
           title: 'Error de Importación',
-          description: e?.message || 'No se pudo importar el contenido.',
+          description: msg,
         });
       }
     } finally {
@@ -451,7 +467,7 @@ export default function AdminBrandingPage() {
                 <div className="flex flex-col md:flex-row gap-3 items-start">
                   <div className="flex-1 space-y-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground">
-                      Archivo de texto (.txt o .csv)
+                      Archivo de texto (.txt, .csv o .md)
                     </Label>
                     <Input
                       ref={fileInputRef}

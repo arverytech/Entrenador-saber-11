@@ -161,8 +161,6 @@ export async function POST(req: NextRequest) {
 
   const chunks = splitIntoChunks(rawText);
   const totalChunks = chunks.length;
-  // Capture in closure so the ReadableStream callback always uses the parsed value.
-  const capturedPreGenerate = preGenerateExplanations;
 
   // ── SSE stream ─────────────────────────────────────────────────────────────
   const stream = new ReadableStream({
@@ -187,7 +185,7 @@ export async function POST(req: NextRequest) {
           if (!combinedNote) combinedNote = result.sourceNote;
 
           // Optionally pre-generate 3-slide AI explanations for this chunk
-          if (capturedPreGenerate) {
+          if (preGenerateExplanations) {
             const settled = await Promise.allSettled(
               questions.map(async (q) => {
                 const options = q.options as string[];
@@ -246,7 +244,7 @@ export async function POST(req: NextRequest) {
         );
       } else {
         const chunkNote = failedChunks > 0 ? `, ${failedChunks} fragmento(s) fallido(s)` : '';
-        const explNote = capturedPreGenerate ? ', con explicaciones IA pre-generadas' : '';
+        const explNote = preGenerateExplanations ? ', con explicaciones IA pre-generadas' : '';
         controller.enqueue(
           sseEvent({
             type: 'done',
