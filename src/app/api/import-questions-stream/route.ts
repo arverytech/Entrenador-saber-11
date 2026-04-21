@@ -170,6 +170,7 @@ export async function POST(req: NextRequest) {
       let totalQuestionsFound = 0;
       let combinedNote = '';
       let failedChunks = 0;
+      let totalExplanationFailures = 0;
 
       for (let i = 0; i < chunks.length; i++) {
         // Respect client disconnect — abort signal propagated by Next.js
@@ -208,6 +209,13 @@ export async function POST(req: NextRequest) {
               })
             );
             // Keep original question (without explanation) if pre-generation failed
+            const explanationFailures = settled.filter((r) => r.status === 'rejected').length;
+            totalExplanationFailures += explanationFailures;
+            if (explanationFailures > 0) {
+              console.warn(
+                `[import-stream] chunk ${i + 1}/${totalChunks}: ${explanationFailures} explanation(s) failed`
+              );
+            }
             questions = settled.map((r, idx) => (r.status === 'fulfilled' ? r.value : questions[idx]));
           }
 
@@ -244,7 +252,9 @@ export async function POST(req: NextRequest) {
         );
       } else {
         const chunkNote = failedChunks > 0 ? `, ${failedChunks} fragmento(s) fallido(s)` : '';
-        const explNote = preGenerateExplanations ? ', con explicaciones IA pre-generadas' : '';
+        const explNote = preGenerateExplanations
+          ? `, con explicaciones IA pre-generadas${totalExplanationFailures > 0 ? ` (${totalExplanationFailures} fallida(s))` : ''}`
+          : '';
         controller.enqueue(
           sseEvent({
             type: 'done',
