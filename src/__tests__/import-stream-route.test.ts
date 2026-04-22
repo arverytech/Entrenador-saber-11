@@ -15,16 +15,14 @@
  *  9.  JSON body without url → 400 error SSE
  *  10. Malformed URL → 400 error SSE
  *  11. Non-http protocol URL → 400 error SSE
- *  12. PDF upload with generateExplanations=true → explanationProgress events emitted
- *  13. SSE headers (Content-Type, Cache-Control, X-Accel-Buffering) on every response
- *  14. Question schema completeness: text, options(4), correctAnswerIndex, subjectId, level, etc.
- *  15. Questions with svgData validated against SVG structure requirements
+ *  12. SSE headers (Content-Type, Cache-Control, X-Accel-Buffering) on every response
+ *  13. Question schema completeness: text, options(4), correctAnswerIndex, subjectId, level, etc.
+ *  14. Questions with svgData validated against SVG structure requirements
  */
 
 // ─── Mock AI flows ────────────────────────────────────────────────────────────
 const mockImportFromPdf = jest.fn();
 const mockImportFromContent = jest.fn();
-const mockGenerateExplanation = jest.fn();
 
 jest.mock('@/ai/constants', () => ({
   PDF_VISION_SIZE_LIMIT: 14 * 1024 * 1024,
@@ -33,10 +31,6 @@ jest.mock('@/ai/constants', () => ({
 jest.mock('@/ai/flows/import-questions-from-url-flow', () => ({
   importQuestionsFromPdf: (...args: unknown[]) => mockImportFromPdf(...args),
   importQuestionsFromContent: (...args: unknown[]) => mockImportFromContent(...args),
-}));
-
-jest.mock('@/ai/flows/dynamic-answer-explanations-flow', () => ({
-  generateExplanation: (...args: unknown[]) => mockGenerateExplanation(...args),
 }));
 
 // ─── Mock pdf-parse (large-PDF fallback path) ─────────────────────────────────
@@ -157,31 +151,29 @@ function makePdfFile(name = 'cuadernillo.pdf', sizeBytes = 1024): File {
   return new File([new Uint8Array(sizeBytes).fill(0x25)], name, { type: 'application/pdf' });
 }
 
-function makePdfRequest(file: File, generateExplanations = false): NextRequest {
+function makePdfRequest(file: File): NextRequest {
   const fd = new FormData();
   fd.append('file', file);
-  fd.append('generateExplanations', String(generateExplanations));
   return new NextRequest('http://localhost/api/import-questions-stream', {
     method: 'POST',
     body: fd,
   });
 }
 
-function makeTextRequest(text: string, generateExplanations = false): NextRequest {
+function makeTextRequest(text: string): NextRequest {
   const fd = new FormData();
   fd.append('text', text);
-  fd.append('generateExplanations', String(generateExplanations));
   return new NextRequest('http://localhost/api/import-questions-stream', {
     method: 'POST',
     body: fd,
   });
 }
 
-function makeUrlRequest(url: string, generateExplanations = false): NextRequest {
+function makeUrlRequest(url: string): NextRequest {
   return new NextRequest('http://localhost/api/import-questions-stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, generateExplanations }),
+    body: JSON.stringify({ url }),
   });
 }
 
@@ -449,59 +441,7 @@ describe('Retry logic on AI failure', () => {
   });
 });
 
-// ── 5. Pre-generate explanations ─────────────────────────────────────────────
-
-describe('generateExplanations=true – pre-generation of AI explanations', () => {
-  const MOCK_EXPLANATION = {
-    slide1: { contextSummary: 'Contexto', metadata: { origin: 'ICFES' } },
-    slide2: { stepByStep: ['Paso 1', 'Paso 2'] },
-    slide3: { distractors: [{ option: 'A', errorType: 'Error aritmético', explanation: '...' }] },
-  };
-
-  it('emits explanationProgress events between start and chunk', async () => {
-    mockImportFromPdf.mockResolvedValueOnce(AI_OUTPUT);
-    mockGenerateExplanation.mockResolvedValue(MOCK_EXPLANATION);
-
-    const res = await POST(makePdfRequest(makePdfFile(), /* generateExplanations */ true));
-    const events = await drainSse(res);
-
-    const progressEvents = events.filter((e) => e.type === 'explanationProgress');
-    expect(progressEvents.length).toBeGreaterThan(0);
-    // The last progress event should have done == total
-    const last = progressEvents[progressEvents.length - 1];
-    expect(last.done).toBe(last.total);
-  });
-
-  it('attaches aiExplanation to every question in the chunk event', async () => {
-    mockImportFromPdf.mockResolvedValueOnce(AI_OUTPUT);
-    mockGenerateExplanation.mockResolvedValue(MOCK_EXPLANATION);
-
-    const res = await POST(makePdfRequest(makePdfFile(), true));
-    const events = await drainSse(res);
-
-    const chunk = events.find((e) => e.type === 'chunk') as SseEvent;
-    const questions = chunk.questions as Record<string, unknown>[];
-    for (const q of questions) {
-      expect(q).toHaveProperty('aiExplanation');
-      const exp = q.aiExplanation as typeof MOCK_EXPLANATION;
-      expect(exp.slide1).toBeDefined();
-      expect(exp.slide2.stepByStep).toBeInstanceOf(Array);
-    }
-  });
-
-  it('done sourceNote contains "explicaciones IA pre-generadas" when enabled', async () => {
-    mockImportFromPdf.mockResolvedValueOnce(AI_OUTPUT);
-    mockGenerateExplanation.mockResolvedValue(MOCK_EXPLANATION);
-
-    const res = await POST(makePdfRequest(makePdfFile(), true));
-    const events = await drainSse(res);
-
-    const done = events.find((e) => e.type === 'done') as SseEvent;
-    expect(String(done.sourceNote)).toContain('explicaciones IA');
-  });
-});
-
-// ── 6. Plain text FormData → text chunking path ───────────────────────────────
+// ── 5. Plain text FormData → text chunking path ───────────────────────────────
 
 describe('Text FormData input → text-chunking path', () => {
   const SAMPLE_TEXT = `Pregunta 1\nEn un sistema de ecuaciones, ¿cuánto vale x?\n2x + 3 = 7\nA. 1\nB. 2\nC. 3\nD. 4`;

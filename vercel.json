@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/heal-explanations",
+      "schedule": "0 */2 * * *"
+    }
+  ]
+}

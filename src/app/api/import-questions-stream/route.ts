@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { importQuestionsFromContent, importQuestionsFromPdf } from '@/ai/flows/import-questions-from-url-flow';
-import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
 
 /**
@@ -12,10 +11,10 @@ import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
  * event per chunk so the client can save questions to Firestore
  * incrementally and show live progress to the admin.
  *
- * Accepts the same three input modes as /api/import-questions:
- *   1. JSON body  { url, generateExplanations? }
- *   2. FormData   { file, generateExplanations? }        — file upload (.txt/.csv/.md/.pdf)
- *   3. FormData   { text, generateExplanations? }
+ * Accepts three input modes:
+ *   1. JSON body  { url }
+ *   2. FormData   { file }   — file upload (.txt/.csv/.md/.pdf)
+ *   3. FormData   { text }
  *
  * Event stream format (each message is `data: <JSON>\n\n`):
  *   { type: 'start',      totalChunks: number, totalChars: number }
@@ -24,8 +23,6 @@ import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
  *                         totalQuestionsSoFar: number }
  *   { type: 'chunkError', chunkIndex: number, totalChunks: number,
  *                         message: string }
- *   { type: 'explanationProgress', chunkIndex: number, totalChunks: number,
- *                         done: number, total: number }
  *   { type: 'done',       totalQuestions: number, sourceNote: string }
  *   { type: 'error',      message: string }   ← fatal, stream ends
  */
@@ -113,7 +110,6 @@ type ProcessingMode =
 export async function POST(req: NextRequest) {
   let processing: ProcessingMode | null = null;
   let sourceLabel = 'contenido';
-  let preGenerateExplanations = false;
 
   const contentType = req.headers.get('content-type') ?? '';
 
@@ -123,7 +119,6 @@ export async function POST(req: NextRequest) {
       const formData = await req.formData();
       const file = formData.get('file') as File | null;
       const text = formData.get('text') as string | null;
-      preGenerateExplanations = formData.get('generateExplanations') === 'true';
 
       if (file && file.size > 0) {
         const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
@@ -156,11 +151,7 @@ export async function POST(req: NextRequest) {
       }
     } else {
       const body = await req.json();
-      const { url, generateExplanations } = body as {
-        url?: string;
-        generateExplanations?: boolean;
-      };
-      preGenerateExplanations = generateExplanations === true;
+      const { url } = body as { url?: string };
 
       if (!url || typeof url !== 'string') {
         return new Response(
@@ -237,61 +228,10 @@ export async function POST(req: NextRequest) {
   // Capture in closure for the ReadableStream callback
   const capturedProcessing = processing;
   const capturedSourceLabel = sourceLabel;
-  const capturedPreGenerate = preGenerateExplanations;
 
   // ── SSE stream ─────────────────────────────────────────────────────────────
   const stream = new ReadableStream({
     async start(controller) {
-      // ── Helper: optionally pre-generate explanations for a set of questions ──
-      async function applyExplanations(
-        questions: Record<string, unknown>[],
-        chunkIndex: number,
-        totalChunks: number,
-      ): Promise<{ questions: Record<string, unknown>[]; failures: number }> {
-        if (!capturedPreGenerate) return { questions, failures: 0 };
-
-        controller.enqueue(
-          sseEvent({ type: 'explanationProgress', chunkIndex, totalChunks, done: 0, total: questions.length })
-        );
-
-        let explanationsDone = 0;
-        const settled = await Promise.allSettled(
-          questions.map(async (q) => {
-            const options = q.options as string[];
-            const correctIdx = q.correctAnswerIndex as number;
-            const correctAnswer = options[correctIdx];
-            // Always pick a genuinely different option so the explanation covers the wrong-answer scenario.
-            const wrongAnswer = options[(correctIdx + 1) % options.length];
-
-            const aiExplanation = await generateExplanation({
-              question: q.text as string,
-              userAnswer: wrongAnswer,
-              correctAnswer,
-              options,
-              subject: q.subjectId as string,
-              component: (q.componentId as string) || 'General',
-              competency: (q.competencyId as string) || 'Razonamiento',
-            });
-
-            explanationsDone++;
-            controller.enqueue(
-              sseEvent({ type: 'explanationProgress', chunkIndex, totalChunks, done: explanationsDone, total: questions.length })
-            );
-
-            return { ...q, aiExplanation };
-          })
-        );
-
-        const failures = settled.filter((r) => r.status === 'rejected').length;
-        if (failures > 0) {
-          console.warn(`[import-stream] chunk ${chunkIndex}/${totalChunks}: ${failures} explanation(s) failed`);
-        }
-        return {
-          questions: settled.map((r, idx) => (r.status === 'fulfilled' ? r.value : questions[idx])),
-          failures,
-        };
-      }
-
       // ── PDF vision branch (no text chunking) ──────────────────────────────
       if (capturedProcessing.kind === 'pdf-vision') {
         controller.enqueue(
@@ -324,33 +264,26 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        const { questions: withExplanations, failures } = await applyExplanations(
-          result.questions as Record<string, unknown>[],
-          1,
-          1,
-        );
+        const questions = result.questions as Record<string, unknown>[];
 
         controller.enqueue(
           sseEvent({
             type: 'chunk',
             chunkIndex: 1,
             totalChunks: 1,
-            questions: withExplanations,
-            questionsInChunk: withExplanations.length,
-            totalQuestionsSoFar: withExplanations.length,
+            questions,
+            questionsInChunk: questions.length,
+            totalQuestionsSoFar: questions.length,
           })
         );
 
-        const explNote = capturedPreGenerate
-          ? `, con explicaciones IA pre-generadas${failures > 0 ? ` (${failures} fallida(s))` : ''}`
-          : '';
         controller.enqueue(
           sseEvent({
             type: 'done',
-            totalQuestions: withExplanations.length,
+            totalQuestions: questions.length,
             sourceNote:
               `${result.sourceNote} ` +
-              `(visión PDF multimodal — ${withExplanations.length} pregunta(s)${explNote})`,
+              `(visión PDF multimodal — ${questions.length} pregunta(s))`,
           })
         );
 
@@ -367,7 +300,6 @@ export async function POST(req: NextRequest) {
       let totalQuestionsFound = 0;
       let combinedNote = '';
       let failedChunks = 0;
-      let totalExplanationFailures = 0;
 
       for (let i = 0; i < chunks.length; i++) {
         if (req.signal.aborted) break;
@@ -401,12 +333,7 @@ export async function POST(req: NextRequest) {
 
         if (!combinedNote) combinedNote = result.sourceNote;
 
-        const { questions, failures } = await applyExplanations(
-          result.questions as Record<string, unknown>[],
-          i + 1,
-          totalChunks,
-        );
-        totalExplanationFailures += failures;
+        const questions = result.questions as Record<string, unknown>[];
         totalQuestionsFound += questions.length;
 
         controller.enqueue(
@@ -427,16 +354,13 @@ export async function POST(req: NextRequest) {
         );
       } else {
         const chunkNote = failedChunks > 0 ? `, ${failedChunks} fragmento(s) fallido(s)` : '';
-        const explNote = capturedPreGenerate
-          ? `, con explicaciones IA pre-generadas${totalExplanationFailures > 0 ? ` (${totalExplanationFailures} fallida(s))` : ''}`
-          : '';
         controller.enqueue(
           sseEvent({
             type: 'done',
             totalQuestions: totalQuestionsFound,
             sourceNote:
               `${combinedNote} ` +
-              `(${totalChunks} fragmento(s) — ${totalQuestionsFound} pregunta(s)${chunkNote}${explNote})`,
+              `(${totalChunks} fragmento(s) — ${totalQuestionsFound} pregunta(s)${chunkNote})`,
           })
         );
       }
