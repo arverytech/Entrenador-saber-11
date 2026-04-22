@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { importQuestionsFromContent, importQuestionsFromPdf } from '@/ai/flows/import-questions-from-url-flow';
 import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow';
+import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
 
 /**
  * POST /api/import-questions-stream
@@ -30,9 +31,8 @@ import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow
  */
 
 const CHUNK_SIZE = 10_000;
-const CHUNK_OVERLAP = 400; // chars shared between consecutive chunks to avoid splitting questions
-/** Must match the PDF_VISION_SIZE_LIMIT inside import-questions-from-url-flow.ts */
-const PDF_VISION_SIZE_LIMIT = 14 * 1024 * 1024; // 14 MB
+/** Last N characters from the previous chunk prepended to the next to avoid splitting questions at boundaries. */
+const CHUNK_OVERLAP = 400;
 
 const encoder = new TextEncoder();
 

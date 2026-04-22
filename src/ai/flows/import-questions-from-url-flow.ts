@@ -10,6 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
 
 const ImportQuestionsInputSchema = z.object({
   url: z.string().describe('La URL de origen del contenido.'),
@@ -43,13 +44,6 @@ export async function importQuestionsFromContent(input: ImportQuestionsInput): P
 }
 
 // ── PDF vision ──────────────────────────────────────────────────────────────
-
-/**
- * Maximum PDF size (bytes) that can be sent as inline base-64 data to the
- * Gemini API.  The total request must stay under ~20 MB; 14 MB leaves enough
- * headroom for the rest of the payload.
- */
-const PDF_VISION_SIZE_LIMIT = 14 * 1024 * 1024; // 14 MB
 
 const PDF_VISION_PROMPT = `Eres un experto constructor de ítems para el examen Saber 11 (ICFES).
 

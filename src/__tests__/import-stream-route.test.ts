@@ -26,6 +26,10 @@ const mockImportFromPdf = jest.fn();
 const mockImportFromContent = jest.fn();
 const mockGenerateExplanation = jest.fn();
 
+jest.mock('@/ai/constants', () => ({
+  PDF_VISION_SIZE_LIMIT: 14 * 1024 * 1024,
+}));
+
 jest.mock('@/ai/flows/import-questions-from-url-flow', () => ({
   importQuestionsFromPdf: (...args: unknown[]) => mockImportFromPdf(...args),
   importQuestionsFromContent: (...args: unknown[]) => mockImportFromContent(...args),
