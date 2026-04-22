@@ -17,6 +17,7 @@ import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow
  */
 
 const CHUNK_SIZE = 10_000;
+const CHUNK_OVERLAP = 400; // chars of overlap to avoid splitting questions at boundaries
 /**
  * Hard cap kept intentionally for this non-streaming endpoint so that
  * one-shot JSON responses remain predictable and within Cloud Run's
@@ -34,13 +35,47 @@ function cleanHtml(raw: string): string {
     .trim();
 }
 
+/**
+ * Splits text into chunks that respect paragraph boundaries so that questions
+ * are never sliced in half. Each chunk is at most CHUNK_SIZE characters; when a
+ * paragraph would overflow the current chunk we start a new one and prepend
+ * CHUNK_OVERLAP characters from the end of the previous chunk so the AI has
+ * enough context to finish any question that was near the boundary.
+ */
 function splitIntoChunks(text: string): string[] {
   const limited = text.slice(0, MAX_CONTENT);
-  const chunks: string[] = [];
-  for (let i = 0; i < limited.length; i += CHUNK_SIZE) {
-    chunks.push(limited.slice(i, i + CHUNK_SIZE));
+  const paragraphs = limited.split(/\n{2,}/);
+  const result: string[] = [];
+
+  let current = '';
+  for (const para of paragraphs) {
+    // A single paragraph larger than CHUNK_SIZE is split on newlines instead;
+    // if an individual line is still larger than CHUNK_SIZE it is character-split below.
+    const lines = para.length > CHUNK_SIZE ? para.split('\n') : [para];
+
+    for (const line of lines) {
+      // Character-split lines that are still too large on their own
+      const segments = line.length > CHUNK_SIZE
+        ? Array.from({ length: Math.ceil(line.length / CHUNK_SIZE) }, (_, k) =>
+            line.slice(k * CHUNK_SIZE, (k + 1) * CHUNK_SIZE))
+        : [line];
+
+      for (const segment of segments) {
+        const separator = current ? '\n\n' : '';
+        const candidate = current + separator + segment;
+
+        if (candidate.length > CHUNK_SIZE && current) {
+          result.push(current);
+          const overlap = current.slice(-CHUNK_OVERLAP);
+          current = overlap + '\n\n' + segment;
+        } else {
+          current = candidate;
+        }
+      }
+    }
   }
-  return chunks;
+  if (current.trim()) result.push(current);
+  return result;
 }
 
 async function extractPdfText(file: File): Promise<string> {

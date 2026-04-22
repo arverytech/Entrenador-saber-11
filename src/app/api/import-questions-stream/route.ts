@@ -23,11 +23,14 @@ import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow
  *                         totalQuestionsSoFar: number }
  *   { type: 'chunkError', chunkIndex: number, totalChunks: number,
  *                         message: string }
+ *   { type: 'explanationProgress', chunkIndex: number, totalChunks: number,
+ *                         done: number, total: number }
  *   { type: 'done',       totalQuestions: number, sourceNote: string }
  *   { type: 'error',      message: string }   ← fatal, stream ends
  */
 
 const CHUNK_SIZE = 10_000;
+const CHUNK_OVERLAP = 400; // chars shared between consecutive chunks to avoid splitting questions
 
 const encoder = new TextEncoder();
 
@@ -40,12 +43,48 @@ function cleanHtml(raw: string): string {
     .trim();
 }
 
+/**
+ * Splits text into chunks that respect paragraph boundaries so that questions
+ * are never sliced in half. Each chunk is at most CHUNK_SIZE characters; when a
+ * paragraph would overflow the current chunk we start a new one and prepend
+ * CHUNK_OVERLAP characters from the end of the previous chunk so the AI has
+ * enough context to finish any question that was near the boundary.
+ */
 function splitIntoChunks(text: string): string[] {
-  const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += CHUNK_SIZE) {
-    chunks.push(text.slice(i, i + CHUNK_SIZE));
+  // Split on blank lines (common paragraph/question separator in PDF output)
+  const paragraphs = text.split(/\n{2,}/);
+  const result: string[] = [];
+
+  let current = '';
+  for (const para of paragraphs) {
+    // A single paragraph larger than CHUNK_SIZE is split on newlines instead;
+    // if an individual line is still larger than CHUNK_SIZE it is character-split below.
+    const lines = para.length > CHUNK_SIZE ? para.split('\n') : [para];
+
+    for (const line of lines) {
+      // Character-split lines that are still too large on their own
+      const segments = line.length > CHUNK_SIZE
+        ? Array.from({ length: Math.ceil(line.length / CHUNK_SIZE) }, (_, k) =>
+            line.slice(k * CHUNK_SIZE, (k + 1) * CHUNK_SIZE))
+        : [line];
+
+      for (const segment of segments) {
+        const separator = current ? '\n\n' : '';
+        const candidate = current + separator + segment;
+
+        if (candidate.length > CHUNK_SIZE && current) {
+          result.push(current);
+          // Begin next chunk with a small overlap so boundary questions are intact
+          const overlap = current.slice(-CHUNK_OVERLAP);
+          current = overlap + '\n\n' + segment;
+        } else {
+          current = candidate;
+        }
+      }
+    }
   }
-  return chunks;
+  if (current.trim()) result.push(current);
+  return result;
 }
 
 function sseEvent(data: unknown): Uint8Array {
@@ -189,65 +228,28 @@ export async function POST(req: NextRequest) {
         // Respect client disconnect — abort signal propagated by Next.js
         if (req.signal.aborted) break;
 
-        try {
-          const result = await importQuestionsFromContent({
-            url: sourceLabel,
-            content: chunks[i],
-          });
-
-          let questions = result.questions as Record<string, unknown>[];
-          if (!combinedNote) combinedNote = result.sourceNote;
-
-          // Optionally pre-generate 3-slide AI explanations for this chunk
-          if (preGenerateExplanations) {
-            const settled = await Promise.allSettled(
-              questions.map(async (q) => {
-                const options = q.options as string[];
-                const correctIdx = q.correctAnswerIndex as number;
-                const correctAnswer = options[correctIdx];
-                // Use a wrong option so the explanation covers both sides
-                const wrongAnswer = options.find((_, idx) => idx !== correctIdx) ?? correctAnswer;
-
-                const aiExplanation = await generateExplanation({
-                  question: q.text as string,
-                  userAnswer: wrongAnswer,
-                  correctAnswer,
-                  options,
-                  subject: q.subjectId as string,
-                  component: (q.componentId as string) || 'General',
-                  competency: (q.competencyId as string) || 'Razonamiento',
-                });
-
-                return { ...q, aiExplanation };
-              })
-            );
-            // Keep original question (without explanation) if pre-generation failed
-            const explanationFailures = settled.filter((r) => r.status === 'rejected').length;
-            totalExplanationFailures += explanationFailures;
-            if (explanationFailures > 0) {
-              console.warn(
-                `[import-stream] chunk ${i + 1}/${totalChunks}: ${explanationFailures} explanation(s) failed`
-              );
+        // Attempt to extract questions; retry once on failure
+        let result: Awaited<ReturnType<typeof importQuestionsFromContent>> | null = null;
+        let lastErr: unknown = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            result = await importQuestionsFromContent({
+              url: sourceLabel,
+              content: chunks[i],
+            });
+            break; // success — exit retry loop
+          } catch (err) {
+            lastErr = err;
+            if (attempt === 0) {
+              console.warn(`[import-stream] chunk ${i + 1}/${totalChunks} failed on attempt 1, retrying…`);
             }
-            questions = settled.map((r, idx) => (r.status === 'fulfilled' ? r.value : questions[idx]));
           }
+        }
 
-          totalQuestionsFound += questions.length;
-
-          controller.enqueue(
-            sseEvent({
-              type: 'chunk',
-              chunkIndex: i + 1,
-              totalChunks,
-              questions,
-              questionsInChunk: questions.length,
-              totalQuestionsSoFar: totalQuestionsFound,
-            })
-          );
-        } catch (chunkErr) {
+        if (!result) {
           failedChunks++;
-          const msg = chunkErr instanceof Error ? chunkErr.message : 'Error procesando fragmento';
-          console.warn(`[import-stream] chunk ${i + 1}/${totalChunks} failed:`, msg);
+          const msg = lastErr instanceof Error ? lastErr.message : 'Error procesando fragmento';
+          console.warn(`[import-stream] chunk ${i + 1}/${totalChunks} failed after retry:`, msg);
           controller.enqueue(
             sseEvent({
               type: 'chunkError',
@@ -256,7 +258,85 @@ export async function POST(req: NextRequest) {
               message: msg,
             })
           );
+          continue;
         }
+
+        let questions = result.questions as Record<string, unknown>[];
+        if (!combinedNote) combinedNote = result.sourceNote;
+
+        // Optionally pre-generate 3-slide AI explanations for this chunk
+        if (preGenerateExplanations) {
+          // Emit progress so the client can show "generating explanations…"
+          controller.enqueue(
+            sseEvent({
+              type: 'explanationProgress',
+              chunkIndex: i + 1,
+              totalChunks,
+              done: 0,
+              total: questions.length,
+            })
+          );
+
+          // Node.js is single-threaded: even though Promise.allSettled resolves
+          // callbacks concurrently at the async level, each callback's synchronous
+          // steps (counter increment + controller.enqueue) run atomically between
+          // await points, so there are no true race conditions here.
+          let explanationsDone = 0;
+          const settled = await Promise.allSettled(
+            questions.map(async (q) => {
+              const options = q.options as string[];
+              const correctIdx = q.correctAnswerIndex as number;
+              const correctAnswer = options[correctIdx];
+              // Use a wrong option so the explanation covers both sides
+              const wrongAnswer = options.find((_, idx) => idx !== correctIdx) ?? correctAnswer;
+
+              const aiExplanation = await generateExplanation({
+                question: q.text as string,
+                userAnswer: wrongAnswer,
+                correctAnswer,
+                options,
+                subject: q.subjectId as string,
+                component: (q.componentId as string) || 'General',
+                competency: (q.competencyId as string) || 'Razonamiento',
+              });
+
+              explanationsDone++;
+              controller.enqueue(
+                sseEvent({
+                  type: 'explanationProgress',
+                  chunkIndex: i + 1,
+                  totalChunks,
+                  done: explanationsDone,
+                  total: questions.length,
+                })
+              );
+
+              return { ...q, aiExplanation };
+            })
+          );
+          // Keep original question (without explanation) if pre-generation failed
+          const explanationFailures = settled.filter((r) => r.status === 'rejected').length;
+          totalExplanationFailures += explanationFailures;
+          if (explanationFailures > 0) {
+            console.warn(
+              `[import-stream] chunk ${i + 1}/${totalChunks}: ${explanationFailures} explanation(s) failed`
+            );
+          }
+          questions = settled.map((r, idx) => (r.status === 'fulfilled' ? r.value : questions[idx]));
+        }
+
+        totalQuestionsFound += questions.length;
+
+        controller.enqueue(
+          sseEvent({
+            type: 'chunk',
+            chunkIndex: i + 1,
+            totalChunks,
+            questions,
+            questionsInChunk: questions.length,
+            totalQuestionsSoFar: totalQuestionsFound,
+          })
+        );
       }
 
       if (totalQuestionsFound === 0) {

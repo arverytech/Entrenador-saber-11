@@ -30,6 +30,7 @@ type SSEImportEvent =
       totalQuestionsSoFar: number;
     }
   | { type: 'chunkError'; chunkIndex: number; totalChunks: number; message: string }
+  | { type: 'explanationProgress'; chunkIndex: number; totalChunks: number; done: number; total: number }
   | { type: 'done'; totalQuestions: number; sourceNote: string }
   | { type: 'error'; message: string };
 
@@ -49,6 +50,7 @@ export default function AdminBrandingPage() {
     chunksProcessed: number;
     totalChunks: number;
     questionsFound: number;
+    explanationsLabel?: string;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -221,6 +223,17 @@ export default function AdminBrandingPage() {
             case 'chunkError':
               setImportProgress((prev) =>
                 prev ? { ...prev, chunksProcessed: event.chunkIndex } : null
+              );
+              break;
+
+            case 'explanationProgress':
+              setImportProgress((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      explanationsLabel: `Generando explicaciones IA: ${event.done}/${event.total} (frag. ${event.chunkIndex}/${event.totalChunks})`,
+                    }
+                  : null
               );
               break;
 
@@ -425,6 +438,27 @@ export default function AdminBrandingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Pre-generate explanations option — placed ABOVE the tabs so admins see it before clicking import */}
+            <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
+              <input
+                type="checkbox"
+                id="generateExplanations"
+                checked={generateExplanations}
+                onChange={(e) => setGenerateExplanations(e.target.checked)}
+                className="mt-1 w-4 h-4 accent-primary cursor-pointer"
+                disabled={isImporting}
+              />
+              <div>
+                <label htmlFor="generateExplanations" className="text-xs font-black uppercase text-primary cursor-pointer">
+                  <Sparkles className="w-3 h-3 inline mr-1" />
+                  Pre-generar Explicaciones Maestro IA
+                </label>
+                <p className="text-[10px] text-muted-foreground mt-1 italic">
+                  Genera automáticamente las explicaciones de 3 fases para cada pregunta al importar. Los estudiantes las verán al instante sin esperar. <strong>Nota: aumenta el tiempo de importación.</strong>
+                </p>
+              </div>
+            </div>
+
             <Tabs defaultValue="url">
               <TabsList className="grid w-full grid-cols-3 bg-muted h-12">
                 <TabsTrigger value="url" className="text-[10px] font-black uppercase data-[state=active]:bg-secondary data-[state=active]:text-white flex items-center gap-1">
@@ -527,7 +561,9 @@ export default function AdminBrandingPage() {
               <div className="p-4 bg-muted/50 rounded-2xl border border-secondary/20 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-secondary">
-                    Fragmento {importProgress.chunksProcessed} de {importProgress.totalChunks}...
+                    {importProgress.explanationsLabel
+                      ? importProgress.explanationsLabel
+                      : `Fragmento ${importProgress.chunksProcessed} de ${importProgress.totalChunks}...`}
                   </span>
                   <span className="text-xs font-black text-secondary">
                     {importProgress.questionsFound} pregunta(s) guardada(s)
@@ -555,27 +591,6 @@ export default function AdminBrandingPage() {
                 </div>
               </div>
             )}
-
-            {/* Pre-generate explanations option */}
-            <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
-              <input
-                type="checkbox"
-                id="generateExplanations"
-                checked={generateExplanations}
-                onChange={(e) => setGenerateExplanations(e.target.checked)}
-                className="mt-1 w-4 h-4 accent-primary cursor-pointer"
-                disabled={isImporting}
-              />
-              <div>
-                <label htmlFor="generateExplanations" className="text-xs font-black uppercase text-primary cursor-pointer">
-                  <Sparkles className="w-3 h-3 inline mr-1" />
-                  Pre-generar Explicaciones Maestro IA
-                </label>
-                <p className="text-[10px] text-muted-foreground mt-1 italic">
-                  Genera automáticamente las explicaciones de 3 fases para cada pregunta al importar. Los estudiantes las verán al instante sin esperar. <strong>Nota: aumenta el tiempo de importación.</strong>
-                </p>
-              </div>
-            </div>
 
             {importResult && (
               <div className="flex items-start gap-3 p-4 bg-secondary/5 rounded-2xl border border-secondary/20 text-sm">

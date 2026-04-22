@@ -83,7 +83,13 @@ Tipos de figuras según la materia:
 - sociales: líneas de tiempo, mapas esquemáticos, diagramas de relaciones.
 - lectura/ingles: tablas de datos textuales si el enunciado las requiere.
 
-Genera entre 2 y 10 preguntas dependiendo de la riqueza del contenido.
+EXTRACCIÓN DE PREGUNTAS:
+- Si el fragmento contiene preguntas de opción múltiple explícitas, extráelas TODAS sin límite artificial (pueden ser hasta 20 o más). No inventes preguntas cuando ya existen en el texto.
+- Si el texto no contiene preguntas explícitas pero sí información académica relevante, genera entre 3 y 15 preguntas originales al estilo ICFES basadas en ese contenido.
+- Si el contenido no es académicamente relevante, genera al menos 2 preguntas generales de nivel básico sobre las materias del Saber 11.
+
+IMPORTANTE sobre svgData: Genera el SVG SOLO cuando sea absolutamente imprescindible para entender la pregunta (por ejemplo, una figura geométrica sin la cual la pregunta no tiene sentido). En caso de duda, omite el svgData por completo para garantizar respuestas rápidas y fiables.
+
 Responde estrictamente con el esquema JSON proporcionado.`,
 });
 
