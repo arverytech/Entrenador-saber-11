@@ -260,7 +260,8 @@ export async function POST(req: NextRequest) {
             const options = q.options as string[];
             const correctIdx = q.correctAnswerIndex as number;
             const correctAnswer = options[correctIdx];
-            const wrongAnswer = options.find((_, idx) => idx !== correctIdx) ?? correctAnswer;
+            // Always pick a genuinely different option so the explanation covers the wrong-answer scenario.
+            const wrongAnswer = options[(correctIdx + 1) % options.length];
 
             const aiExplanation = await generateExplanation({
               question: q.text as string,
