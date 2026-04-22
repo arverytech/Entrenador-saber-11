@@ -1,0 +1,18 @@
+name: Heal Missing Explanations
+
+on:
+  schedule:
+    # Every 2 hours (alternative to Vercel cron — works on any Vercel plan)
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  heal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call heal-explanations endpoint
+        run: |
+          curl -sf -X GET "${{ secrets.VERCEL_APP_URL }}/api/heal-explanations" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 300

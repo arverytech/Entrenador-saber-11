@@ -5,12 +5,12 @@ import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow
 /**
  * GET /api/heal-explanations
  *
- * Vercel Cron Job — runs every 2 hours (see vercel.json).
+ * Scheduled job — runs every 2 hours via .github/workflows/heal-explanations.yml.
  * Finds all questions in the 'questions' Firestore collection that have no
  * aiExplanation, generates one for each, and writes it back to the document.
  *
- * Protected by the CRON_SECRET header that Vercel automatically injects when
- * triggering cron routes.
+ * Protected by the CRON_SECRET secret (set as GitHub Actions secret CRON_SECRET
+ * and Vercel environment variable CRON_SECRET).
  *
  * Response:
  *   { healed: number, failed: number, skipped: number }
