@@ -1,12 +1,16 @@
 'use server';
 /**
- * @fileOverview Flujo de IA para extraer preguntas estilo ICFES desde el contenido de texto de una URL.
+ * @fileOverview Flujo de IA para extraer preguntas estilo ICFES desde texto o PDF.
  *
- * - importQuestionsFromContent - Analiza un texto y extrae preguntas de opción múltiple.
+ * - importQuestionsFromContent - Analiza un fragmento de texto y extrae preguntas.
+ * - importQuestionsFromPdf     - Procesa un PDF completo usando visión multimodal de Gemini
+ *                                (lee texto e imágenes reales; ≤ 14 MB inline; PDFs mayores
+ *                                usan extracción de texto como fallback).
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
 
 const ImportQuestionsInputSchema = z.object({
   url: z.string().describe('La URL de origen del contenido.'),
@@ -38,6 +42,80 @@ export type ImportQuestionsOutput = z.infer<typeof ImportQuestionsOutputSchema>;
 export async function importQuestionsFromContent(input: ImportQuestionsInput): Promise<ImportQuestionsOutput> {
   return importQuestionsFlow(input);
 }
+
+// ── PDF vision ──────────────────────────────────────────────────────────────
+
+const PDF_VISION_PROMPT = `Eres un experto constructor de ítems para el examen Saber 11 (ICFES).
+
+Analiza TODAS las páginas de este PDF y extrae TODAS las preguntas de opción múltiple que encuentres.
+
+EXTRACCIÓN DE PREGUNTAS:
+- Extrae TODAS las preguntas presentes en el documento sin límite artificial.
+- No inventes preguntas si ya existen explícitamente en el PDF.
+- Si el documento es material académico sin preguntas, genera preguntas originales de alta calidad al estilo ICFES basadas en el contenido.
+
+REGLAS para las preguntas:
+- Cada pregunta debe tener exactamente 4 opciones.
+- La opción correcta debe ser única e indiscutible.
+- Los distractores deben ser plausibles (errores comunes de razonamiento).
+- El enunciado debe ser claro y formal, al estilo de los cuadernillos ICFES.
+- Asigna el subjectId correcto: matematicas | lectura | naturales | sociales | ingles | socioemocional
+- componentId: componente técnico de la asignatura (p. ej. "Álgebra", "Comprensión lectora").
+- competencyId: competencia específica evaluada (p. ej. "Razonamiento", "Interpretación").
+- level: exactamente uno de Básico | Medio | Avanzado.
+
+REGLAS PARA EL CAMPO svgData (figuras, gráficas, imágenes, tablas, diagramas):
+- Genera svgData para TODA figura geométrica, gráfica cartesiana, mapa, diagrama, imagen o tabla de datos que veas en el PDF junto a una pregunta.
+- El SVG debe reproducir fielmente el elemento visual real que aparece en el PDF (no lo inventes).
+- Si la pregunta NO tiene ningún elemento visual asociado, omite svgData por completo.
+- El SVG debe tener viewBox="0 0 400 300" width="400" height="300".
+- Usa SOLO elementos SVG nativos: <rect>, <circle>, <line>, <polyline>, <polygon>, <path>, <text>, <g>, <defs>, <marker>.
+- Todo texto dentro del SVG: font-family="Arial, sans-serif", mínimo font-size="12".
+- El svgData debe comenzar directamente con <svg (sin <?xml?> ni <!DOCTYPE>).
+- No incluyas JavaScript ni dependencias externas.
+
+Responde estrictamente con el esquema JSON proporcionado.`;
+
+/**
+ * Processes a PDF buffer using Gemini's multimodal vision.
+ * Gemini reads both text content and embedded images/figures from the PDF,
+ * producing accurate SVG representations of visual elements (figures, graphs,
+ * maps, tables) instead of guessing them from text alone.
+ *
+ * For PDFs larger than PDF_VISION_SIZE_LIMIT the function falls back to
+ * text-only extraction via pdf-parse + importQuestionsFromContent.
+ */
+export async function importQuestionsFromPdf(
+  pdfBuffer: Buffer,
+  sourceLabel: string,
+): Promise<ImportQuestionsOutput> {
+  if (pdfBuffer.length > PDF_VISION_SIZE_LIMIT) {
+    // PDF too large for inline data – fall back to text extraction
+    const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
+    const pdfData = await pdfParse(pdfBuffer);
+    return importQuestionsFromContent({ url: sourceLabel, content: pdfData.text });
+  }
+
+  const base64Data = pdfBuffer.toString('base64');
+  const { output } = await ai.generate({
+    model: 'googleai/gemini-2.5-flash',
+    prompt: [
+      {
+        media: {
+          url: `data:application/pdf;base64,${base64Data}`,
+          contentType: 'application/pdf',
+        },
+      },
+      { text: PDF_VISION_PROMPT },
+    ],
+    output: { schema: ImportQuestionsOutputSchema },
+  });
+
+  if (!output) throw new Error('La IA no pudo procesar el PDF con visión multimodal.');
+  return output;
+}
+
+// ── Text-based prompt ───────────────────────────────────────────────────────
 
 const prompt = ai.definePrompt({
   name: 'importQuestionsFromUrlPrompt',
@@ -75,15 +153,12 @@ REGLAS PARA EL CAMPO svgData (figuras, gráficas, mapas, tablas, diagramas):
 - Incluye siempre etiquetas de texto explicativas en los ejes o elementos clave.
 - El SVG debe ser autónomo (sin dependencias externas ni JavaScript).
 - No uses etiquetas <?xml?> ni <!DOCTYPE>; el svgData debe comenzar directamente con <svg ...>.
-- Valida mentalmente que el SVG sea coherente con el enunciado antes de incluirlo.
 
-Tipos de figuras según la materia:
-- matematicas: gráficas cartesianas, figuras geométricas, rectas numéricas, tablas de valores.
-- naturales: diagramas de ciclos, tablas comparativas, gráficas de experimentos.
-- sociales: líneas de tiempo, mapas esquemáticos, diagramas de relaciones.
-- lectura/ingles: tablas de datos textuales si el enunciado las requiere.
+EXTRACCIÓN DE PREGUNTAS:
+- Si el fragmento contiene preguntas de opción múltiple explícitas, extráelas TODAS sin límite artificial (pueden ser hasta 20 o más). No inventes preguntas cuando ya existen en el texto.
+- Si el texto no contiene preguntas explícitas pero sí información académica relevante, genera entre 3 y 15 preguntas originales al estilo ICFES basadas en ese contenido.
+- Si el contenido no es académicamente relevante, genera al menos 2 preguntas generales de nivel básico sobre las materias del Saber 11.
 
-Genera entre 2 y 10 preguntas dependiendo de la riqueza del contenido.
 Responde estrictamente con el esquema JSON proporcionado.`,
 });
 
