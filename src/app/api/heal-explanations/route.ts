@@ -82,9 +82,15 @@ export async function GET(req: NextRequest) {
         batch.map(async (docSnap) => {
           const data = docSnap.data();
           const options = (data.options as string[]) || [];
+
+          // Skip questions that have no options — can't generate a meaningful explanation
+          if (options.length === 0) {
+            return;
+          }
+
           const correctIdx = (data.correctAnswerIndex as number) ?? 0;
-          const correctAnswer = options[correctIdx] ?? '';
-          const wrongAnswer = options[(correctIdx + 1) % Math.max(1, options.length)] ?? '';
+          const correctAnswer = options[correctIdx] ?? options[0];
+          const wrongAnswer = options[(correctIdx + 1) % options.length] ?? options[0];
 
           const aiExplanation = await generateExplanation({
             question: (data.text as string) || '',

@@ -52,9 +52,12 @@ export async function POST(req: NextRequest) {
     const batch = questions.slice(i, i + BATCH_CONCURRENCY);
     const settled = await Promise.allSettled(
       batch.map(async (q) => {
-        const correctAnswer = q.options[q.correctAnswerIndex];
+        if (!q.options || q.options.length === 0) {
+          throw new Error('Question has no options');
+        }
+        const correctAnswer = q.options[q.correctAnswerIndex] ?? q.options[0];
         // Use a wrong option so the explanation covers the error-analysis scenario
-        const wrongAnswer = q.options[(q.correctAnswerIndex + 1) % q.options.length];
+        const wrongAnswer = q.options[(q.correctAnswerIndex + 1) % q.options.length] ?? q.options[0];
         const aiExplanation = await generateExplanation({
           question: q.text,
           userAnswer: wrongAnswer,
@@ -74,7 +77,8 @@ export async function POST(req: NextRequest) {
         results.push(outcome.value);
       } else {
         failed++;
-        console.warn(`[generate-explanations-batch] failed for question ${batch[j].id}:`, outcome.reason);
+        const reason = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason);
+        console.warn('[generate-explanations-batch] failed for question:', batch[j].id, reason);
         results.push({ id: batch[j].id });
       }
     }
