@@ -12,9 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Save, Database, Loader2, BookOpen, Ticket, Trash2, Link2, CheckCircle2, UploadCloud, AlignLeft, Sparkles } from 'lucide-react';
+import { Settings, Save, Database, Loader2, BookOpen, Ticket, Trash2, Link2, CheckCircle2, UploadCloud, AlignLeft, AlertTriangle } from 'lucide-react';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 
@@ -30,9 +30,19 @@ type SSEImportEvent =
       totalQuestionsSoFar: number;
     }
   | { type: 'chunkError'; chunkIndex: number; totalChunks: number; message: string }
-  | { type: 'explanationProgress'; chunkIndex: number; totalChunks: number; done: number; total: number }
   | { type: 'done'; totalQuestions: number; sourceNote: string }
   | { type: 'error'; message: string };
+
+/** A question that has been saved to Firestore, carrying the fields needed for explanation generation. */
+interface SavedQuestion {
+  firestoreId: string;
+  text: string;
+  options: string[];
+  correctAnswerIndex: number;
+  subjectId: string;
+  componentId?: string;
+  competencyId?: string;
+}
 
 export default function AdminBrandingPage() {
   const { institutionName, institutionLogo, updateBranding } = useBranding();
@@ -43,14 +53,17 @@ export default function AdminBrandingPage() {
   const [importUrl, setImportUrl] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');
-  const [generateExplanations, setGenerateExplanations] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ count: number; note: string } | null>(null);
   const [importProgress, setImportProgress] = useState<{
     chunksProcessed: number;
     totalChunks: number;
     questionsFound: number;
-    explanationsLabel?: string;
+  } | null>(null);
+  const [explanationProgress, setExplanationProgress] = useState<{
+    done: number;
+    total: number;
+    failed: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -121,6 +134,7 @@ export default function AdminBrandingPage() {
     setIsImporting(true);
     setImportResult(null);
     setImportProgress(null);
+    setExplanationProgress(null);
 
     const abort = new AbortController();
     abortControllerRef.current = abort;
@@ -132,7 +146,7 @@ export default function AdminBrandingPage() {
         res = await fetch('/api/import-questions-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: importUrl.trim(), generateExplanations }),
+          body: JSON.stringify({ url: importUrl.trim() }),
           signal: abort.signal,
         });
       } else {
@@ -142,7 +156,6 @@ export default function AdminBrandingPage() {
         } else {
           formData.append('text', importText.trim());
         }
-        formData.append('generateExplanations', String(generateExplanations));
         res = await fetch('/api/import-questions-stream', {
           method: 'POST',
           body: formData,
@@ -172,6 +185,8 @@ export default function AdminBrandingPage() {
       const decoder = new TextDecoder();
       let buffer = '';
       let totalSaved = 0;
+      // Accumulate saved questions for post-import explanation generation
+      const savedQuestions: SavedQuestion[] = [];
 
       // eslint-disable-next-line no-constant-condition
       while (true) {
@@ -202,7 +217,7 @@ export default function AdminBrandingPage() {
 
             case 'chunk': {
               const timestamp = new Date().toISOString();
-              await Promise.all(
+              const docRefs = await Promise.all(
                 event.questions.map((q) =>
                   addDoc(collection(firestore, 'questions'), {
                     ...q,
@@ -211,6 +226,19 @@ export default function AdminBrandingPage() {
                   })
                 )
               );
+              // Track Firestore IDs so we can attach explanations after the stream
+              docRefs.forEach((ref, idx) => {
+                const q = event.questions[idx];
+                savedQuestions.push({
+                  firestoreId: ref.id,
+                  text: q.text as string,
+                  options: q.options as string[],
+                  correctAnswerIndex: q.correctAnswerIndex as number,
+                  subjectId: q.subjectId as string,
+                  componentId: q.componentId as string | undefined,
+                  competencyId: q.competencyId as string | undefined,
+                });
+              });
               totalSaved += event.questionsInChunk;
               setImportProgress({
                 chunksProcessed: event.chunkIndex,
@@ -223,17 +251,6 @@ export default function AdminBrandingPage() {
             case 'chunkError':
               setImportProgress((prev) =>
                 prev ? { ...prev, chunksProcessed: event.chunkIndex } : null
-              );
-              break;
-
-            case 'explanationProgress':
-              setImportProgress((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      explanationsLabel: `Generando explicaciones IA: ${event.done}/${event.total} (frag. ${event.chunkIndex}/${event.totalChunks})`,
-                    }
-                  : null
               );
               break;
 
@@ -254,6 +271,51 @@ export default function AdminBrandingPage() {
             case 'error':
               throw new Error(event.message);
           }
+        }
+      }
+
+      // ── Auto-generate explanations for all newly imported questions ──────
+      if (savedQuestions.length > 0) {
+        setExplanationProgress({ done: 0, total: savedQuestions.length, failed: 0 });
+        try {
+          const batchRes = await fetch('/api/generate-explanations-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ questions: savedQuestions.map((q) => ({
+              id: q.firestoreId,
+              text: q.text,
+              options: q.options,
+              correctAnswerIndex: q.correctAnswerIndex,
+              subjectId: q.subjectId,
+              componentId: q.componentId,
+              competencyId: q.competencyId,
+            })) }),
+          });
+          if (batchRes.ok) {
+            const batchData = await batchRes.json() as {
+              results: { id: string; aiExplanation?: unknown }[];
+              failed: number;
+            };
+            // Write explanations back to Firestore
+            await Promise.all(
+              batchData.results
+                .filter((r) => r.aiExplanation !== undefined)
+                .map((r) =>
+                  updateDoc(doc(firestore, 'questions', r.id), {
+                    aiExplanation: r.aiExplanation,
+                    updatedAt: new Date().toISOString(),
+                  })
+                )
+            );
+            setExplanationProgress({
+              done: savedQuestions.length - batchData.failed,
+              total: savedQuestions.length,
+              failed: batchData.failed,
+            });
+          }
+        } catch (explErr) {
+          console.warn('[handleImport] explanation batch failed:', explErr);
+          setExplanationProgress((prev) => prev ? { ...prev, failed: prev.total } : null);
         }
       }
     } catch (e: unknown) {
@@ -434,31 +496,10 @@ export default function AdminBrandingPage() {
               <UploadCloud className="w-5 h-5" /> Importar Preguntas
             </CardTitle>
             <CardDescription className="text-[10px] font-bold uppercase tracking-widest">
-              Elige un método: URL pública, archivo de texto (.txt / .csv / .md / .pdf) o pega el contenido directamente.
+              Elige un método: URL pública, archivo de texto (.txt / .csv / .md / .pdf) o pega el contenido directamente. Las explicaciones IA se generan automáticamente al finalizar.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Pre-generate explanations option — placed ABOVE the tabs so admins see it before clicking import */}
-            <div className="flex items-start gap-3 p-4 bg-primary/5 rounded-2xl border border-primary/20">
-              <input
-                type="checkbox"
-                id="generateExplanations"
-                checked={generateExplanations}
-                onChange={(e) => setGenerateExplanations(e.target.checked)}
-                className="mt-1 w-4 h-4 accent-primary cursor-pointer"
-                disabled={isImporting}
-              />
-              <div>
-                <label htmlFor="generateExplanations" className="text-xs font-black uppercase text-primary cursor-pointer">
-                  <Sparkles className="w-3 h-3 inline mr-1" />
-                  Pre-generar Explicaciones Maestro IA
-                </label>
-                <p className="text-[10px] text-muted-foreground mt-1 italic">
-                  Genera automáticamente las explicaciones de 3 fases para cada pregunta al importar. Los estudiantes las verán al instante sin esperar. <strong>Nota: aumenta el tiempo de importación.</strong>
-                </p>
-              </div>
-            </div>
-
             <Tabs defaultValue="url">
               <TabsList className="grid w-full grid-cols-3 bg-muted h-12">
                 <TabsTrigger value="url" className="text-[10px] font-black uppercase data-[state=active]:bg-secondary data-[state=active]:text-white flex items-center gap-1">
@@ -561,9 +602,7 @@ export default function AdminBrandingPage() {
               <div className="p-4 bg-muted/50 rounded-2xl border border-secondary/20 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-secondary">
-                    {importProgress.explanationsLabel
-                      ? importProgress.explanationsLabel
-                      : `Fragmento ${importProgress.chunksProcessed} de ${importProgress.totalChunks}...`}
+                    Fragmento {importProgress.chunksProcessed} de {importProgress.totalChunks}...
                   </span>
                   <span className="text-xs font-black text-secondary">
                     {importProgress.questionsFound} pregunta(s) guardada(s)
@@ -588,6 +627,45 @@ export default function AdminBrandingPage() {
                   >
                     Cancelar importación
                   </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Explanation generation progress */}
+            {explanationProgress && (
+              <div className={`flex items-start gap-3 p-4 rounded-2xl border text-sm ${
+                explanationProgress.done < explanationProgress.total
+                  ? 'bg-primary/5 border-primary/20'
+                  : explanationProgress.failed > 0
+                  ? 'bg-amber-500/5 border-amber-500/20'
+                  : 'bg-secondary/5 border-secondary/20'
+              }`}>
+                {explanationProgress.done < explanationProgress.total ? (
+                  <Loader2 className="w-5 h-5 text-primary shrink-0 mt-0.5 animate-spin" />
+                ) : explanationProgress.failed > 0 ? (
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                )}
+                <div>
+                  {explanationProgress.done < explanationProgress.total ? (
+                    <p className="font-black text-primary">
+                      Generando explicaciones automáticas: {explanationProgress.done}/{explanationProgress.total}...
+                    </p>
+                  ) : explanationProgress.failed > 0 ? (
+                    <>
+                      <p className="font-black text-amber-600">
+                        {explanationProgress.done} de {explanationProgress.total} explicaciones generadas.
+                      </p>
+                      <p className="text-[10px] text-muted-foreground italic mt-1">
+                        ⚠️ {explanationProgress.failed} explicación(es) fallaron. Serán reintentadas automáticamente por el guardián de calidad.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="font-black text-secondary">
+                      ✅ {explanationProgress.total} pregunta(s) con explicaciones IA listas.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
