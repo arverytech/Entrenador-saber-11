@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { importQuestionsFromContent } from '@/ai/flows/import-questions-from-url-flow';
+import { importQuestionsFromContent, importQuestionsFromPdf } from '@/ai/flows/import-questions-from-url-flow';
 import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow';
 
 /**
@@ -31,6 +31,8 @@ import { generateExplanation } from '@/ai/flows/dynamic-answer-explanations-flow
 
 const CHUNK_SIZE = 10_000;
 const CHUNK_OVERLAP = 400; // chars shared between consecutive chunks to avoid splitting questions
+/** Must match the PDF_VISION_SIZE_LIMIT inside import-questions-from-url-flow.ts */
+const PDF_VISION_SIZE_LIMIT = 14 * 1024 * 1024; // 14 MB
 
 const encoder = new TextEncoder();
 
@@ -98,16 +100,18 @@ const SSE_HEADERS = {
   'X-Accel-Buffering': 'no', // disable proxy buffering so events arrive immediately
 };
 
-async function extractPdfText(file: File): Promise<string> {
-  const { default: pdf } = await import('pdf-parse/lib/pdf-parse.js');
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const pdfData = await pdf(buffer);
-  return pdfData.text;
-}
+/**
+ * Two processing modes:
+ *  'pdf-vision' — PDF ≤ PDF_VISION_SIZE_LIMIT: sent directly to Gemini multimodal.
+ *                 Gemini reads the actual images/figures and produces accurate SVGs.
+ *  'text'       — URL / plain text / large PDF: chunked text pipeline.
+ */
+type ProcessingMode =
+  | { kind: 'pdf-vision'; buffer: Buffer }
+  | { kind: 'text'; rawText: string };
 
 export async function POST(req: NextRequest) {
-  let rawText = '';
+  let processing: ProcessingMode | null = null;
   let sourceLabel = 'contenido';
   let preGenerateExplanations = false;
 
@@ -123,14 +127,26 @@ export async function POST(req: NextRequest) {
 
       if (file && file.size > 0) {
         const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
-        if (isPdf) {
-          rawText = await extractPdfText(file);
-        } else {
-          rawText = await file.text();
-        }
         sourceLabel = file.name;
+
+        if (isPdf) {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdfBuffer = Buffer.from(arrayBuffer);
+
+          if (pdfBuffer.length <= PDF_VISION_SIZE_LIMIT) {
+            // Small PDF: use Gemini vision (sees text + embedded images/figures)
+            processing = { kind: 'pdf-vision', buffer: pdfBuffer };
+          } else {
+            // Large PDF: fall back to text extraction + chunking
+            const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
+            const pdfData = await pdfParse(pdfBuffer);
+            processing = { kind: 'text', rawText: pdfData.text };
+          }
+        } else {
+          processing = { kind: 'text', rawText: await file.text() };
+        }
       } else if (text && text.trim()) {
-        rawText = text.trim();
+        processing = { kind: 'text', rawText: text.trim() };
         sourceLabel = 'texto pegado directamente';
       } else {
         return new Response(sseEvent({ type: 'error', message: 'Se requiere un archivo o texto.' }), {
@@ -186,7 +202,7 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        rawText = cleanHtml(await fetchRes.text());
+        processing = { kind: 'text', rawText: cleanHtml(await fetchRes.text()) };
         sourceLabel = url;
       } catch (fetchErr: unknown) {
         const msg = fetchErr instanceof Error ? fetchErr.message : 'Error de red desconocido';
@@ -204,20 +220,148 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  if (!rawText.trim()) {
+  if (!processing) {
     return new Response(sseEvent({ type: 'error', message: 'El contenido proporcionado está vacío.' }), {
       status: 422,
       headers: SSE_HEADERS,
     });
   }
 
-  const chunks = splitIntoChunks(rawText);
-  const totalChunks = chunks.length;
+  if (processing.kind === 'text' && !processing.rawText.trim()) {
+    return new Response(sseEvent({ type: 'error', message: 'El contenido proporcionado está vacío.' }), {
+      status: 422,
+      headers: SSE_HEADERS,
+    });
+  }
+
+  // Capture in closure for the ReadableStream callback
+  const capturedProcessing = processing;
+  const capturedSourceLabel = sourceLabel;
+  const capturedPreGenerate = preGenerateExplanations;
 
   // ── SSE stream ─────────────────────────────────────────────────────────────
   const stream = new ReadableStream({
     async start(controller) {
-      controller.enqueue(sseEvent({ type: 'start', totalChunks, totalChars: rawText.length }));
+      // ── Helper: optionally pre-generate explanations for a set of questions ──
+      async function applyExplanations(
+        questions: Record<string, unknown>[],
+        chunkIndex: number,
+        totalChunks: number,
+      ): Promise<{ questions: Record<string, unknown>[]; failures: number }> {
+        if (!capturedPreGenerate) return { questions, failures: 0 };
+
+        controller.enqueue(
+          sseEvent({ type: 'explanationProgress', chunkIndex, totalChunks, done: 0, total: questions.length })
+        );
+
+        let explanationsDone = 0;
+        const settled = await Promise.allSettled(
+          questions.map(async (q) => {
+            const options = q.options as string[];
+            const correctIdx = q.correctAnswerIndex as number;
+            const correctAnswer = options[correctIdx];
+            const wrongAnswer = options.find((_, idx) => idx !== correctIdx) ?? correctAnswer;
+
+            const aiExplanation = await generateExplanation({
+              question: q.text as string,
+              userAnswer: wrongAnswer,
+              correctAnswer,
+              options,
+              subject: q.subjectId as string,
+              component: (q.componentId as string) || 'General',
+              competency: (q.competencyId as string) || 'Razonamiento',
+            });
+
+            explanationsDone++;
+            controller.enqueue(
+              sseEvent({ type: 'explanationProgress', chunkIndex, totalChunks, done: explanationsDone, total: questions.length })
+            );
+
+            return { ...q, aiExplanation };
+          })
+        );
+
+        const failures = settled.filter((r) => r.status === 'rejected').length;
+        if (failures > 0) {
+          console.warn(`[import-stream] chunk ${chunkIndex}/${totalChunks}: ${failures} explanation(s) failed`);
+        }
+        return {
+          questions: settled.map((r, idx) => (r.status === 'fulfilled' ? r.value : questions[idx])),
+          failures,
+        };
+      }
+
+      // ── PDF vision branch (no text chunking) ──────────────────────────────
+      if (capturedProcessing.kind === 'pdf-vision') {
+        controller.enqueue(
+          sseEvent({ type: 'start', totalChunks: 1, totalChars: capturedProcessing.buffer.length })
+        );
+
+        let result: Awaited<ReturnType<typeof importQuestionsFromPdf>> | null = null;
+        let lastErr: unknown = null;
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            result = await importQuestionsFromPdf(capturedProcessing.buffer, capturedSourceLabel);
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (attempt === 0) {
+              console.warn('[import-stream] PDF vision attempt 1 failed, retrying…');
+            }
+          }
+        }
+
+        if (!result) {
+          const msg = lastErr instanceof Error ? lastErr.message : 'Error procesando el PDF';
+          console.warn('[import-stream] PDF vision failed after retry:', msg);
+          controller.enqueue(sseEvent({ type: 'chunkError', chunkIndex: 1, totalChunks: 1, message: msg }));
+          controller.enqueue(
+            sseEvent({ type: 'error', message: 'No se pudo procesar el PDF. Intenta con un PDF más pequeño o convierte el contenido a texto.' })
+          );
+          controller.close();
+          return;
+        }
+
+        const { questions: withExplanations, failures } = await applyExplanations(
+          result.questions as Record<string, unknown>[],
+          1,
+          1,
+        );
+
+        controller.enqueue(
+          sseEvent({
+            type: 'chunk',
+            chunkIndex: 1,
+            totalChunks: 1,
+            questions: withExplanations,
+            questionsInChunk: withExplanations.length,
+            totalQuestionsSoFar: withExplanations.length,
+          })
+        );
+
+        const explNote = capturedPreGenerate
+          ? `, con explicaciones IA pre-generadas${failures > 0 ? ` (${failures} fallida(s))` : ''}`
+          : '';
+        controller.enqueue(
+          sseEvent({
+            type: 'done',
+            totalQuestions: withExplanations.length,
+            sourceNote:
+              `${result.sourceNote} ` +
+              `(visión PDF multimodal — ${withExplanations.length} pregunta(s)${explNote})`,
+          })
+        );
+
+        controller.close();
+        return;
+      }
+
+      // ── Text chunking branch ───────────────────────────────────────────────
+      const chunks = splitIntoChunks(capturedProcessing.rawText);
+      const totalChunks = chunks.length;
+
+      controller.enqueue(sseEvent({ type: 'start', totalChunks, totalChars: capturedProcessing.rawText.length }));
 
       let totalQuestionsFound = 0;
       let combinedNote = '';
@@ -225,19 +369,17 @@ export async function POST(req: NextRequest) {
       let totalExplanationFailures = 0;
 
       for (let i = 0; i < chunks.length; i++) {
-        // Respect client disconnect — abort signal propagated by Next.js
         if (req.signal.aborted) break;
 
-        // Attempt to extract questions; retry once on failure
         let result: Awaited<ReturnType<typeof importQuestionsFromContent>> | null = null;
         let lastErr: unknown = null;
         for (let attempt = 0; attempt < 2; attempt++) {
           try {
             result = await importQuestionsFromContent({
-              url: sourceLabel,
+              url: capturedSourceLabel,
               content: chunks[i],
             });
-            break; // success — exit retry loop
+            break;
           } catch (err) {
             lastErr = err;
             if (attempt === 0) {
@@ -251,80 +393,19 @@ export async function POST(req: NextRequest) {
           const msg = lastErr instanceof Error ? lastErr.message : 'Error procesando fragmento';
           console.warn(`[import-stream] chunk ${i + 1}/${totalChunks} failed after retry:`, msg);
           controller.enqueue(
-            sseEvent({
-              type: 'chunkError',
-              chunkIndex: i + 1,
-              totalChunks,
-              message: msg,
-            })
+            sseEvent({ type: 'chunkError', chunkIndex: i + 1, totalChunks, message: msg })
           );
           continue;
         }
 
-        let questions = result.questions as Record<string, unknown>[];
         if (!combinedNote) combinedNote = result.sourceNote;
 
-        // Optionally pre-generate 3-slide AI explanations for this chunk
-        if (preGenerateExplanations) {
-          // Emit progress so the client can show "generating explanations…"
-          controller.enqueue(
-            sseEvent({
-              type: 'explanationProgress',
-              chunkIndex: i + 1,
-              totalChunks,
-              done: 0,
-              total: questions.length,
-            })
-          );
-
-          // Node.js is single-threaded: even though Promise.allSettled resolves
-          // callbacks concurrently at the async level, each callback's synchronous
-          // steps (counter increment + controller.enqueue) run atomically between
-          // await points, so there are no true race conditions here.
-          let explanationsDone = 0;
-          const settled = await Promise.allSettled(
-            questions.map(async (q) => {
-              const options = q.options as string[];
-              const correctIdx = q.correctAnswerIndex as number;
-              const correctAnswer = options[correctIdx];
-              // Use a wrong option so the explanation covers both sides
-              const wrongAnswer = options.find((_, idx) => idx !== correctIdx) ?? correctAnswer;
-
-              const aiExplanation = await generateExplanation({
-                question: q.text as string,
-                userAnswer: wrongAnswer,
-                correctAnswer,
-                options,
-                subject: q.subjectId as string,
-                component: (q.componentId as string) || 'General',
-                competency: (q.competencyId as string) || 'Razonamiento',
-              });
-
-              explanationsDone++;
-              controller.enqueue(
-                sseEvent({
-                  type: 'explanationProgress',
-                  chunkIndex: i + 1,
-                  totalChunks,
-                  done: explanationsDone,
-                  total: questions.length,
-                })
-              );
-
-              return { ...q, aiExplanation };
-            })
-          );
-          // Keep original question (without explanation) if pre-generation failed
-          const explanationFailures = settled.filter((r) => r.status === 'rejected').length;
-          totalExplanationFailures += explanationFailures;
-          if (explanationFailures > 0) {
-            console.warn(
-              `[import-stream] chunk ${i + 1}/${totalChunks}: ${explanationFailures} explanation(s) failed`
-            );
-          }
-          questions = settled.map((r, idx) => (r.status === 'fulfilled' ? r.value : questions[idx]));
-        }
-
+        const { questions, failures } = await applyExplanations(
+          result.questions as Record<string, unknown>[],
+          i + 1,
+          totalChunks,
+        );
+        totalExplanationFailures += failures;
         totalQuestionsFound += questions.length;
 
         controller.enqueue(
@@ -345,7 +426,7 @@ export async function POST(req: NextRequest) {
         );
       } else {
         const chunkNote = failedChunks > 0 ? `, ${failedChunks} fragmento(s) fallido(s)` : '';
-        const explNote = preGenerateExplanations
+        const explNote = capturedPreGenerate
           ? `, con explicaciones IA pre-generadas${totalExplanationFailures > 0 ? ` (${totalExplanationFailures} fallida(s))` : ''}`
           : '';
         controller.enqueue(
