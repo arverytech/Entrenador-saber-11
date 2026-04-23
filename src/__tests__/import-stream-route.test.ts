@@ -693,7 +693,7 @@ describe('Partial failure recovery in text-chunking path', () => {
 // ── 12. Production-like edge cases ───────────────────────────────────────────
 
 describe('Production-like edge cases', () => {
-  it('documents that PDFs > 4 MB should be sent as URL payload instead of multipart body', async () => {
+  it('handles PDFs > 4 MB via URL payload instead of multipart body', async () => {
     const largePdfSizeBytes = 5 * 1024 * 1024;
     expect(largePdfSizeBytes).toBeGreaterThan(4 * 1024 * 1024);
 

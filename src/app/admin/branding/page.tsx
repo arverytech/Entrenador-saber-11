@@ -159,19 +159,25 @@ export default function AdminBrandingPage() {
         });
       } else {
         if (mode === 'file' && importFile) {
-          const isPdf = importFile.name.toLowerCase().endsWith('.pdf') || importFile.type === 'application/pdf';
+          const isPdf =
+            importFile.name.toLowerCase().endsWith('.pdf') ||
+            importFile.type === 'application/pdf' ||
+            importFile.type === 'application/x-pdf';
           const MAX_DIRECT_UPLOAD_BYTES = 4 * 1024 * 1024;
 
           if (isPdf && importFile.size > MAX_DIRECT_UPLOAD_BYTES) {
             const sizeMb = (importFile.size / (1024 * 1024)).toFixed(1);
             setUploadPhase({
-              message: `PDF grande detectado (${sizeMb} MB). Subiendo a almacenamiento temporal antes de procesar...`,
+              message: `PDF grande detectado (${sizeMb} MB). Cargando a almacenamiento temporal antes de procesar...`,
               progress: null,
             });
 
             const storage = getStorage(firebaseApp);
-            const safeName = importFile.name.replace(/[^\w.\-]/g, '_');
-            const tempPath = `temp-pdf-imports/${Date.now()}-${safeName}`;
+            const baseName = importFile.name.replace(/\.[^/.]+$/, '');
+            const safeBaseName = baseName.replace(/[^\w-]/g, '_') || 'archivo';
+            const uniqueId = globalThis.crypto?.randomUUID?.()
+              ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            const tempPath = `temp-pdf-imports/${uniqueId}-${safeBaseName}.pdf`;
             const uploadRef = ref(storage, tempPath);
 
             const snapshot = await uploadBytes(uploadRef, importFile);
