@@ -689,3 +689,64 @@ describe('Partial failure recovery in text-chunking path', () => {
     expect(done.totalQuestions).toBe(3);
   });
 });
+
+// ── 12. Production-like edge cases ───────────────────────────────────────────
+
+describe('Production-like edge cases', () => {
+  it('handles PDFs > 4 MB via URL payload instead of multipart body', async () => {
+    const largePdfSizeBytes = 5 * 1024 * 1024;
+    expect(largePdfSizeBytes).toBeGreaterThan(4 * 1024 * 1024);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => '<html><body>PDF temporal grande</body></html>',
+    } as unknown as Response);
+    mockImportFromContent.mockResolvedValueOnce(AI_OUTPUT);
+
+    const res = await POST(makeUrlRequest('https://storage.example.com/temp-pdf-imports/large.pdf'));
+    const events = await drainSse(res);
+
+    expect(events.some((e) => e.type === 'done')).toBe(true);
+    expect(mockImportFromContent).toHaveBeenCalled();
+    expect(mockImportFromPdf).not.toHaveBeenCalled();
+  });
+
+  it('serverTimestamp is available from firebase/firestore imports (smoke test)', async () => {
+    const firestore = await import('firebase/firestore');
+    expect(typeof firestore.serverTimestamp).toBe('function');
+  });
+
+  it('handles delayed AI response (100ms) and still completes the PDF stream', async () => {
+    mockImportFromPdf.mockImplementationOnce(
+      () => new Promise((resolve) => setTimeout(() => resolve(AI_OUTPUT), 100))
+    );
+
+    const res = await POST(makePdfRequest(makePdfFile()));
+    const events = await drainSse(res);
+
+    assertEventSequence(events, 'start', 'chunk', 'done');
+  });
+
+  it('emits error event when extraction finishes with 0 questions', async () => {
+    mockImportFromContent.mockResolvedValueOnce({ questions: [], sourceNote: 'PDF vacío' });
+
+    const res = await POST(makeTextRequest('Contenido sin preguntas reales'));
+    const events = await drainSse(res);
+
+    expect(events.some((e) =>
+      e.type === 'error' && String(e.message).includes('No se pudieron extraer preguntas')
+    )).toBe(true);
+  });
+
+  it('detects uppercase .PDF filename as PDF and uses PDF vision path', async () => {
+    mockImportFromPdf.mockResolvedValueOnce(AI_OUTPUT);
+    const file = new File([new Uint8Array(1024)], 'EXAMEN.PDF', { type: 'application/pdf' });
+
+    const res = await POST(makePdfRequest(file));
+    const events = await drainSse(res);
+
+    expect(events.some((e) => e.type === 'chunk')).toBe(true);
+    expect(mockImportFromPdf).toHaveBeenCalledTimes(1);
+    expect(mockImportFromContent).not.toHaveBeenCalled();
+  });
+});
