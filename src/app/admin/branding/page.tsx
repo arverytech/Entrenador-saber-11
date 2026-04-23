@@ -14,7 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Save, Database, Loader2, BookOpen, Ticket, Trash2, Link2, CheckCircle2, UploadCloud, AlignLeft, AlertTriangle } from 'lucide-react';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, deleteDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, updateDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, type StorageReference } from 'firebase/storage';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 
@@ -65,9 +66,13 @@ export default function AdminBrandingPage() {
     total: number;
     failed: number;
   } | null>(null);
+  const [uploadPhase, setUploadPhase] = useState<{
+    message: string;
+    progress: number | null;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { firestore, user, isUserLoading } = useFirebase();
+  const { firestore, firebaseApp, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -135,9 +140,12 @@ export default function AdminBrandingPage() {
     setImportResult(null);
     setImportProgress(null);
     setExplanationProgress(null);
+    setUploadPhase(null);
 
     const abort = new AbortController();
     abortControllerRef.current = abort;
+
+    let tempStorageRef: StorageReference | null = null;
 
     try {
       let res: Response;
@@ -150,20 +158,58 @@ export default function AdminBrandingPage() {
           signal: abort.signal,
         });
       } else {
-        const formData = new FormData();
         if (mode === 'file' && importFile) {
-          formData.append('file', importFile);
+          const isPdf = importFile.name.toLowerCase().endsWith('.pdf') || importFile.type === 'application/pdf';
+          const MAX_DIRECT_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+          if (isPdf && importFile.size > MAX_DIRECT_UPLOAD_BYTES) {
+            const sizeMb = (importFile.size / (1024 * 1024)).toFixed(1);
+            setUploadPhase({
+              message: `PDF grande detectado (${sizeMb} MB). Subiendo a almacenamiento temporal antes de procesar...`,
+              progress: null,
+            });
+
+            const storage = getStorage(firebaseApp);
+            const safeName = importFile.name.replace(/[^\w.\-]/g, '_');
+            const tempPath = `temp-pdf-imports/${Date.now()}-${safeName}`;
+            const uploadRef = ref(storage, tempPath);
+
+            const snapshot = await uploadBytes(uploadRef, importFile);
+            tempStorageRef = snapshot.ref;
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            setUploadPhase({
+              message: 'Carga temporal completada. Iniciando procesamiento del PDF...',
+              progress: null,
+            });
+
+            res = await fetch('/api/import-questions-stream', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: downloadURL }),
+              signal: abort.signal,
+            });
+          } else {
+            const formData = new FormData();
+            formData.append('file', importFile);
+            res = await fetch('/api/import-questions-stream', {
+              method: 'POST',
+              body: formData,
+              signal: abort.signal,
+            });
+          }
         } else {
+          const formData = new FormData();
           formData.append('text', importText.trim());
+          res = await fetch('/api/import-questions-stream', {
+            method: 'POST',
+            body: formData,
+            signal: abort.signal,
+          });
         }
-        res = await fetch('/api/import-questions-stream', {
-          method: 'POST',
-          body: formData,
-          signal: abort.signal,
-        });
       }
 
       if (!res.body) throw new Error('La respuesta del servidor no contiene datos.');
+      setUploadPhase(null);
 
       // For non-2xx before stream starts, read the SSE error event
       if (!res.ok) {
@@ -330,8 +376,16 @@ export default function AdminBrandingPage() {
         });
       }
     } finally {
+      if (tempStorageRef) {
+        try {
+          await deleteObject(tempStorageRef);
+        } catch (cleanupErr) {
+          console.warn('[handleImport] no se pudo eliminar el PDF temporal:', cleanupErr);
+        }
+      }
       setIsImporting(false);
       setImportProgress(null);
+      setUploadPhase(null);
       abortControllerRef.current = null;
     }
   };
@@ -596,6 +650,24 @@ export default function AdminBrandingPage() {
                 </p>
               </TabsContent>
             </Tabs>
+
+            {isImporting && uploadPhase && (
+              <div className="p-4 bg-primary/5 rounded-2xl border border-primary/20 space-y-2">
+                <p className="text-xs font-bold text-primary">{uploadPhase.message}</p>
+                {uploadPhase.progress !== null ? (
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadPhase.progress}%` }}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div className="bg-primary/70 h-2 rounded-full animate-pulse w-full" />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Live progress bar (only visible while streaming) */}
             {isImporting && importProgress && (
