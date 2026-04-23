@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Call heal-explanations endpoint
         run: |
-          curl -sf -X GET "${{ secrets.VERCEL_APP_URL }}/api/heal-explanations" \
+          curl -fv -X GET "${{ secrets.VERCEL_APP_URL }}/api/heal-explanations" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             --max-time 300
