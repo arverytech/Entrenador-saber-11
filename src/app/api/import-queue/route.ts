@@ -346,10 +346,10 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Init Storage bucket for text chunk uploads ────────────────────────────
-  let bucket: ReturnType<typeof getAdminStorage> | null = null;
+  let storageBucket: ReturnType<typeof getAdminStorage> | null = null;
   if (!isPdfVision) {
     try {
-      bucket = getAdminStorage();
+      storageBucket = getAdminStorage();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Firebase Storage initialization failed';
       console.error('[import-queue] Storage init error:', msg);
@@ -385,7 +385,7 @@ export async function POST(req: NextRequest) {
         // Upload chunk text to Firebase Storage to avoid Firestore 1 MB limit.
         // Only the lightweight storage path is saved in Firestore.
         const storagePath = `import-chunks/${sessionId}/chunk-${i + 1}.txt`;
-        await bucket!.file(storagePath).save(chunks[i], {
+        await storageBucket!.file(storagePath).save(chunks[i], {
           metadata: { contentType: 'text/plain; charset=utf-8' },
         });
         jobData.contentStoragePath = storagePath;

@@ -91,14 +91,16 @@ export async function POST(req: NextRequest) {
 
   // ── Download chunk text from Storage (text-mode chunks only) ─────────────
   let chunkText = '';
-  let bucket: ReturnType<typeof getAdminStorage> | null = null;
+  let storageBucket: ReturnType<typeof getAdminStorage> | null = null;
   if (job.contentStoragePath) {
     try {
-      bucket = getAdminStorage();
-      const [contents] = await bucket.file(job.contentStoragePath).download();
+      storageBucket = getAdminStorage();
+      const [contents] = await storageBucket.file(job.contentStoragePath).download();
       chunkText = contents.toString('utf-8');
     } catch (dlErr) {
-      const errMsg = dlErr instanceof Error ? dlErr.message : 'Error downloading chunk from Storage';
+      const errMsg = dlErr instanceof Error
+        ? dlErr.message
+        : `Error downloading chunk from Storage at ${job.contentStoragePath}`;
       console.error(`[process-chunk] Storage download error for ${job.contentStoragePath}:`, errMsg);
       await jobDoc.ref.update({
         status: 'failed',
@@ -152,9 +154,9 @@ export async function POST(req: NextRequest) {
 
   /** Deletes the temporary Storage file for this chunk (best-effort). */
   const deleteStorageFile = async () => {
-    if (job.contentStoragePath && bucket) {
+    if (job.contentStoragePath && storageBucket) {
       try {
-        await bucket.file(job.contentStoragePath).delete();
+        await storageBucket.file(job.contentStoragePath).delete();
       } catch (delErr) {
         console.warn(
           `[process-chunk] Failed to delete Storage file ${job.contentStoragePath}:`,
