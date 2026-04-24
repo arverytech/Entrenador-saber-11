@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "src/app/api/import-queue/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/process-chunk/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/heal-explanations/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/import-questions-stream/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
