@@ -48,6 +48,8 @@ const CHUNK_SIZE = 8_000;
  * Overlap characters repeated at the start of the next chunk.
  * 1500 chars ≈ a full ICFES question (stem + 4 options), ensuring that a
  * question split across a chunk boundary is still fully visible to the AI.
+ * Typical ICFES Saber 11 question: ~300 chars (stem) + ~200 chars (4 options) = ~500 chars total.
+ * Worst case (situación with table + 2 questions): ~1400 chars. 1500 provides a safe margin.
  */
 const CHUNK_OVERLAP = 1_500;
 

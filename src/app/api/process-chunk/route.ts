@@ -152,7 +152,10 @@ export async function POST(req: NextRequest) {
   for (const q of questions) {
     const qText = typeof q.text === 'string' ? q.text.slice(0, 100) : '';
 
-    // Deduplication check
+    // Deduplication check: skip if first 100 chars match an existing question in this session
+    // at >85% character similarity (roughSimilarity score).  The 85% threshold was chosen
+    // empirically to catch overlap-region duplicates while allowing genuinely different
+    // questions with similar opening stems to be saved.
     const isDuplicate = existingTexts.some(
       (existing) => roughSimilarity(qText, existing) > 0.85
     );

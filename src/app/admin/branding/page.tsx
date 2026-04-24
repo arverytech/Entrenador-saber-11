@@ -106,6 +106,20 @@ export default function AdminBrandingPage() {
     const poll = async () => {
       if (Date.now() > pollStopTime) {
         if (queuePollingRef.current) clearInterval(queuePollingRef.current);
+        // Notify the user that automatic polling has stopped
+        setImportChecklist((prev) =>
+          prev
+            ? {
+                ...prev,
+                step2: {
+                  ...prev.step2,
+                  detail:
+                    (prev.step2.detail ?? '') +
+                    ' (monitoreo automático detenido — recarga la página para verificar el estado final)',
+                },
+              }
+            : prev
+        );
         return;
       }
       try {
