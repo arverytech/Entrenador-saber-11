@@ -8,6 +8,7 @@ on:
 jobs:
   process:
     runs-on: ubuntu-latest
+    permissions: {}  # Restrict GITHUB_TOKEN to minimum required permissions
     steps:
       - name: Process one pending import chunk
         run: |

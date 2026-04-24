@@ -97,7 +97,15 @@ export default function AdminBrandingPage() {
       return;
     }
 
+    // Stop polling after 2 hours to avoid excessive Firestore reads
+    const MAX_POLL_DURATION_MS = 2 * 60 * 60 * 1000;
+    const pollStopTime = Date.now() + MAX_POLL_DURATION_MS;
+
     const poll = async () => {
+      if (Date.now() > pollStopTime) {
+        if (queuePollingRef.current) clearInterval(queuePollingRef.current);
+        return;
+      }
       try {
         const snap = await getDocs(
           query(collection(firestore, 'importJobs'), where('sessionId', '==', sessionId))
@@ -198,6 +206,8 @@ export default function AdminBrandingPage() {
       if (queuePollingRef.current) clearInterval(queuePollingRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally only depend on sessionId and mode to avoid re-registering
+    // the interval every time checklist status fields update.
   }, [importChecklist?.sessionId, importChecklist?.mode, firestore]);
 
   const keysQuery = useMemoFirebase(() => {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import { getAdminFirestore } from '@/lib/firebase-admin';
 import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
 
@@ -36,7 +37,18 @@ import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
  * }
  */
 
+/**
+ * Maximum characters per chunk.
+ * Chosen to keep Gemini AI processing time under ~20 s per chunk,
+ * leaving a safety margin within the 60 s Vercel Hobby limit.
+ */
 const CHUNK_SIZE = 8_000;
+
+/**
+ * Overlap characters repeated at the start of the next chunk.
+ * 1500 chars ≈ a full ICFES question (stem + 4 options), ensuring that a
+ * question split across a chunk boundary is still fully visible to the AI.
+ */
 const CHUNK_OVERLAP = 1_500;
 
 /** Patterns that mark the beginning of an ICFES-style question. */
@@ -227,6 +239,24 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Basic SSRF protection: reject private/loopback hostnames
+      const hostname = parsedUrl.hostname.toLowerCase();
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1' ||
+        hostname.endsWith('.local') ||
+        /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
+        /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/.test(hostname) ||
+        /^192\.168\.\d+\.\d+$/.test(hostname) ||
+        /^169\.254\.\d+\.\d+$/.test(hostname)
+      ) {
+        return NextResponse.json(
+          { error: 'No se permiten URLs a direcciones IP privadas o locales.' },
+          { status: 400 }
+        );
+      }
+
       sourceLabel = url;
 
       // Download the URL content
@@ -261,14 +291,18 @@ export async function POST(req: NextRequest) {
           chunks = splitIntoSmartChunks(pdfData.text);
         }
       } else {
-        // HTML or plain text URL
+        // HTML or plain text URL — strip tags using explicit open+close pairs,
+        // then strip any remaining tags.  Handles self-closing and spaced end tags.
         const rawText = fetchRes.text
           ? await fetchRes.text()
           : '';
         const cleaned = rawText
-          .replace(/<script[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[\s\S]*?<\/style>/gi, '')
-          .replace(/<[^>]+>/g, ' ')
+          // Remove <script>…</script> blocks (handles spaces in end-tag, case-insensitive)
+          .replace(/<script\b[^>]*>[\s\S]*?<\/\s*script\s*>/gi, '')
+          // Remove <style>…</style> blocks
+          .replace(/<style\b[^>]*>[\s\S]*?<\/\s*style\s*>/gi, '')
+          // Strip remaining tags
+          .replace(/<[^>]*>/g, ' ')
           .replace(/\s{2,}/g, ' ')
           .trim();
         chunks = splitIntoSmartChunks(cleaned);
@@ -299,9 +333,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  const sessionId =
-    globalThis.crypto?.randomUUID?.() ??
-    `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const sessionId = randomUUID();
 
   const totalChunks = chunks.length;
   const now = new Date().toISOString();
