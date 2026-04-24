@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
-import { importQuestionsFromContent, importQuestionsFromPdf } from '@/ai/flows/import-questions-from-url-flow';
+import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFromGeminiFileUri } from '@/ai/flows/import-questions-from-url-flow';
 import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
+import { uploadPdfToGeminiFilesApi } from '@/ai/gemini-files';
 
 /**
  * POST /api/import-questions-stream
@@ -105,6 +106,7 @@ const SSE_HEADERS = {
  */
 type ProcessingMode =
   | { kind: 'pdf-vision'; buffer: Buffer }
+  | { kind: 'pdf-files-api'; fileUri: string }
   | { kind: 'text'; rawText: string };
 
 export async function POST(req: NextRequest) {
@@ -132,10 +134,16 @@ export async function POST(req: NextRequest) {
             // Small PDF: use Gemini vision (sees text + embedded images/figures)
             processing = { kind: 'pdf-vision', buffer: pdfBuffer };
           } else {
-            // Large PDF: fall back to text extraction + chunking
-            const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
-            const pdfData = await pdfParse(pdfBuffer);
-            processing = { kind: 'text', rawText: pdfData.text };
+            // Large PDF: upload to Gemini Files API for full vision (text + figures).
+            const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+              return new Response(
+                sseEvent({ type: 'error', message: 'GOOGLE_GENAI_API_KEY no está configurado. Es necesario para procesar PDFs grandes.' }),
+                { status: 500, headers: SSE_HEADERS },
+              );
+            }
+            const fileUri = await uploadPdfToGeminiFilesApi(pdfBuffer, file.name, apiKey);
+            processing = { kind: 'pdf-files-api', fileUri };
           }
         } else {
           processing = { kind: 'text', rawText: await file.text() };
@@ -284,6 +292,63 @@ export async function POST(req: NextRequest) {
             sourceNote:
               `${result.sourceNote} ` +
               `(visión PDF multimodal — ${questions.length} pregunta(s))`,
+          })
+        );
+
+        controller.close();
+        return;
+      }
+
+      // ── PDF Files API branch (large PDFs — full vision via uploaded file) ──
+      if (capturedProcessing.kind === 'pdf-files-api') {
+        controller.enqueue(sseEvent({ type: 'start', totalChunks: 1, totalChars: 0 }));
+
+        let result: Awaited<ReturnType<typeof importQuestionsFromGeminiFileUri>> | null = null;
+        let lastErr: unknown = null;
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            result = await importQuestionsFromGeminiFileUri(capturedProcessing.fileUri, capturedSourceLabel);
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (attempt === 0) {
+              console.warn('[import-stream] Files API attempt 1 failed, retrying…');
+            }
+          }
+        }
+
+        if (!result) {
+          const msg = lastErr instanceof Error ? lastErr.message : 'Error procesando el PDF';
+          console.warn('[import-stream] Files API failed after retry:', msg);
+          controller.enqueue(sseEvent({ type: 'chunkError', chunkIndex: 1, totalChunks: 1, message: msg }));
+          controller.enqueue(
+            sseEvent({ type: 'error', message: 'No se pudo procesar el PDF. Intenta de nuevo.' })
+          );
+          controller.close();
+          return;
+        }
+
+        const filesApiQuestions = result.questions as Record<string, unknown>[];
+
+        controller.enqueue(
+          sseEvent({
+            type: 'chunk',
+            chunkIndex: 1,
+            totalChunks: 1,
+            questions: filesApiQuestions,
+            questionsInChunk: filesApiQuestions.length,
+            totalQuestionsSoFar: filesApiQuestions.length,
+          })
+        );
+
+        controller.enqueue(
+          sseEvent({
+            type: 'done',
+            totalQuestions: filesApiQuestions.length,
+            sourceNote:
+              `${result.sourceNote} ` +
+              `(visión PDF completa via Files API — ${filesApiQuestions.length} pregunta(s))`,
           })
         );
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
-import { importQuestionsFromContent, importQuestionsFromPdf } from '@/ai/flows/import-questions-from-url-flow';
+import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFromGeminiFileUri } from '@/ai/flows/import-questions-from-url-flow';
 
 /**
  * POST /api/process-chunk
@@ -74,7 +74,8 @@ export async function POST(req: NextRequest) {
     sessionId: string;
     chunkIndex: number;
     totalChunks: number;
-    content?: string;            // present only for isPdfVision=true (base64 PDF)
+    geminiFileUri?: string;      // present for PDFs uploaded via Gemini Files API (new)
+    content?: string;            // legacy: base64 PDF for isPdfVision=true jobs
     contentStoragePath?: string; // present for text chunks
     isPdfVision: boolean;
     sourceLabel: string;
@@ -133,8 +134,12 @@ export async function POST(req: NextRequest) {
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      if (job.isPdfVision) {
-        // Decode base64 back to buffer for Gemini vision
+      if (job.geminiFileUri) {
+        // PDF uploaded via Gemini Files API — Gemini reads the full document
+        // including embedded images, figures, graphs and tables.
+        aiResult = await importQuestionsFromGeminiFileUri(job.geminiFileUri, job.sourceLabel);
+      } else if (job.isPdfVision) {
+        // Legacy: base64 inline PDF (for jobs created before the Files API migration)
         const pdfBuffer = Buffer.from(job.content!, 'base64');
         aiResult = await importQuestionsFromPdf(pdfBuffer, job.sourceLabel);
       } else {

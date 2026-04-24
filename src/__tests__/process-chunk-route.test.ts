@@ -23,10 +23,12 @@
 
 const mockImportFromPdf = jest.fn();
 const mockImportFromContent = jest.fn();
+const mockImportFromGeminiFileUri = jest.fn();
 
 jest.mock('@/ai/flows/import-questions-from-url-flow', () => ({
   importQuestionsFromPdf: (...args: unknown[]) => mockImportFromPdf(...args),
   importQuestionsFromContent: (...args: unknown[]) => mockImportFromContent(...args),
+  importQuestionsFromGeminiFileUri: (...args: unknown[]) => mockImportFromGeminiFileUri(...args),
 }));
 
 // ── Firestore mock ────────────────────────────────────────────────────────────
@@ -190,6 +192,7 @@ beforeEach(() => {
 
   mockImportFromContent.mockResolvedValue(ICFES_AI_OUTPUT);
   mockImportFromPdf.mockResolvedValue(ICFES_AI_OUTPUT);
+  mockImportFromGeminiFileUri.mockResolvedValue(ICFES_AI_OUTPUT);
 });
 
 afterEach(() => {
@@ -352,7 +355,35 @@ describe('POST /api/process-chunk', () => {
   });
 
   describe('modo isPdfVision', () => {
-    it('isPdfVision=true → decodifica base64 y llama importQuestionsFromPdf (sin descargar de Storage)', async () => {
+    it('geminiFileUri → llama importQuestionsFromGeminiFileUri (sin acceso a Storage)', async () => {
+      const geminiFilesJob = makeJobDocRef({
+        sessionId: 'session-abc',
+        chunkIndex: 1,
+        totalChunks: 1,
+        geminiFileUri: 'https://generativelanguage.googleapis.com/v1beta/files/test123',
+        isPdfVision: false,
+        sourceLabel: 'cuadernillo.pdf',
+        status: 'pending',
+        questionsFound: 0,
+        createdAt: '2026-04-01T00:00:00.000Z',
+        updatedAt: '2026-04-01T00:00:00.000Z',
+      }, 'gemini-files-job');
+
+      mockJobsQuery.get.mockResolvedValueOnce({ empty: false, docs: [geminiFilesJob] });
+
+      await POST(makeRequest());
+
+      expect(mockImportFromGeminiFileUri).toHaveBeenCalledWith(
+        'https://generativelanguage.googleapis.com/v1beta/files/test123',
+        'cuadernillo.pdf',
+      );
+      expect(mockImportFromPdf).not.toHaveBeenCalled();
+      expect(mockImportFromContent).not.toHaveBeenCalled();
+      // Storage should NOT be accessed for geminiFileUri mode
+      expect(mockBucket.file).not.toHaveBeenCalled();
+    });
+
+    it('isPdfVision=true (legacy) → decodifica base64 y llama importQuestionsFromPdf (sin descargar de Storage)', async () => {
       const pdfBuffer = Buffer.alloc(100).fill(0x25);
       const pdfBase64 = pdfBuffer.toString('base64');
 

@@ -77,6 +77,43 @@ REGLAS PARA EL CAMPO svgData (figuras, gráficas, imágenes, tablas, diagramas):
 Responde estrictamente con el esquema JSON proporcionado.`;
 
 /**
+ * Processes a PDF that has already been uploaded to the Gemini Files API.
+ *
+ * The URI is passed directly as media.url; the @genkit-ai/google-genai plugin
+ * recognises the generativelanguage.googleapis.com hostname and forwards it as
+ * fileData — Gemini reads the full PDF including embedded images and figures.
+ *
+ * This path handles PDFs of any size (up to 2 GB) and avoids inline base64
+ * overhead, keeping Firestore documents tiny.
+ *
+ * @param fileUri    - URI returned by the Gemini Files API upload.
+ * @param sourceLabel - Human-readable label used in error messages and logs.
+ */
+export async function importQuestionsFromGeminiFileUri(
+  fileUri: string,
+  sourceLabel: string,
+): Promise<ImportQuestionsOutput> {
+  const { output } = await ai.generate({
+    model: 'googleai/gemini-2.5-flash',
+    prompt: [
+      {
+        media: {
+          url: fileUri,
+          contentType: 'application/pdf',
+        },
+      },
+      { text: PDF_VISION_PROMPT },
+    ],
+    output: { schema: ImportQuestionsOutputSchema },
+  });
+
+  if (!output) {
+    throw new Error(`La IA no pudo procesar el PDF: ${sourceLabel}`);
+  }
+  return output;
+}
+
+/**
  * Processes a PDF buffer using Gemini's multimodal vision.
  * Gemini reads both text content and embedded images/figures from the PDF,
  * producing accurate SVG representations of visual elements (figures, graphs,

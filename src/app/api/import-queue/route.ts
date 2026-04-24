@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
-import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
+import { uploadPdfToGeminiFilesApi } from '@/ai/gemini-files';
 
 /**
  * POST /api/import-queue
@@ -25,9 +25,9 @@ import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
  *   sessionId: string,
  *   chunkIndex: number,           // 1-based
  *   totalChunks: number,
+ *   geminiFileUri?: string,       // Files API URI for PDFs (any size) — replaces content/isPdfVision
  *   contentStoragePath?: string,  // Storage path for text chunk (text mode)
- *   content?: string,             // base64 PDF data (pdf-vision mode only)
- *   isPdfVision: boolean,         // true = send to Gemini as PDF; false = text
+ *   isPdfVision: boolean,         // always false for new jobs; kept for legacy in-flight jobs
  *   sourceLabel: string,
  *   status: 'pending' | 'processing' | 'done' | 'failed',
  *   questionsFound: number,
@@ -186,8 +186,7 @@ export function splitIntoSmartChunks(text: string): string[] {
 export async function POST(req: NextRequest) {
   let sourceLabel = 'contenido';
   let chunks: string[] = [];
-  let isPdfVision = false;
-  let pdfBase64: string | null = null;
+  let geminiFileUri: string | null = null;
 
   const contentType = req.headers.get('content-type') ?? '';
 
@@ -205,20 +204,19 @@ export async function POST(req: NextRequest) {
           file.type === 'application/pdf';
 
         if (isPdf) {
+          const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+          if (!apiKey) {
+            return NextResponse.json(
+              { error: 'GOOGLE_GENAI_API_KEY no está configurado. Es necesario para procesar PDFs.' },
+              { status: 500 },
+            );
+          }
           const arrayBuffer = await file.arrayBuffer();
           const pdfBuffer = Buffer.from(arrayBuffer);
-
-          if (pdfBuffer.length <= PDF_VISION_SIZE_LIMIT) {
-            // Small PDF → 1 chunk in pdf-vision mode
-            isPdfVision = true;
-            pdfBase64 = pdfBuffer.toString('base64');
-            chunks = ['__PDF_VISION__'];
-          } else {
-            // Large PDF → text extraction + smart chunking
-            const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
-            const pdfData = await pdfParse(pdfBuffer);
-            chunks = splitIntoSmartChunks(pdfData.text);
-          }
+          // Upload to Gemini Files API — supports any size up to 2 GB; Gemini
+          // reads the full PDF including embedded figures, graphs and tables.
+          geminiFileUri = await uploadPdfToGeminiFilesApi(pdfBuffer, file.name, apiKey);
+          chunks = ['__PDF_FILES_API__'];
         } else {
           const rawText = await file.text();
           chunks = splitIntoSmartChunks(rawText);
@@ -300,18 +298,20 @@ export async function POST(req: NextRequest) {
         parsedUrl.pathname.toLowerCase().endsWith('.pdf');
 
       if (isPdfUrl) {
+        const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+          return NextResponse.json(
+            { error: 'GOOGLE_GENAI_API_KEY no está configurado. Es necesario para procesar PDFs.' },
+            { status: 500 },
+          );
+        }
         const arrayBuffer = await fetchRes.arrayBuffer();
         const pdfBuffer = Buffer.from(arrayBuffer);
-
-        if (pdfBuffer.length <= PDF_VISION_SIZE_LIMIT) {
-          isPdfVision = true;
-          pdfBase64 = pdfBuffer.toString('base64');
-          chunks = ['__PDF_VISION__'];
-        } else {
-          const { default: pdfParse } = await import('pdf-parse/lib/pdf-parse.js');
-          const pdfData = await pdfParse(pdfBuffer);
-          chunks = splitIntoSmartChunks(pdfData.text);
-        }
+        const displayName = parsedUrl.pathname.split('/').pop() || 'document.pdf';
+        // Upload to Gemini Files API — supports any size up to 2 GB; Gemini
+        // reads the full PDF including embedded figures, graphs and tables.
+        geminiFileUri = await uploadPdfToGeminiFilesApi(pdfBuffer, displayName, apiKey);
+        chunks = ['__PDF_FILES_API__'];
       } else {
         // HTML or plain text URL — extract plain text.
         // Use `text()` only after confirming the body is available.
@@ -346,8 +346,9 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Init Storage bucket for text chunk uploads ────────────────────────────
+  // Storage is only needed for text-mode chunks; PDFs use Gemini Files API.
   let storageBucket: ReturnType<typeof getAdminStorage> | null = null;
-  if (!isPdfVision) {
+  if (geminiFileUri === null) {
     try {
       storageBucket = getAdminStorage();
     } catch (err) {
@@ -371,18 +372,20 @@ export async function POST(req: NextRequest) {
         chunkIndex: i + 1,
         totalChunks,
         sourceLabel,
-        isPdfVision,
+        isPdfVision: false,
         status: 'pending',
         questionsFound: 0,
         createdAt: now,
         updatedAt: now,
       };
 
-      if (isPdfVision && pdfBase64) {
-        // Store the base64 PDF data inline (only for single-chunk vision mode)
-        jobData.content = pdfBase64;
+      if (geminiFileUri) {
+        // PDF uploaded to Gemini Files API — store only the URI (tiny, avoids
+        // the Firestore 1 MB document limit). Gemini reads the full PDF,
+        // including images and figures, during process-chunk.
+        jobData.geminiFileUri = geminiFileUri;
       } else {
-        // Upload chunk text to Firebase Storage to avoid Firestore 1 MB limit.
+        // Text chunk → upload to Firebase Storage to avoid Firestore 1 MB limit.
         // Only the lightweight storage path is saved in Firestore.
         const storagePath = `import-chunks/${sessionId}/chunk-${i + 1}.txt`;
         await storageBucket!.file(storagePath).save(chunks[i], {
@@ -400,7 +403,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  console.log(`[import-queue] sessionId=${sessionId} totalChunks=${totalChunks} isPdfVision=${isPdfVision}`);
+  console.log(`[import-queue] sessionId=${sessionId} totalChunks=${totalChunks} geminiFileUri=${geminiFileUri ? 'yes' : 'no'}`);
 
   return NextResponse.json({ sessionId, totalChunks, sourceLabel });
 }
