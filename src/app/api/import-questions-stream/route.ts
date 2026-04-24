@@ -104,6 +104,8 @@ const SSE_HEADERS = {
  *                 Gemini reads the actual images/figures and produces accurate SVGs.
  *  'text'       — URL / plain text / large PDF: chunked text pipeline.
  */
+type ImportQuestionsResult = Awaited<ReturnType<typeof importQuestionsFromPdf>>;
+
 type ProcessingMode =
   | { kind: 'pdf-vision'; buffer: Buffer }
   | { kind: 'pdf-files-api'; fileUri: string }
@@ -246,7 +248,7 @@ export async function POST(req: NextRequest) {
           sseEvent({ type: 'start', totalChunks: 1, totalChars: capturedProcessing.buffer.length })
         );
 
-        let result: Awaited<ReturnType<typeof importQuestionsFromPdf>> | null = null;
+        let result: ImportQuestionsResult | null = null;
         let lastErr: unknown = null;
 
         for (let attempt = 0; attempt < 2; attempt++) {
@@ -303,7 +305,7 @@ export async function POST(req: NextRequest) {
       if (capturedProcessing.kind === 'pdf-files-api') {
         controller.enqueue(sseEvent({ type: 'start', totalChunks: 1, totalChars: 0 }));
 
-        let result: Awaited<ReturnType<typeof importQuestionsFromGeminiFileUri>> | null = null;
+        let result: ImportQuestionsResult | null = null;
         let lastErr: unknown = null;
 
         for (let attempt = 0; attempt < 2; attempt++) {

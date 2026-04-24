@@ -53,7 +53,12 @@ export async function uploadPdfToGeminiFilesApi(
     );
   }
 
-  const data = await res.json() as { file?: { uri?: string } };
+  let data: { file?: { uri?: string } };
+  try {
+    data = await res.json() as { file?: { uri?: string } };
+  } catch {
+    throw new Error('Gemini Files API returned a non-JSON response.');
+  }
   const uri = data?.file?.uri;
   if (!uri) {
     throw new Error('Gemini Files API did not return a file URI in the response.');
