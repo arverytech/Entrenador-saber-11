@@ -49,8 +49,17 @@ const mockDb = {
   batch: jest.fn().mockReturnValue(mockBatch),
 };
 
+// Storage mock
+const mockStorageFile = {
+  save: jest.fn().mockResolvedValue(undefined),
+};
+const mockBucket = {
+  file: jest.fn().mockReturnValue(mockStorageFile),
+};
+
 jest.mock('@/lib/firebase-admin', () => ({
   getAdminFirestore: jest.fn(() => mockDb),
+  getAdminStorage: jest.fn(() => mockBucket),
 }));
 
 jest.mock('@/ai/constants', () => ({
@@ -158,6 +167,8 @@ beforeEach(() => {
   mockDb.batch.mockReturnValue(mockBatch);
   mockBatch.set.mockClear();
   mockBatch.commit.mockResolvedValue(undefined);
+  mockBucket.file.mockReturnValue(mockStorageFile);
+  mockStorageFile.save.mockResolvedValue(undefined);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -376,9 +387,12 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
     expect(setCall).toBeDefined();
     const jobData = setCall[1] as Record<string, unknown>;
     expect(jobData.isPdfVision).toBe(true);
+    // PDF vision jobs still store base64 inline in 'content' (no Storage upload)
     expect(typeof jobData.content).toBe('string');
     // Content should be valid base64
     expect(() => Buffer.from(jobData.content as string, 'base64')).not.toThrow();
+    // Storage should NOT be called for pdf-vision mode
+    expect(mockStorageFile.save).not.toHaveBeenCalled();
   });
 
   it('PDF grande (> 14MB) → extrae texto con pdf-parse, múltiples chunks, isPdfVision=false', async () => {
@@ -412,8 +426,9 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
     expect(res.status).toBe(200);
 
     const [, jobData] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
+    // Text-mode jobs use contentStoragePath (Storage path), not 'content'
     const requiredFields = [
-      'sessionId', 'chunkIndex', 'totalChunks', 'content',
+      'sessionId', 'chunkIndex', 'totalChunks', 'contentStoragePath',
       'isPdfVision', 'sourceLabel', 'status', 'questionsFound',
       'createdAt', 'updatedAt',
     ];
@@ -425,6 +440,10 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
     expect(jobData.sessionId).toBe(body.sessionId);
     expect(jobData.chunkIndex).toBe(1);
     expect(jobData.totalChunks).toBe(body.totalChunks);
+    // contentStoragePath should follow the expected pattern
+    expect(jobData.contentStoragePath as string).toMatch(
+      /^import-chunks\/[a-f0-9-]+\/chunk-1\.txt$/
+    );
   });
 
   it('JSON body con URL de PDF (.pdf extension) → descarga y procesa', async () => {
@@ -466,8 +485,13 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
 
     const [, jobData] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
     expect(jobData.isPdfVision).toBe(false);
-    // Script tags should be stripped
-    expect(jobData.content as string).not.toContain('alert');
+    // Text-mode jobs store content in Storage; Firestore gets the path
+    expect(typeof jobData.contentStoragePath).toBe('string');
+    expect(jobData.contentStoragePath as string).toMatch(/^import-chunks\/.+\/chunk-\d+\.txt$/);
+    // Verify Storage save was called with content that does not contain the script tag
+    const saveArg = mockStorageFile.save.mock.calls[0]?.[0] as string | undefined;
+    expect(saveArg).toBeDefined();
+    expect(saveArg).not.toContain('alert');
   });
 
   it('FormData sin archivo ni texto → 400', async () => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { getAdminFirestore } from '@/lib/firebase-admin';
+import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
 import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
 
 /**
@@ -23,16 +23,16 @@ import { PDF_VISION_SIZE_LIMIT } from '@/ai/constants';
  * Firestore collection `importJobs`:
  * {
  *   sessionId: string,
- *   chunkIndex: number,        // 1-based
+ *   chunkIndex: number,           // 1-based
  *   totalChunks: number,
- *   content: string,           // text of the chunk (text mode)
- *   pdfStoragePath?: string,   // path in Firebase Storage (pdf-vision mode only)
- *   isPdfVision: boolean,      // true = send to Gemini as PDF; false = text
+ *   contentStoragePath?: string,  // Storage path for text chunk (text mode)
+ *   content?: string,             // base64 PDF data (pdf-vision mode only)
+ *   isPdfVision: boolean,         // true = send to Gemini as PDF; false = text
  *   sourceLabel: string,
  *   status: 'pending' | 'processing' | 'done' | 'failed',
  *   questionsFound: number,
  *   errorMessage?: string,
- *   createdAt: string,         // ISO
+ *   createdAt: string,            // ISO
  *   updatedAt: string,
  * }
  */
@@ -345,6 +345,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
+  // ── Init Storage bucket for text chunk uploads ────────────────────────────
+  let bucket: ReturnType<typeof getAdminStorage> | null = null;
+  if (!isPdfVision) {
+    try {
+      bucket = getAdminStorage();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Firebase Storage initialization failed';
+      console.error('[import-queue] Storage init error:', msg);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
   const sessionId = randomUUID();
 
   const totalChunks = chunks.length;
@@ -370,7 +382,13 @@ export async function POST(req: NextRequest) {
         // Store the base64 PDF data inline (only for single-chunk vision mode)
         jobData.content = pdfBase64;
       } else {
-        jobData.content = chunks[i];
+        // Upload chunk text to Firebase Storage to avoid Firestore 1 MB limit.
+        // Only the lightweight storage path is saved in Firestore.
+        const storagePath = `import-chunks/${sessionId}/chunk-${i + 1}.txt`;
+        await bucket!.file(storagePath).save(chunks[i], {
+          metadata: { contentType: 'text/plain; charset=utf-8' },
+        });
+        jobData.contentStoragePath = storagePath;
       }
 
       batch.set(docRef, jobData);

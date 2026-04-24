@@ -37,3 +37,18 @@ function getAdminApp(): admin.app.App {
 export function getAdminFirestore(): admin.firestore.Firestore {
   return getAdminApp().firestore();
 }
+
+/**
+ * Returns the default Admin Storage bucket.
+ *
+ * Reads the bucket name from FIREBASE_STORAGE_BUCKET env var first,
+ * then falls back to NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET (public config).
+ * If neither is set, the Admin SDK will use the default bucket derived
+ * from the service account project.
+ */
+export function getAdminStorage() {
+  const bucketName =
+    process.env.FIREBASE_STORAGE_BUCKET ||
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+  return getAdminApp().storage().bucket(bucketName);
+}
