@@ -58,6 +58,9 @@ interface ImportChecklist {
   totalQuestions?: number;
 }
 
+/** Maximum duration in milliseconds for queue polling before automatically stopping. */
+const QUEUE_POLL_MAX_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+
 export default function AdminBrandingPage() {
   const { institutionName, institutionLogo, updateBranding } = useBranding();
   const [name, setName] = useState(institutionName);
@@ -98,8 +101,7 @@ export default function AdminBrandingPage() {
     }
 
     // Stop polling after 2 hours to avoid excessive Firestore reads
-    const MAX_POLL_DURATION_MS = 2 * 60 * 60 * 1000;
-    const pollStopTime = Date.now() + MAX_POLL_DURATION_MS;
+    const pollStopTime = Date.now() + QUEUE_POLL_MAX_DURATION_MS;
 
     const poll = async () => {
       if (Date.now() > pollStopTime) {

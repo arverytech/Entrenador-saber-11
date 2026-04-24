@@ -51,6 +51,26 @@ const CHUNK_SIZE = 8_000;
  */
 const CHUNK_OVERLAP = 1_500;
 
+/**
+ * Converts raw HTML to plain text by:
+ * 1. Removing all tags and their content for script/style elements.
+ * 2. Replacing all remaining HTML tags with spaces.
+ *
+ * The output is plain text suitable for AI question extraction and Firestore storage.
+ * It is never rendered as HTML, so residual content is harmless.
+ */
+function stripHtmlToText(html: string): string {
+  return html
+    // Remove entire <script> and <style> blocks including content
+    .replace(/<script[^>]*>[\s\S]*?<\/script[^>]*>/gi, ' ')
+    .replace(/<style[^>]*>[\s\S]*?<\/style[^>]*>/gi, ' ')
+    // Replace all remaining HTML tags with spaces
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 /** Patterns that mark the beginning of an ICFES-style question. */
 const QUESTION_START_PATTERNS = [
   /^\d+\.\s/m,           // "1. ", "2. "
@@ -291,20 +311,10 @@ export async function POST(req: NextRequest) {
           chunks = splitIntoSmartChunks(pdfData.text);
         }
       } else {
-        // HTML or plain text URL — strip tags using explicit open+close pairs,
-        // then strip any remaining tags.  Handles self-closing and spaced end tags.
-        const rawText = fetchRes.text
-          ? await fetchRes.text()
-          : '';
-        const cleaned = rawText
-          // Remove <script>…</script> blocks (handles spaces in end-tag, case-insensitive)
-          .replace(/<script\b[^>]*>[\s\S]*?<\/\s*script\s*>/gi, '')
-          // Remove <style>…</style> blocks
-          .replace(/<style\b[^>]*>[\s\S]*?<\/\s*style\s*>/gi, '')
-          // Strip remaining tags
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/\s{2,}/g, ' ')
-          .trim();
+        // HTML or plain text URL — extract plain text.
+        // Use `text()` only after confirming the body is available.
+        const rawText = fetchRes.body ? await fetchRes.text() : '';
+        const cleaned = stripHtmlToText(rawText);
         chunks = splitIntoSmartChunks(cleaned);
       }
     }

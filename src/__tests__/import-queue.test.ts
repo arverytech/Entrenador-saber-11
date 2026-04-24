@@ -453,6 +453,7 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       headers: { get: () => 'text/html' },
+      body: true, // simulate non-null body so text() is called
       text: async () => htmlContent,
       arrayBuffer: async () => new ArrayBuffer(0),
     } as unknown as Response);
