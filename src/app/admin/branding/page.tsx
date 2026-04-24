@@ -12,10 +12,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Save, Database, Loader2, BookOpen, Ticket, Trash2, Link2, CheckCircle2, UploadCloud, AlignLeft, AlertTriangle } from 'lucide-react';
+import { Settings, Save, Database, Loader2, BookOpen, Ticket, Trash2, Link2, CheckCircle2, UploadCloud, AlignLeft, AlertTriangle, XCircle } from 'lucide-react';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, deleteDoc, doc, updateDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, type StorageReference } from 'firebase/storage';
+import { collection, addDoc, deleteDoc, doc, updateDoc, query, orderBy, serverTimestamp, getDocs, where } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 
@@ -45,6 +44,20 @@ interface SavedQuestion {
   competencyId?: string;
 }
 
+type ChecklistItemStatus = 'idle' | 'pending' | 'done' | 'error';
+
+interface ImportChecklist {
+  step1: { status: ChecklistItemStatus; detail?: string; error?: string };
+  step2: { status: ChecklistItemStatus; detail?: string; error?: string };
+  step3: { status: ChecklistItemStatus; detail?: string; error?: string };
+  /** 'queue' = async GitHub Actions path; 'stream' = SSE path */
+  mode: 'queue' | 'stream';
+  sessionId?: string;
+  totalChunks?: number;
+  chunksProcessed?: number;
+  totalQuestions?: number;
+}
+
 export default function AdminBrandingPage() {
   const { institutionName, institutionLogo, updateBranding } = useBranding();
   const [name, setName] = useState(institutionName);
@@ -56,23 +69,15 @@ export default function AdminBrandingPage() {
   const [importText, setImportText] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ count: number; note: string } | null>(null);
-  const [importProgress, setImportProgress] = useState<{
-    chunksProcessed: number;
-    totalChunks: number;
-    questionsFound: number;
-  } | null>(null);
-  const [explanationProgress, setExplanationProgress] = useState<{
-    done: number;
-    total: number;
-    failed: number;
-  } | null>(null);
+  const [importChecklist, setImportChecklist] = useState<ImportChecklist | null>(null);
   const [uploadPhase, setUploadPhase] = useState<{
     message: string;
     progress: number | null;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const { firestore, firebaseApp, user, isUserLoading } = useFirebase();
+  const queuePollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { firestore, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -81,6 +86,119 @@ export default function AdminBrandingPage() {
       router.push('/auth/login');
     }
   }, [user, isUserLoading, router]);
+
+  // ── Queue polling — checks Firestore importJobs every 5 s when a queue session is active ──
+  useEffect(() => {
+    const sessionId = importChecklist?.mode === 'queue' ? importChecklist.sessionId : null;
+    if (!sessionId || !firestore) return;
+
+    // Don't poll if step2 is already done or errored
+    if (importChecklist?.step2.status === 'done' || importChecklist?.step2.status === 'error') {
+      return;
+    }
+
+    const poll = async () => {
+      try {
+        const snap = await getDocs(
+          query(collection(firestore, 'importJobs'), where('sessionId', '==', sessionId))
+        );
+        if (snap.empty) return;
+
+        const jobs = snap.docs.map((d) => d.data() as {
+          status: string;
+          questionsFound: number;
+          chunkIndex: number;
+          totalChunks: number;
+          errorMessage?: string;
+        });
+
+        const total = jobs[0]?.totalChunks ?? jobs.length;
+        const doneCount = jobs.filter((j) => j.status === 'done').length;
+        const failedCount = jobs.filter((j) => j.status === 'failed').length;
+        const totalQuestions = jobs.reduce((s, j) => s + (j.questionsFound ?? 0), 0);
+        const failedMessages = jobs
+          .filter((j) => j.status === 'failed' && j.errorMessage)
+          .map((j) => `Fragmento ${j.chunkIndex}: ${j.errorMessage}`);
+
+        setImportChecklist((prev) => {
+          if (!prev) return prev;
+          const allDone = doneCount + failedCount >= total;
+          const hasErrors = failedCount > 0;
+
+          let step2: ImportChecklist['step2'];
+          if (allDone && !hasErrors) {
+            step2 = { status: 'done', detail: `${totalQuestions} pregunta(s) extraídas de ${total} fragmento(s)` };
+          } else if (allDone && hasErrors && doneCount === 0) {
+            step2 = { status: 'error', error: failedMessages.join(' | ') };
+          } else if (hasErrors) {
+            step2 = {
+              status: doneCount + failedCount >= total ? 'error' : 'pending',
+              detail: `${doneCount}/${total} fragmentos procesados`,
+              error: `${failedCount} fragmento(s) fallaron: ${failedMessages.join(' | ')}. Se reintentarán automáticamente.`,
+            };
+          } else {
+            step2 = { status: 'pending', detail: `${doneCount}/${total} fragmentos procesados` };
+          }
+
+          const newChecklist: ImportChecklist = {
+            ...prev,
+            step2,
+            totalChunks: total,
+            chunksProcessed: doneCount + failedCount,
+            totalQuestions,
+          };
+
+          // When step2 is done, kick off step3 check
+          if (step2.status === 'done') {
+            newChecklist.step3 = { status: 'pending', detail: 'Verificando explicaciones IA...' };
+          }
+
+          return newChecklist;
+        });
+
+        // After all done, check explanations
+        if (doneCount + failedCount >= total && doneCount > 0) {
+          try {
+            const qSnap = await getDocs(
+              query(collection(firestore, 'questions'), where('importSessionId', '==', sessionId))
+            );
+            const allQs = qSnap.docs.map((d) => d.data());
+            const withExplanation = allQs.filter((q) => q.aiExplanation != null).length;
+            const total3 = allQs.length;
+            if (total3 > 0 && withExplanation >= total3) {
+              setImportChecklist((prev) =>
+                prev ? { ...prev, step3: { status: 'done', detail: `${total3} explicaciones generadas` } } : prev
+              );
+            } else if (total3 > 0) {
+              setImportChecklist((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      step3: {
+                        status: 'pending',
+                        detail: `${withExplanation}/${total3} — se generarán automáticamente cada 2 h`,
+                      },
+                    }
+                  : prev
+              );
+            }
+          } catch {
+            // Non-fatal
+          }
+        }
+      } catch (err) {
+        console.warn('[queue-poll] error:', err);
+      }
+    };
+
+    queuePollingRef.current = setInterval(poll, 5_000);
+    void poll();
+
+    return () => {
+      if (queuePollingRef.current) clearInterval(queuePollingRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importChecklist?.sessionId, importChecklist?.mode, firestore]);
 
   const keysQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -138,15 +256,113 @@ export default function AdminBrandingPage() {
 
     setIsImporting(true);
     setImportResult(null);
-    setImportProgress(null);
-    setExplanationProgress(null);
+    setImportChecklist(null);
     setUploadPhase(null);
+    if (queuePollingRef.current) clearInterval(queuePollingRef.current);
 
     const abort = new AbortController();
     abortControllerRef.current = abort;
 
-    let tempStorageRef: StorageReference | null = null;
+    // ── Determine if we should use the queue or the stream ────────────────
+    const isPdfFile =
+      mode === 'file' &&
+      importFile != null &&
+      (importFile.name.toLowerCase().endsWith('.pdf') ||
+        importFile.type === 'application/pdf' ||
+        importFile.type === 'application/x-pdf');
 
+    const isPdfUrl =
+      mode === 'url' &&
+      (importUrl.trim().toLowerCase().endsWith('.pdf') ||
+        importUrl.trim().toLowerCase().includes('.pdf?'));
+
+    const useQueue = isPdfFile || isPdfUrl;
+
+    // ── Queue path: file is PDF or URL points to a PDF ────────────────────
+    if (useQueue) {
+      try {
+        let queueRes: Response;
+
+        if (isPdfFile && importFile) {
+          const sizeMb = (importFile.size / (1024 * 1024)).toFixed(1);
+          setUploadPhase({
+            message: `Enviando PDF (${sizeMb} MB) al servidor para fragmentar...`,
+            progress: null,
+          });
+          const fd = new FormData();
+          fd.append('file', importFile);
+          queueRes = await fetch('/api/import-queue', {
+            method: 'POST',
+            body: fd,
+            signal: abort.signal,
+          });
+        } else {
+          setUploadPhase({ message: 'Descargando PDF desde URL...', progress: null });
+          queueRes = await fetch('/api/import-queue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: importUrl.trim() }),
+            signal: abort.signal,
+          });
+        }
+
+        setUploadPhase(null);
+
+        if (!queueRes.ok) {
+          const errData = await queueRes.json().catch(() => ({})) as { error?: string };
+          throw new Error(errData.error ?? `Error del servidor: ${queueRes.status}`);
+        }
+
+        const { sessionId, totalChunks, sourceLabel } = await queueRes.json() as {
+          sessionId: string;
+          totalChunks: number;
+          sourceLabel: string;
+        };
+
+        toast({
+          title: '✅ PDF fragmentado',
+          description: `${totalChunks} fragmento(s) en cola. Las preguntas se extraerán automáticamente.`,
+        });
+
+        if (mode === 'file') {
+          setImportFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+        if (mode === 'url') setImportUrl('');
+
+        setImportChecklist({
+          mode: 'queue',
+          sessionId,
+          totalChunks,
+          chunksProcessed: 0,
+          totalQuestions: 0,
+          step1: { status: 'done', detail: `${totalChunks} fragmento(s) creados de "${sourceLabel}"` },
+          step2: { status: 'pending', detail: `0/${totalChunks} fragmentos procesados (se actualiza cada 5 s)` },
+          step3: { status: 'idle' },
+        });
+      } catch (e: unknown) {
+        setUploadPhase(null);
+        if (e instanceof Error && e.name === 'AbortError') {
+          toast({ title: 'Importación Cancelada', description: 'El proceso fue detenido.' });
+        } else {
+          const msg = e instanceof Error ? e.message : 'No se pudo fragmentar el PDF.';
+          toast({ variant: 'destructive', title: 'Error de Importación', description: msg });
+          setImportChecklist({
+            mode: 'queue',
+            step1: { status: 'error', error: msg },
+            step2: { status: 'idle' },
+            step3: { status: 'idle' },
+          });
+        }
+      } finally {
+        setIsImporting(false);
+        setUploadPhase(null);
+        abortControllerRef.current = null;
+      }
+      return;
+    }
+
+    // ── Stream path: HTML URL or plain text ───────────────────────────────
     try {
       let res: Response;
 
@@ -158,60 +374,17 @@ export default function AdminBrandingPage() {
           signal: abort.signal,
         });
       } else {
+        const formData = new FormData();
         if (mode === 'file' && importFile) {
-          const isPdf =
-            importFile.name.toLowerCase().endsWith('.pdf') ||
-            importFile.type === 'application/pdf' ||
-            importFile.type === 'application/x-pdf';
-          const MAX_DIRECT_UPLOAD_BYTES = 4 * 1024 * 1024;
-
-          if (isPdf && importFile.size > MAX_DIRECT_UPLOAD_BYTES) {
-            const sizeMb = (importFile.size / (1024 * 1024)).toFixed(1);
-            setUploadPhase({
-              message: `PDF grande detectado (${sizeMb} MB). Cargando a almacenamiento temporal antes de procesar...`,
-              progress: null,
-            });
-
-            const storage = getStorage(firebaseApp);
-            const baseName = importFile.name.replace(/\.[^/.]+$/, '');
-            const safeBaseName = baseName.replace(/[^\w-]/g, '_') || 'archivo';
-            const uniqueId = globalThis.crypto?.randomUUID?.()
-              ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-            const tempPath = `temp-pdf-imports/${uniqueId}-${safeBaseName}.pdf`;
-            const uploadRef = ref(storage, tempPath);
-
-            const snapshot = await uploadBytes(uploadRef, importFile);
-            tempStorageRef = snapshot.ref;
-            const downloadURL = await getDownloadURL(snapshot.ref);
-            setUploadPhase({
-              message: 'Carga temporal completada. Iniciando procesamiento del PDF...',
-              progress: null,
-            });
-
-            res = await fetch('/api/import-questions-stream', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: downloadURL }),
-              signal: abort.signal,
-            });
-          } else {
-            const formData = new FormData();
-            formData.append('file', importFile);
-            res = await fetch('/api/import-questions-stream', {
-              method: 'POST',
-              body: formData,
-              signal: abort.signal,
-            });
-          }
+          formData.append('file', importFile);
         } else {
-          const formData = new FormData();
           formData.append('text', importText.trim());
-          res = await fetch('/api/import-questions-stream', {
-            method: 'POST',
-            body: formData,
-            signal: abort.signal,
-          });
         }
+        res = await fetch('/api/import-questions-stream', {
+          method: 'POST',
+          body: formData,
+          signal: abort.signal,
+        });
       }
 
       if (!res.body) throw new Error('La respuesta del servidor no contiene datos.');
@@ -264,7 +437,15 @@ export default function AdminBrandingPage() {
 
           switch (event.type) {
             case 'start':
-              setImportProgress({ chunksProcessed: 0, totalChunks: event.totalChunks, questionsFound: 0 });
+              setImportChecklist({
+                mode: 'stream',
+                totalChunks: event.totalChunks,
+                chunksProcessed: 0,
+                totalQuestions: 0,
+                step1: { status: 'done', detail: `${event.totalChunks} fragmento(s) detectados` },
+                step2: { status: 'pending', detail: `0/${event.totalChunks} fragmentos procesados` },
+                step3: { status: 'idle' },
+              });
               break;
 
             case 'chunk': {
@@ -279,10 +460,10 @@ export default function AdminBrandingPage() {
                 )
               );
               // Track Firestore IDs so we can attach explanations after the stream
-              docRefs.forEach((ref, idx) => {
+              docRefs.forEach((docRef, idx) => {
                 const q = event.questions[idx];
                 savedQuestions.push({
-                  firestoreId: ref.id,
+                  firestoreId: docRef.id,
                   text: q.text as string,
                   options: q.options as string[],
                   correctAnswerIndex: q.correctAnswerIndex as number,
@@ -292,22 +473,53 @@ export default function AdminBrandingPage() {
                 });
               });
               totalSaved += event.questionsInChunk;
-              setImportProgress({
-                chunksProcessed: event.chunkIndex,
-                totalChunks: event.totalChunks,
-                questionsFound: totalSaved,
-              });
+              setImportChecklist((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      chunksProcessed: event.chunkIndex,
+                      totalQuestions: totalSaved,
+                      step2: {
+                        status: 'pending',
+                        detail: `${event.chunkIndex}/${event.totalChunks} fragmentos — ${totalSaved} pregunta(s) encontradas`,
+                      },
+                    }
+                  : prev
+              );
               break;
             }
 
             case 'chunkError':
-              setImportProgress((prev) =>
-                prev ? { ...prev, chunksProcessed: event.chunkIndex } : null
+              setImportChecklist((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      chunksProcessed: event.chunkIndex,
+                      step2: {
+                        ...prev.step2,
+                        detail: `${event.chunkIndex}/${event.totalChunks} (fragmento ${event.chunkIndex} falló)`,
+                        error: event.message,
+                      },
+                    }
+                  : prev
               );
               break;
 
             case 'done':
               setImportResult({ count: totalSaved, note: event.sourceNote });
+              setImportChecklist((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      step2: {
+                        status: totalSaved > 0 ? 'done' : 'error',
+                        detail: `${totalSaved} pregunta(s) extraídas`,
+                        error: totalSaved === 0 ? 'No se extrajeron preguntas del contenido.' : undefined,
+                      },
+                      step3: { status: 'pending', detail: 'Generando explicaciones IA...' },
+                    }
+                  : prev
+              );
               toast({
                 title: 'Importación Exitosa',
                 description: `${totalSaved} pregunta(s) guardada(s) en la base de datos.`,
@@ -328,23 +540,24 @@ export default function AdminBrandingPage() {
 
       // ── Auto-generate explanations for all newly imported questions ──────
       if (savedQuestions.length > 0) {
-        setExplanationProgress({ done: 0, total: savedQuestions.length, failed: 0 });
         try {
           const batchRes = await fetch('/api/generate-explanations-batch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ questions: savedQuestions.map((q) => ({
-              id: q.firestoreId,
-              text: q.text,
-              options: q.options,
-              correctAnswerIndex: q.correctAnswerIndex,
-              subjectId: q.subjectId,
-              componentId: q.componentId,
-              competencyId: q.competencyId,
-            })) }),
+            body: JSON.stringify({
+              questions: savedQuestions.map((q) => ({
+                id: q.firestoreId,
+                text: q.text,
+                options: q.options,
+                correctAnswerIndex: q.correctAnswerIndex,
+                subjectId: q.subjectId,
+                componentId: q.componentId,
+                competencyId: q.competencyId,
+              })),
+            }),
           });
           if (batchRes.ok) {
-            const batchData = await batchRes.json() as {
+            const batchData = (await batchRes.json()) as {
               results: { id: string; aiExplanation?: unknown }[];
               failed: number;
             };
@@ -359,38 +572,63 @@ export default function AdminBrandingPage() {
                   })
                 )
             );
-            setExplanationProgress({
-              done: savedQuestions.length - batchData.failed,
-              total: savedQuestions.length,
-              failed: batchData.failed,
-            });
+            const generatedCount = savedQuestions.length - batchData.failed;
+            setImportChecklist((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    step3:
+                      batchData.failed === 0
+                        ? { status: 'done', detail: `${generatedCount} explicaciones generadas` }
+                        : {
+                            status: 'error',
+                            detail: `${generatedCount}/${savedQuestions.length} generadas`,
+                            error: `${batchData.failed} explicación(es) fallaron. Serán reintentadas automáticamente.`,
+                          },
+                  }
+                : prev
+            );
           }
         } catch (explErr) {
           console.warn('[handleImport] explanation batch failed:', explErr);
-          setExplanationProgress((prev) => prev ? { ...prev, failed: prev.total } : null);
+          setImportChecklist((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  step3: {
+                    status: 'error',
+                    error: 'No se pudieron generar las explicaciones. Serán reintentadas automáticamente.',
+                  },
+                }
+              : prev
+          );
         }
       }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === 'AbortError') {
         toast({ title: 'Importación Cancelada', description: 'El proceso fue detenido.' });
+        setImportChecklist(null);
       } else {
         const msg = e instanceof Error ? e.message : 'No se pudo importar el contenido.';
-        toast({
-          variant: 'destructive',
-          title: 'Error de Importación',
-          description: msg,
-        });
+        toast({ variant: 'destructive', title: 'Error de Importación', description: msg });
+        setImportChecklist((prev) =>
+          prev
+            ? {
+                ...prev,
+                step1: { status: 'error', error: msg },
+                step2: { status: 'idle' },
+                step3: { status: 'idle' },
+              }
+            : {
+                mode: 'stream',
+                step1: { status: 'error', error: msg },
+                step2: { status: 'idle' },
+                step3: { status: 'idle' },
+              }
+        );
       }
     } finally {
-      if (tempStorageRef) {
-        try {
-          await deleteObject(tempStorageRef);
-        } catch (cleanupErr) {
-          console.warn('[handleImport] no se pudo eliminar el PDF temporal:', cleanupErr);
-        }
-      }
       setIsImporting(false);
-      setImportProgress(null);
       setUploadPhase(null);
       abortControllerRef.current = null;
     }
@@ -398,6 +636,7 @@ export default function AdminBrandingPage() {
 
   const cancelImport = () => {
     abortControllerRef.current?.abort();
+    if (queuePollingRef.current) clearInterval(queuePollingRef.current);
   };
 
   const seedQuestions = async () => {
@@ -675,80 +914,112 @@ export default function AdminBrandingPage() {
               </div>
             )}
 
-            {/* Live progress bar (only visible while streaming) */}
-            {isImporting && importProgress && (
-              <div className="p-4 bg-muted/50 rounded-2xl border border-secondary/20 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-secondary">
-                    Fragmento {importProgress.chunksProcessed} de {importProgress.totalChunks}...
-                  </span>
-                  <span className="text-xs font-black text-secondary">
-                    {importProgress.questionsFound} pregunta(s) guardada(s)
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-secondary h-2 rounded-full transition-all duration-300"
-                    style={{
-                      width: `${Math.round(
-                        (importProgress.chunksProcessed / Math.max(1, importProgress.totalChunks)) * 100
-                      )}%`,
-                    }}
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={cancelImport}
-                    className="text-xs text-destructive border-destructive/50 hover:bg-destructive/5 h-7"
-                  >
-                    Cancelar importación
-                  </Button>
-                </div>
-              </div>
-            )}
+            {/* ── 3-step import checklist ─────────────────────────────────── */}
+            {importChecklist && (
+              <div className="p-4 bg-muted/30 rounded-2xl border border-secondary/20 space-y-3">
+                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-2">
+                  {importChecklist.mode === 'queue'
+                    ? '📋 Progreso de importación (cola asíncrona)'
+                    : '📋 Progreso de importación'}
+                </p>
 
-            {/* Explanation generation progress */}
-            {explanationProgress && (
-              <div className={`flex items-start gap-3 p-4 rounded-2xl border text-sm ${
-                explanationProgress.done < explanationProgress.total
-                  ? 'bg-primary/5 border-primary/20'
-                  : explanationProgress.failed > 0
-                  ? 'bg-amber-500/5 border-amber-500/20'
-                  : 'bg-secondary/5 border-secondary/20'
-              }`}>
-                {explanationProgress.done < explanationProgress.total ? (
-                  <Loader2 className="w-5 h-5 text-primary shrink-0 mt-0.5 animate-spin" />
-                ) : explanationProgress.failed > 0 ? (
-                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                ) : (
-                  <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                {/* Step 1 */}
+                {(() => {
+                  const s = importChecklist.step1;
+                  return (
+                    <div className="flex items-start gap-3">
+                      {s.status === 'done' ? (
+                        <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                      ) : s.status === 'error' ? (
+                        <XCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                      ) : (
+                        <Loader2 className="w-5 h-5 text-primary shrink-0 mt-0.5 animate-spin" />
+                      )}
+                      <div>
+                        <p className={`text-sm font-bold ${s.status === 'error' ? 'text-destructive' : s.status === 'done' ? 'text-secondary' : 'text-primary'}`}>
+                          📄 PDF recibido y fragmentado
+                          {s.detail ? ` — ${s.detail}` : ''}
+                        </p>
+                        {s.error && (
+                          <p className="text-xs text-destructive mt-1">{s.error}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Step 2 */}
+                {importChecklist.step2.status !== 'idle' && (() => {
+                  const s = importChecklist.step2;
+                  return (
+                    <div className="flex items-start gap-3">
+                      {s.status === 'done' ? (
+                        <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                      ) : s.status === 'error' ? (
+                        <XCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                      ) : (
+                        <Loader2 className="w-5 h-5 text-primary shrink-0 mt-0.5 animate-spin" />
+                      )}
+                      <div>
+                        <p className={`text-sm font-bold ${s.status === 'error' ? 'text-destructive' : s.status === 'done' ? 'text-secondary' : 'text-primary'}`}>
+                          🤖 Preguntas extraídas
+                          {s.detail ? ` — ${s.detail}` : ''}
+                        </p>
+                        {s.error && (
+                          <p className="text-xs text-amber-600 mt-1">{s.error}</p>
+                        )}
+                        {importChecklist.mode === 'queue' && s.status === 'pending' && (
+                          <p className="text-[10px] text-muted-foreground italic mt-1">
+                            ⏳ El workflow de GitHub Actions procesa fragmentos cada 10 minutos automáticamente.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Step 3 */}
+                {importChecklist.step3.status !== 'idle' && (() => {
+                  const s = importChecklist.step3;
+                  return (
+                    <div className="flex items-start gap-3">
+                      {s.status === 'done' ? (
+                        <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
+                      ) : s.status === 'error' ? (
+                        <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                      ) : (
+                        <Loader2 className="w-5 h-5 text-primary shrink-0 mt-0.5 animate-spin" />
+                      )}
+                      <div>
+                        <p className={`text-sm font-bold ${s.status === 'error' ? 'text-amber-600' : s.status === 'done' ? 'text-secondary' : 'text-primary'}`}>
+                          💡 Explicaciones IA generadas
+                          {s.detail ? ` — ${s.detail}` : ''}
+                        </p>
+                        {s.error && (
+                          <p className="text-xs text-amber-600 mt-1">{s.error}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Cancel button (only while importing) */}
+                {(isImporting || importChecklist.mode === 'queue') && (
+                  <div className="flex justify-end pt-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={cancelImport}
+                      className="text-xs text-destructive border-destructive/50 hover:bg-destructive/5 h-7"
+                    >
+                      Cancelar importación
+                    </Button>
+                  </div>
                 )}
-                <div>
-                  {explanationProgress.done < explanationProgress.total ? (
-                    <p className="font-black text-primary">
-                      Generando explicaciones automáticas: {explanationProgress.done}/{explanationProgress.total}...
-                    </p>
-                  ) : explanationProgress.failed > 0 ? (
-                    <>
-                      <p className="font-black text-amber-600">
-                        {explanationProgress.done} de {explanationProgress.total} explicaciones generadas.
-                      </p>
-                      <p className="text-[10px] text-muted-foreground italic mt-1">
-                        ⚠️ {explanationProgress.failed} explicación(es) fallaron. Serán reintentadas automáticamente por el guardián de calidad.
-                      </p>
-                    </>
-                  ) : (
-                    <p className="font-black text-secondary">
-                      ✅ {explanationProgress.total} pregunta(s) con explicaciones IA listas.
-                    </p>
-                  )}
-                </div>
               </div>
             )}
 
-            {importResult && (
+            {importResult && !importChecklist && (
               <div className="flex items-start gap-3 p-4 bg-secondary/5 rounded-2xl border border-secondary/20 text-sm">
                 <CheckCircle2 className="w-5 h-5 text-secondary shrink-0 mt-0.5" />
                 <div>
