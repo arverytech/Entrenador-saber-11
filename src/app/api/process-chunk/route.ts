@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
-import { importQuestionsFromContent, importQuestionsFromPdf } from '@/ai/flows/import-questions-from-url-flow';
+import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
+import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFromGeminiFileUri } from '@/ai/flows/import-questions-from-url-flow';
 
 /**
  * POST /api/process-chunk
@@ -74,7 +74,9 @@ export async function POST(req: NextRequest) {
     sessionId: string;
     chunkIndex: number;
     totalChunks: number;
-    content: string;
+    geminiFileUri?: string;      // present for PDFs uploaded via Gemini Files API (new)
+    content?: string;            // legacy: base64 PDF for isPdfVision=true jobs
+    contentStoragePath?: string; // present for text chunks
     isPdfVision: boolean;
     sourceLabel: string;
     status: string;
@@ -87,6 +89,28 @@ export async function POST(req: NextRequest) {
   // Mark as "processing" to avoid double-processing
   const now = new Date().toISOString();
   await jobDoc.ref.update({ status: 'processing', updatedAt: now });
+
+  // ── Download chunk text from Storage (text-mode chunks only) ─────────────
+  let chunkText = '';
+  let storageBucket: ReturnType<typeof getAdminStorage> | null = null;
+  if (job.contentStoragePath) {
+    try {
+      storageBucket = getAdminStorage();
+      const [contents] = await storageBucket.file(job.contentStoragePath).download();
+      chunkText = contents.toString('utf-8');
+    } catch (dlErr) {
+      const errMsg = dlErr instanceof Error
+        ? dlErr.message
+        : `Error downloading chunk from Storage at ${job.contentStoragePath}`;
+      console.error(`[process-chunk] Storage download error for ${job.contentStoragePath}:`, errMsg);
+      await jobDoc.ref.update({
+        status: 'failed',
+        errorMessage: errMsg,
+        updatedAt: new Date().toISOString(),
+      });
+      return NextResponse.json({ status: 'failed', processed: jobDoc.id, questionsFound: 0 });
+    }
+  }
 
   // ── Load already-saved question texts for deduplication ──────────────────
   let existingTexts: string[] = [];
@@ -110,14 +134,18 @@ export async function POST(req: NextRequest) {
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      if (job.isPdfVision) {
-        // Decode base64 back to buffer for Gemini vision
-        const pdfBuffer = Buffer.from(job.content, 'base64');
+      if (job.geminiFileUri) {
+        // PDF uploaded via Gemini Files API — Gemini reads the full document
+        // including embedded images, figures, graphs and tables.
+        aiResult = await importQuestionsFromGeminiFileUri(job.geminiFileUri, job.sourceLabel);
+      } else if (job.isPdfVision) {
+        // Legacy: base64 inline PDF (for jobs created before the Files API migration)
+        const pdfBuffer = Buffer.from(job.content!, 'base64');
         aiResult = await importQuestionsFromPdf(pdfBuffer, job.sourceLabel);
       } else {
         aiResult = await importQuestionsFromContent({
           url: job.sourceLabel,
-          content: job.content,
+          content: chunkText,
         });
       }
       break;
@@ -129,6 +157,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  /** Deletes the temporary Storage file for this chunk (best-effort). */
+  const deleteStorageFile = async () => {
+    if (job.contentStoragePath && storageBucket) {
+      try {
+        await storageBucket.file(job.contentStoragePath).delete();
+      } catch (delErr) {
+        console.warn(
+          `[process-chunk] Failed to delete Storage file ${job.contentStoragePath}:`,
+          delErr
+        );
+      }
+    }
+  };
+
   if (!aiResult) {
     const errMsg = lastErr instanceof Error ? lastErr.message : 'Error procesando fragmento con IA';
     console.warn(`[process-chunk] chunk ${job.chunkIndex}/${job.totalChunks} failed after retry: ${errMsg}`);
@@ -137,6 +179,7 @@ export async function POST(req: NextRequest) {
       errorMessage: errMsg,
       updatedAt: new Date().toISOString(),
     });
+    await deleteStorageFile();
     return NextResponse.json({
       status: 'failed',
       processed: jobDoc.id,
@@ -185,6 +228,8 @@ export async function POST(req: NextRequest) {
     questionsFound: savedCount,
     updatedAt: new Date().toISOString(),
   });
+
+  await deleteStorageFile();
 
   console.log(
     `[process-chunk] session=${job.sessionId} chunk=${job.chunkIndex}/${job.totalChunks} saved=${savedCount}`

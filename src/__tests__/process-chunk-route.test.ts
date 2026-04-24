@@ -23,10 +23,12 @@
 
 const mockImportFromPdf = jest.fn();
 const mockImportFromContent = jest.fn();
+const mockImportFromGeminiFileUri = jest.fn();
 
 jest.mock('@/ai/flows/import-questions-from-url-flow', () => ({
   importQuestionsFromPdf: (...args: unknown[]) => mockImportFromPdf(...args),
   importQuestionsFromContent: (...args: unknown[]) => mockImportFromContent(...args),
+  importQuestionsFromGeminiFileUri: (...args: unknown[]) => mockImportFromGeminiFileUri(...args),
 }));
 
 // ── Firestore mock ────────────────────────────────────────────────────────────
@@ -50,7 +52,7 @@ const mockJobRef1 = makeJobDocRef({
   sessionId: 'session-abc',
   chunkIndex: 1,
   totalChunks: 3,
-  content: 'Contenido del fragmento 1 con preguntas.',
+  contentStoragePath: 'import-chunks/session-abc/chunk-1.txt',
   isPdfVision: false,
   sourceLabel: 'cuadernillo.pdf',
   status: 'pending',
@@ -86,8 +88,23 @@ const mockDb = {
   }),
 };
 
+// ── Storage mock ──────────────────────────────────────────────────────────────
+
+const mockStorageFileDownload = jest.fn().mockResolvedValue([
+  Buffer.from('Contenido del fragmento 1 con preguntas.'),
+]);
+const mockStorageFileDelete = jest.fn().mockResolvedValue(undefined);
+const mockStorageFile = {
+  download: mockStorageFileDownload,
+  delete: mockStorageFileDelete,
+};
+const mockBucket = {
+  file: jest.fn().mockReturnValue(mockStorageFile),
+};
+
 jest.mock('@/lib/firebase-admin', () => ({
   getAdminFirestore: jest.fn(() => mockDb),
+  getAdminStorage: jest.fn(() => mockBucket),
 }));
 
 // ─── Imports ──────────────────────────────────────────────────────────────────
@@ -166,8 +183,16 @@ beforeEach(() => {
     return mockJobsQuery;
   });
 
+  // Reset Storage mocks
+  mockBucket.file.mockReturnValue(mockStorageFile);
+  mockStorageFileDownload.mockResolvedValue([
+    Buffer.from('Contenido del fragmento 1 con preguntas.'),
+  ]);
+  mockStorageFileDelete.mockResolvedValue(undefined);
+
   mockImportFromContent.mockResolvedValue(ICFES_AI_OUTPUT);
   mockImportFromPdf.mockResolvedValue(ICFES_AI_OUTPUT);
+  mockImportFromGeminiFileUri.mockResolvedValue(ICFES_AI_OUTPUT);
 });
 
 afterEach(() => {
@@ -330,14 +355,50 @@ describe('POST /api/process-chunk', () => {
   });
 
   describe('modo isPdfVision', () => {
-    it('isPdfVision=true → decodifica base64 y llama importQuestionsFromPdf', async () => {
+    it('geminiFileUri → llama importQuestionsFromGeminiFileUri (sin acceso a Storage)', async () => {
+      const geminiFilesJob = makeJobDocRef({
+        sessionId: 'session-abc',
+        chunkIndex: 1,
+        totalChunks: 1,
+        geminiFileUri: 'https://generativelanguage.googleapis.com/v1beta/files/test123',
+        isPdfVision: false,
+        sourceLabel: 'cuadernillo.pdf',
+        status: 'pending',
+        questionsFound: 0,
+        createdAt: '2026-04-01T00:00:00.000Z',
+        updatedAt: '2026-04-01T00:00:00.000Z',
+      }, 'gemini-files-job');
+
+      mockJobsQuery.get.mockResolvedValueOnce({ empty: false, docs: [geminiFilesJob] });
+
+      await POST(makeRequest());
+
+      expect(mockImportFromGeminiFileUri).toHaveBeenCalledWith(
+        'https://generativelanguage.googleapis.com/v1beta/files/test123',
+        'cuadernillo.pdf',
+      );
+      expect(mockImportFromPdf).not.toHaveBeenCalled();
+      expect(mockImportFromContent).not.toHaveBeenCalled();
+      // Storage should NOT be accessed for geminiFileUri mode
+      expect(mockBucket.file).not.toHaveBeenCalled();
+    });
+
+    it('isPdfVision=true (legacy) → decodifica base64 y llama importQuestionsFromPdf (sin descargar de Storage)', async () => {
       const pdfBuffer = Buffer.alloc(100).fill(0x25);
       const pdfBase64 = pdfBuffer.toString('base64');
 
+      // PDF vision jobs have 'content' (base64), NOT 'contentStoragePath'
       const pdfVisionJob = makeJobDocRef({
-        ...mockJobRef1.data(),
+        sessionId: 'session-abc',
+        chunkIndex: 1,
+        totalChunks: 1,
         isPdfVision: true,
         content: pdfBase64,
+        sourceLabel: 'cuadernillo.pdf',
+        status: 'pending',
+        questionsFound: 0,
+        createdAt: '2026-04-01T00:00:00.000Z',
+        updatedAt: '2026-04-01T00:00:00.000Z',
       }, 'pdf-vision-job');
 
       mockJobsQuery.get.mockResolvedValueOnce({ empty: false, docs: [pdfVisionJob] });
@@ -349,16 +410,44 @@ describe('POST /api/process-chunk', () => {
         'cuadernillo.pdf'
       );
       expect(mockImportFromContent).not.toHaveBeenCalled();
+      // Storage should NOT be accessed for pdf-vision mode
+      expect(mockBucket.file).not.toHaveBeenCalled();
     });
 
-    it('isPdfVision=false → llama importQuestionsFromContent con el texto', async () => {
+    it('isPdfVision=false → descarga de Storage y llama importQuestionsFromContent con el texto', async () => {
       await POST(makeRequest());
 
+      // Storage should have been accessed to download the chunk text
+      expect(mockBucket.file).toHaveBeenCalledWith('import-chunks/session-abc/chunk-1.txt');
+      expect(mockStorageFileDownload).toHaveBeenCalled();
       expect(mockImportFromContent).toHaveBeenCalledWith({
         url: 'cuadernillo.pdf',
         content: 'Contenido del fragmento 1 con preguntas.',
       });
       expect(mockImportFromPdf).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('limpieza de Storage', () => {
+    it('borra el archivo de Storage al marcar el job como "done"', async () => {
+      await POST(makeRequest());
+
+      const updateCalls = mockJobRef1.ref.update.mock.calls as UpdateData[][];
+      const doneUpdate = updateCalls.find(([data]) => data.status === 'done');
+      expect(doneUpdate).toBeDefined();
+      // The Storage file should have been deleted
+      expect(mockStorageFileDelete).toHaveBeenCalled();
+    });
+
+    it('borra el archivo de Storage al marcar el job como "failed"', async () => {
+      mockImportFromContent.mockRejectedValue(new Error('IA error'));
+
+      const res = await POST(makeRequest());
+      const body = await res.json() as { status: string };
+      expect(body.status).toBe('failed');
+
+      // The Storage file should have been deleted even on failure
+      expect(mockStorageFileDelete).toHaveBeenCalled();
     });
   });
 

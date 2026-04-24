@@ -49,12 +49,27 @@ const mockDb = {
   batch: jest.fn().mockReturnValue(mockBatch),
 };
 
+// Storage mock
+const mockStorageFile = {
+  save: jest.fn().mockResolvedValue(undefined),
+};
+const mockBucket = {
+  file: jest.fn().mockReturnValue(mockStorageFile),
+};
+
 jest.mock('@/lib/firebase-admin', () => ({
   getAdminFirestore: jest.fn(() => mockDb),
+  getAdminStorage: jest.fn(() => mockBucket),
 }));
 
 jest.mock('@/ai/constants', () => ({
   PDF_VISION_SIZE_LIMIT: 14 * 1024 * 1024,
+}));
+
+jest.mock('@/ai/gemini-files', () => ({
+  uploadPdfToGeminiFilesApi: jest.fn().mockResolvedValue(
+    'https://generativelanguage.googleapis.com/v1beta/files/test-file-id'
+  ),
 }));
 
 const mockPdfParse = jest.fn();
@@ -152,12 +167,26 @@ function makePdfFile(name = 'cuadernillo.pdf', sizeBytes = 1024): File {
 
 // ─── Setup / Teardown ─────────────────────────────────────────────────────────
 
+const ORIGINAL_API_KEY = process.env.GOOGLE_GENAI_API_KEY;
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockDb.collection.mockReturnValue(mockCollection);
   mockDb.batch.mockReturnValue(mockBatch);
   mockBatch.set.mockClear();
   mockBatch.commit.mockResolvedValue(undefined);
+  mockBucket.file.mockReturnValue(mockStorageFile);
+  mockStorageFile.save.mockResolvedValue(undefined);
+  // Ensure API key is available for PDF uploads
+  process.env.GOOGLE_GENAI_API_KEY = 'test-gemini-key';
+});
+
+afterEach(() => {
+  if (ORIGINAL_API_KEY !== undefined) {
+    process.env.GOOGLE_GENAI_API_KEY = ORIGINAL_API_KEY;
+  } else {
+    delete process.env.GOOGLE_GENAI_API_KEY;
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -363,7 +392,7 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
     expect(mockBatch.commit).toHaveBeenCalledTimes(1);
   });
 
-  it('PDF pequeño (≤ 14MB) → isPdfVision=true, 1 chunk, content es base64', async () => {
+  it('PDF (≤ 14MB) → subido a Gemini Files API, 1 chunk, sin base64 en Firestore', async () => {
     const smallPdf = makePdfFile('cuadernillo.pdf', 1024);
     const res = await POST(makeFileRequest(smallPdf));
     const body = await res.json() as { sessionId: string; totalChunks: number };
@@ -371,37 +400,38 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
     expect(res.status).toBe(200);
     expect(body.totalChunks).toBe(1);
 
-    // The batch.set call should have isPdfVision=true
-    const setCall = mockBatch.set.mock.calls[0];
-    expect(setCall).toBeDefined();
-    const jobData = setCall[1] as Record<string, unknown>;
-    expect(jobData.isPdfVision).toBe(true);
-    expect(typeof jobData.content).toBe('string');
-    // Content should be valid base64
-    expect(() => Buffer.from(jobData.content as string, 'base64')).not.toThrow();
+    const [, jobData] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
+    // New path: geminiFileUri stored, no inline base64 or Storage path
+    expect(jobData.isPdfVision).toBe(false);
+    expect(typeof jobData.geminiFileUri).toBe('string');
+    expect(jobData.geminiFileUri as string).toContain('generativelanguage.googleapis.com');
+    expect(jobData.content).toBeUndefined();
+    expect(jobData.contentStoragePath).toBeUndefined();
+    // Storage should NOT be called for PDF mode (Files API handles it)
+    expect(mockStorageFile.save).not.toHaveBeenCalled();
   });
 
-  it('PDF grande (> 14MB) → extrae texto con pdf-parse, múltiples chunks, isPdfVision=false', async () => {
+  it('PDF grande (> 14MB) → subido a Gemini Files API, 1 chunk, sin pdf-parse', async () => {
     const PDF_VISION_LIMIT = 14 * 1024 * 1024;
     const largePdf = makePdfFile('large.pdf', PDF_VISION_LIMIT + 1);
-
-    // Mock pdf-parse to return text with multiple questions
-    const extractedText = Array.from(
-      { length: 30 },
-      (_, i) => `${i + 1}. Pregunta ${i + 1} con su enunciado.\nA) A  B) B  C) C  D) D\n`
-    ).join('\n');
-    mockPdfParse.mockResolvedValueOnce({ text: extractedText });
 
     const res = await POST(makeFileRequest(largePdf));
     const body = await res.json() as { sessionId: string; totalChunks: number };
 
     expect(res.status).toBe(200);
-    expect(body.totalChunks).toBeGreaterThanOrEqual(1);
+    // All PDFs now create exactly 1 job (no text chunking)
+    expect(body.totalChunks).toBe(1);
 
-    // All chunks should have isPdfVision=false
-    for (const [, jobData] of mockBatch.set.mock.calls as [[unknown, Record<string, unknown>]]) {
-      expect(jobData.isPdfVision).toBe(false);
-    }
+    // pdf-parse should NOT be called (replaced entirely by Files API)
+    expect(mockPdfParse).not.toHaveBeenCalled();
+
+    const [, jobData] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
+    expect(jobData.isPdfVision).toBe(false);
+    expect(typeof jobData.geminiFileUri).toBe('string');
+    expect(jobData.geminiFileUri as string).toContain('generativelanguage.googleapis.com');
+    // No inline base64 or Storage path
+    expect(jobData.content).toBeUndefined();
+    expect(jobData.contentStoragePath).toBeUndefined();
   });
 
   it('job tiene todos los campos requeridos en Firestore', async () => {
@@ -412,8 +442,9 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
     expect(res.status).toBe(200);
 
     const [, jobData] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
+    // Text-mode jobs use contentStoragePath (Storage path), not 'content'
     const requiredFields = [
-      'sessionId', 'chunkIndex', 'totalChunks', 'content',
+      'sessionId', 'chunkIndex', 'totalChunks', 'contentStoragePath',
       'isPdfVision', 'sourceLabel', 'status', 'questionsFound',
       'createdAt', 'updatedAt',
     ];
@@ -425,10 +456,15 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
     expect(jobData.sessionId).toBe(body.sessionId);
     expect(jobData.chunkIndex).toBe(1);
     expect(jobData.totalChunks).toBe(body.totalChunks);
+    // contentStoragePath should follow the expected pattern
+    expect(jobData.contentStoragePath as string).toMatch(
+      /^import-chunks\/[a-f0-9-]+\/chunk-1\.txt$/
+    );
   });
 
-  it('JSON body con URL de PDF (.pdf extension) → descarga y procesa', async () => {
+  it('JSON body con URL de PDF (.pdf extension) → descarga y sube a Files API', async () => {
     const pdfBuffer = makePdfBuffer(1024);
+    // First fetch: download PDF from the remote URL
     mockFetch.mockResolvedValueOnce({
       ok: true,
       headers: { get: () => 'application/pdf' },
@@ -443,7 +479,8 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
     expect(body.totalChunks).toBe(1);
 
     const [, jobData] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
-    expect(jobData.isPdfVision).toBe(true);
+    expect(typeof jobData.geminiFileUri).toBe('string');
+    expect(jobData.isPdfVision).toBe(false);
   });
 
   it('JSON body con URL HTML → limpia HTML y fragmenta como texto', async () => {
@@ -466,8 +503,13 @@ describe('Grupo 3 — API POST /api/import-queue', () => {
 
     const [, jobData] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
     expect(jobData.isPdfVision).toBe(false);
-    // Script tags should be stripped
-    expect(jobData.content as string).not.toContain('alert');
+    // Text-mode jobs store content in Storage; Firestore gets the path
+    expect(typeof jobData.contentStoragePath).toBe('string');
+    expect(jobData.contentStoragePath as string).toMatch(/^import-chunks\/.+\/chunk-\d+\.txt$/);
+    // Verify Storage save was called with content that does not contain the script tag
+    const saveArg = mockStorageFile.save.mock.calls[0]?.[0] as string | undefined;
+    expect(saveArg).toBeDefined();
+    expect(saveArg).not.toContain('alert');
   });
 
   it('FormData sin archivo ni texto → 400', async () => {
@@ -579,7 +621,7 @@ A) Isósceles   B) Escaleno   C) Obtusángulo   D) Equilátero
     }
   });
 
-  it('URL del cuadernillo ICFES real (PDF URL pattern) → detectado como PDF', async () => {
+  it('URL del cuadernillo ICFES real (PDF URL pattern) → detectado como PDF y subido a Files API', async () => {
     const pdfBuffer = makePdfBuffer(1024);
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -594,9 +636,11 @@ A) Isósceles   B) Escaleno   C) Obtusángulo   D) Equilátero
     const body = await res.json() as { sessionId: string; totalChunks: number };
 
     expect(res.status).toBe(200);
-    // Since the PDF is small (1024 bytes), it should be processed as pdf-vision
+    expect(body.totalChunks).toBe(1);
+    // Now ALL PDFs go through Files API — full vision regardless of size
     const [, jobData] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
-    expect(jobData.isPdfVision).toBe(true);
+    expect(typeof jobData.geminiFileUri).toBe('string');
+    expect(jobData.isPdfVision).toBe(false);
     expect(jobData.sourceLabel).toBe(icfesUrl);
   });
 
