@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
 import { uploadPdfToGeminiFilesApi } from '@/ai/gemini-files';
+import { splitPdfIntoChunks } from '@/lib/pdf-splitter';
 
 /**
  * POST /api/import-queue
@@ -213,10 +214,52 @@ export async function POST(req: NextRequest) {
           }
           const arrayBuffer = await file.arrayBuffer();
           const pdfBuffer = Buffer.from(arrayBuffer);
-          // Upload to Gemini Files API — supports any size up to 2 GB; Gemini
-          // reads the full PDF including embedded figures, graphs and tables.
-          geminiFileUri = await uploadPdfToGeminiFilesApi(pdfBuffer, file.name, apiKey);
-          chunks = ['__PDF_FILES_API__'];
+
+          // Split PDF into page-groups, cutting between questions.
+          const pdfChunks = await splitPdfIntoChunks(pdfBuffer);
+
+          if (pdfChunks.length === 1) {
+            // Small PDF — single upload, continue with the normal job-creation flow.
+            geminiFileUri = await uploadPdfToGeminiFilesApi(pdfBuffer, file.name, apiKey);
+            chunks = ['__PDF_FILES_API__'];
+          } else {
+            // Large PDF — upload each sub-PDF and create one importJob per chunk,
+            // then return early (bypass the normal single-job flow below).
+            let db: ReturnType<typeof getAdminFirestore>;
+            try {
+              db = getAdminFirestore();
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Firebase Admin init failed';
+              return NextResponse.json({ error: msg }, { status: 500 });
+            }
+
+            const sessionId = randomUUID();
+            const totalChunks = pdfChunks.length;
+            const now = new Date().toISOString();
+            const batch = db.batch();
+
+            for (const pdfChunk of pdfChunks) {
+              const chunkLabel = `${file.name} (páginas ${pdfChunk.pageStart}-${pdfChunk.pageEnd})`;
+              const chunkUri = await uploadPdfToGeminiFilesApi(pdfChunk.buffer, chunkLabel, apiKey);
+              const docRef = db.collection('importJobs').doc();
+              batch.set(docRef, {
+                sessionId,
+                chunkIndex: pdfChunk.chunkIndex,
+                totalChunks,
+                geminiFileUri: chunkUri,
+                isPdfVision: false,
+                sourceLabel: chunkLabel,
+                status: 'pending',
+                questionsFound: 0,
+                createdAt: now,
+                updatedAt: now,
+              });
+            }
+            await batch.commit();
+
+            console.log(`[import-queue] sessionId=${sessionId} totalChunks=${totalChunks} pdfChunks=yes`);
+            return NextResponse.json({ sessionId, totalChunks, sourceLabel: file.name });
+          }
         } else {
           const rawText = await file.text();
           chunks = splitIntoSmartChunks(rawText);
@@ -308,10 +351,52 @@ export async function POST(req: NextRequest) {
         const arrayBuffer = await fetchRes.arrayBuffer();
         const pdfBuffer = Buffer.from(arrayBuffer);
         const displayName = parsedUrl.pathname.split('/').pop() || 'document.pdf';
-        // Upload to Gemini Files API — supports any size up to 2 GB; Gemini
-        // reads the full PDF including embedded figures, graphs and tables.
-        geminiFileUri = await uploadPdfToGeminiFilesApi(pdfBuffer, displayName, apiKey);
-        chunks = ['__PDF_FILES_API__'];
+
+        // Split PDF into page-groups, cutting between questions.
+        const pdfChunks = await splitPdfIntoChunks(pdfBuffer);
+
+        if (pdfChunks.length === 1) {
+          // Small PDF — single upload, continue with the normal job-creation flow.
+          geminiFileUri = await uploadPdfToGeminiFilesApi(pdfBuffer, displayName, apiKey);
+          chunks = ['__PDF_FILES_API__'];
+        } else {
+          // Large PDF — upload each sub-PDF and create one importJob per chunk,
+          // then return early (bypass the normal single-job flow below).
+          let db: ReturnType<typeof getAdminFirestore>;
+          try {
+            db = getAdminFirestore();
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Firebase Admin init failed';
+            return NextResponse.json({ error: msg }, { status: 500 });
+          }
+
+          const sessionId = randomUUID();
+          const totalChunks = pdfChunks.length;
+          const now = new Date().toISOString();
+          const batch = db.batch();
+
+          for (const pdfChunk of pdfChunks) {
+            const chunkLabel = `${displayName} (páginas ${pdfChunk.pageStart}-${pdfChunk.pageEnd})`;
+            const chunkUri = await uploadPdfToGeminiFilesApi(pdfChunk.buffer, chunkLabel, apiKey);
+            const docRef = db.collection('importJobs').doc();
+            batch.set(docRef, {
+              sessionId,
+              chunkIndex: pdfChunk.chunkIndex,
+              totalChunks,
+              geminiFileUri: chunkUri,
+              isPdfVision: false,
+              sourceLabel: chunkLabel,
+              status: 'pending',
+              questionsFound: 0,
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
+          await batch.commit();
+
+          console.log(`[import-queue] sessionId=${sessionId} totalChunks=${totalChunks} pdfChunks=yes`);
+          return NextResponse.json({ sessionId, totalChunks, sourceLabel: url });
+        }
       } else {
         // HTML or plain text URL — extract plain text.
         // Use `text()` only after confirming the body is available.

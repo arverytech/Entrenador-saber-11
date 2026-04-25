@@ -75,6 +75,12 @@ jest.mock('@/ai/gemini-files', () => ({
 const mockPdfParse = jest.fn();
 jest.mock('pdf-parse/lib/pdf-parse.js', () => mockPdfParse, { virtual: true });
 
+// Mock pdf-splitter so route tests don't need real pdf-lib/pdf-parse
+const mockSplitPdfIntoChunks = jest.fn();
+jest.mock('@/lib/pdf-splitter', () => ({
+  splitPdfIntoChunks: (...args: unknown[]) => mockSplitPdfIntoChunks(...args),
+}));
+
 const mockFetch = jest.fn();
 global.fetch = mockFetch as typeof fetch;
 
@@ -82,6 +88,7 @@ global.fetch = mockFetch as typeof fetch;
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/import-queue/route';
 import { splitIntoSmartChunks } from '@/app/api/import-queue/route';
+import { uploadPdfToGeminiFilesApi } from '@/ai/gemini-files';
 
 // ─── ICFES 2026 fixtures ──────────────────────────────────────────────────────
 
@@ -179,6 +186,14 @@ beforeEach(() => {
   mockStorageFile.save.mockResolvedValue(undefined);
   // Ensure API key is available for PDF uploads
   process.env.GOOGLE_GENAI_API_KEY = 'test-gemini-key';
+  // Default: PDF fits in one chunk (small PDF fast path)
+  mockSplitPdfIntoChunks.mockResolvedValue([{
+    buffer: Buffer.from('%PDF-'),
+    pageStart: 1,
+    pageEnd: 8,
+    chunkIndex: 1,
+    totalChunks: 1,
+  }]);
 });
 
 afterEach(() => {
@@ -667,5 +682,157 @@ A) Isósceles   B) Escaleno   C) Obtusángulo   D) Equilátero
     for (let n = 1; n <= 10; n++) {
       expect(allText).toContain(`${n}. En el contexto del examen de Estado`);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GRUPO 5 — PDF grande → múltiples jobs (splitPdfIntoChunks integration)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('Grupo 5 — PDF grande → múltiples importJobs (integración)', () => {
+  /** Builds a mock two-chunk response from splitPdfIntoChunks */
+  function makeTwoChunks() {
+    return [
+      { buffer: Buffer.from('%PDF-1'), pageStart: 1,  pageEnd: 8,  chunkIndex: 1, totalChunks: 2 },
+      { buffer: Buffer.from('%PDF-2'), pageStart: 9,  pageEnd: 16, chunkIndex: 2, totalChunks: 2 },
+    ];
+  }
+
+  /** Builds a mock three-chunk response from splitPdfIntoChunks */
+  function makeThreeChunks() {
+    return [
+      { buffer: Buffer.from('%PDF-1'), pageStart: 1,  pageEnd: 8,  chunkIndex: 1, totalChunks: 3 },
+      { buffer: Buffer.from('%PDF-2'), pageStart: 9,  pageEnd: 16, chunkIndex: 2, totalChunks: 3 },
+      { buffer: Buffer.from('%PDF-3'), pageStart: 17, pageEnd: 24, chunkIndex: 3, totalChunks: 3 },
+    ];
+  }
+
+  it('PDF de 16 páginas → 2 importJobs en Firestore, uno por sub-PDF', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+    // uploadPdfToGeminiFilesApi should return distinct URIs per call
+    const mockUpload = uploadPdfToGeminiFilesApi as jest.MockedFunction<typeof uploadPdfToGeminiFilesApi>;
+    mockUpload
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/chunk-1')
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/chunk-2');
+
+    const pdfFile = makePdfFile('cuadernillo.pdf', 1024);
+    const res = await POST(makeFileRequest(pdfFile));
+    const body = await res.json() as { sessionId: string; totalChunks: number; sourceLabel: string };
+
+    expect(res.status).toBe(200);
+    expect(body.totalChunks).toBe(2);
+    expect(body.sourceLabel).toBe('cuadernillo.pdf');
+    expect(body.sessionId).toBeTruthy();
+
+    // Two jobs should have been written to Firestore
+    expect(mockBatch.set).toHaveBeenCalledTimes(2);
+    expect(mockBatch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('cada job tiene geminiFileUri diferente (uno por sub-PDF)', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+    const mockUpload = uploadPdfToGeminiFilesApi as jest.MockedFunction<typeof uploadPdfToGeminiFilesApi>;
+    mockUpload
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/chunk-1')
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/chunk-2');
+
+    const pdfFile = makePdfFile('cuadernillo.pdf', 1024);
+    await POST(makeFileRequest(pdfFile));
+
+    const [, job1] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
+    const [, job2] = mockBatch.set.mock.calls[1] as [unknown, Record<string, unknown>];
+
+    expect(job1.geminiFileUri).toBe('https://generativelanguage.googleapis.com/v1beta/files/chunk-1');
+    expect(job2.geminiFileUri).toBe('https://generativelanguage.googleapis.com/v1beta/files/chunk-2');
+    expect(job1.geminiFileUri).not.toBe(job2.geminiFileUri);
+  });
+
+  it('totalChunks en la respuesta coincide con el número de jobs creados', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeThreeChunks());
+    const mockUpload = uploadPdfToGeminiFilesApi as jest.MockedFunction<typeof uploadPdfToGeminiFilesApi>;
+    mockUpload
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c1')
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c2')
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c3');
+
+    const pdfFile = makePdfFile('cuadernillo.pdf', 1024);
+    const res = await POST(makeFileRequest(pdfFile));
+    const body = await res.json() as { sessionId: string; totalChunks: number };
+
+    expect(res.status).toBe(200);
+    expect(body.totalChunks).toBe(3);
+    expect(mockBatch.set).toHaveBeenCalledTimes(3);
+  });
+
+  it('cada job tiene pageStart y pageEnd en sourceLabel', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+    const mockUpload = uploadPdfToGeminiFilesApi as jest.MockedFunction<typeof uploadPdfToGeminiFilesApi>;
+    mockUpload
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c1')
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c2');
+
+    const pdfFile = makePdfFile('examen.pdf', 1024);
+    await POST(makeFileRequest(pdfFile));
+
+    const [, job1] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
+    const [, job2] = mockBatch.set.mock.calls[1] as [unknown, Record<string, unknown>];
+
+    expect(job1.sourceLabel as string).toContain('páginas 1-8');
+    expect(job2.sourceLabel as string).toContain('páginas 9-16');
+    expect(job1.sourceLabel as string).toContain('examen.pdf');
+    expect(job2.sourceLabel as string).toContain('examen.pdf');
+  });
+
+  it('cada job tiene sessionId compartido, chunkIndex correcto y status pending', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+    const mockUpload = uploadPdfToGeminiFilesApi as jest.MockedFunction<typeof uploadPdfToGeminiFilesApi>;
+    mockUpload
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c1')
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c2');
+
+    const pdfFile = makePdfFile('cuadernillo.pdf', 1024);
+    const res = await POST(makeFileRequest(pdfFile));
+    const body = await res.json() as { sessionId: string; totalChunks: number };
+
+    const [, job1] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
+    const [, job2] = mockBatch.set.mock.calls[1] as [unknown, Record<string, unknown>];
+
+    // Both jobs share the same sessionId returned in the response
+    expect(job1.sessionId).toBe(body.sessionId);
+    expect(job2.sessionId).toBe(body.sessionId);
+
+    // chunkIndex is 1-based
+    expect(job1.chunkIndex).toBe(1);
+    expect(job2.chunkIndex).toBe(2);
+
+    // Both jobs start as pending with 0 questions
+    expect(job1.status).toBe('pending');
+    expect(job2.status).toBe('pending');
+    expect(job1.questionsFound).toBe(0);
+    expect(job2.questionsFound).toBe(0);
+  });
+
+  it('URL de PDF grande → múltiples jobs, misma lógica que file upload', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+    const mockUpload = uploadPdfToGeminiFilesApi as jest.MockedFunction<typeof uploadPdfToGeminiFilesApi>;
+    mockUpload
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c1')
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c2');
+
+    const pdfBuffer = makePdfBuffer(1024);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => 'application/pdf' },
+      arrayBuffer: async () => pdfBuffer.buffer,
+      text: async () => '',
+    } as unknown as Response);
+
+    const res = await POST(makeUrlRequest('https://www.icfes.gov.co/cuadernillo.pdf'));
+    const body = await res.json() as { sessionId: string; totalChunks: number; sourceLabel: string };
+
+    expect(res.status).toBe(200);
+    expect(body.totalChunks).toBe(2);
+    expect(mockBatch.set).toHaveBeenCalledTimes(2);
+    expect(mockBatch.commit).toHaveBeenCalledTimes(1);
   });
 });
