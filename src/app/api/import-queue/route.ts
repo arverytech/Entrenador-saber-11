@@ -30,6 +30,7 @@ import { splitPdfIntoChunks } from '@/lib/pdf-splitter';
  *   contentStoragePath?: string,  // Storage path for text chunk (text mode)
  *   isPdfVision: boolean,         // always false for new jobs; kept for legacy in-flight jobs
  *   sourceLabel: string,
+ *   subjectId?: string,           // subject classification provided at upload time (optional)
  *   status: 'pending' | 'processing' | 'done' | 'failed',
  *   questionsFound: number,
  *   errorMessage?: string,

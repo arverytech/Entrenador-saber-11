@@ -50,6 +50,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
+  // ── Recovery: reset jobs stuck in "processing" for > 5 minutes ───────────
+  const STUCK_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+  const stuckCutoff = new Date(Date.now() - STUCK_THRESHOLD_MS).toISOString();
+  try {
+    const stuckSnap = await db
+      .collection('importJobs')
+      .where('status', '==', 'processing')
+      .where('updatedAt', '<', stuckCutoff)
+      .get();
+    if (!stuckSnap.empty) {
+      const resetBatch = db.batch();
+      for (const stuckDoc of stuckSnap.docs) {
+        resetBatch.update(stuckDoc.ref, {
+          status: 'pending',
+          updatedAt: new Date().toISOString(),
+          errorMessage: 'Reset automático: job atascado en processing por más de 5 minutos',
+        });
+      }
+      await resetBatch.commit();
+      console.log(`[process-chunk] reset ${stuckSnap.docs.length} stuck job(s) to pending`);
+    }
+  } catch (stuckErr) {
+    // Non-fatal: log and continue
+    console.warn('[process-chunk] could not reset stuck jobs:', stuckErr);
+  }
+
   // ── Find the oldest pending job ───────────────────────────────────────────
   let jobSnap: FirebaseFirestore.QuerySnapshot;
   try {
@@ -84,6 +110,7 @@ export async function POST(req: NextRequest) {
     createdAt: string;
     updatedAt: string;
     errorMessage?: string;
+    subjectId?: string;          // subject classification provided at upload time
   };
 
   // Mark as "processing" to avoid double-processing
@@ -129,6 +156,22 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Run AI extraction (up to 2 attempts) ─────────────────────────────────
+  // Timeout wrapper — if Gemini doesn't respond in 45s, reject proactively
+  // so the job is marked "failed" cleanly before Vercel's 60s hard limit.
+  const AI_TIMEOUT_MS = 45_000;
+
+  function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`Timeout de ${ms / 1000}s esperando respuesta de Gemini (${label})`)),
+          ms,
+        )
+      ),
+    ]);
+  }
+
   let aiResult: Awaited<ReturnType<typeof importQuestionsFromContent>> | null = null;
   let lastErr: unknown = null;
 
@@ -137,16 +180,28 @@ export async function POST(req: NextRequest) {
       if (job.geminiFileUri) {
         // PDF uploaded via Gemini Files API — Gemini reads the full document
         // including embedded images, figures, graphs and tables.
-        aiResult = await importQuestionsFromGeminiFileUri(job.geminiFileUri, job.sourceLabel);
+        aiResult = await withTimeout(
+          importQuestionsFromGeminiFileUri(job.geminiFileUri, job.sourceLabel),
+          AI_TIMEOUT_MS,
+          `geminiFileUri chunk ${job.chunkIndex}/${job.totalChunks}`,
+        );
       } else if (job.isPdfVision) {
         // Legacy: base64 inline PDF (for jobs created before the Files API migration)
         const pdfBuffer = Buffer.from(job.content!, 'base64');
-        aiResult = await importQuestionsFromPdf(pdfBuffer, job.sourceLabel);
+        aiResult = await withTimeout(
+          importQuestionsFromPdf(pdfBuffer, job.sourceLabel),
+          AI_TIMEOUT_MS,
+          `isPdfVision chunk ${job.chunkIndex}/${job.totalChunks}`,
+        );
       } else {
-        aiResult = await importQuestionsFromContent({
-          url: job.sourceLabel,
-          content: chunkText,
-        });
+        aiResult = await withTimeout(
+          importQuestionsFromContent({
+            url: job.sourceLabel,
+            content: chunkText,
+          }),
+          AI_TIMEOUT_MS,
+          `text chunk ${job.chunkIndex}/${job.totalChunks}`,
+        );
       }
       break;
     } catch (err) {
@@ -209,8 +264,12 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+      // If the job has a subjectId (set at upload time), it takes precedence over
+      // whatever the AI inferred from the content.
+      const subjectId = job.subjectId ?? q.subjectId;
       await db.collection('questions').add({
         ...q,
+        ...(subjectId !== undefined ? { subjectId } : {}),
         importSessionId: job.sessionId,
         createdAt: timestamp,
         updatedAt: timestamp,
