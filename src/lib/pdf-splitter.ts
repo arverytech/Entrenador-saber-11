@@ -23,6 +23,12 @@ import { PDFDocument } from 'pdf-lib';
 
 const MAX_PAGES_PER_CHUNK = 8;
 
+/**
+ * Maximum number of extra pages that can be appended to a chunk to align
+ * the cut with a question boundary when question patterns are detected.
+ */
+const MAX_PAGE_EXTENSION = 3;
+
 /** Patterns that mark the beginning of an ICFES-style question. */
 const QUESTION_START_PATTERNS = [
   /^\s*\d+\.\s/m,          // "1. ", "2. "
@@ -119,7 +125,7 @@ export async function splitPdfIntoChunks(
       while (
         groupEnd < totalPages - 1 &&
         !questionStartPages.has(groupEnd + 1) &&
-        groupEnd - groupStart < maxPagesPerChunk + 3
+        groupEnd - groupStart < maxPagesPerChunk + MAX_PAGE_EXTENSION
       ) {
         groupEnd++;
       }

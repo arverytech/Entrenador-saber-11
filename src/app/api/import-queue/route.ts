@@ -184,6 +184,11 @@ export function splitIntoSmartChunks(text: string): string[] {
   return result;
 }
 
+/** Builds the source label for a single PDF chunk. */
+function pdfChunkLabel(sourceName: string, pageStart: number, pageEnd: number): string {
+  return `${sourceName} (páginas ${pageStart}-${pageEnd})`;
+}
+
 export async function POST(req: NextRequest) {
   let sourceLabel = 'contenido';
   let chunks: string[] = [];
@@ -239,7 +244,7 @@ export async function POST(req: NextRequest) {
             const batch = db.batch();
 
             for (const pdfChunk of pdfChunks) {
-              const chunkLabel = `${file.name} (páginas ${pdfChunk.pageStart}-${pdfChunk.pageEnd})`;
+              const chunkLabel = pdfChunkLabel(file.name, pdfChunk.pageStart, pdfChunk.pageEnd);
               const chunkUri = await uploadPdfToGeminiFilesApi(pdfChunk.buffer, chunkLabel, apiKey);
               const docRef = db.collection('importJobs').doc();
               batch.set(docRef, {
@@ -376,7 +381,7 @@ export async function POST(req: NextRequest) {
           const batch = db.batch();
 
           for (const pdfChunk of pdfChunks) {
-            const chunkLabel = `${displayName} (páginas ${pdfChunk.pageStart}-${pdfChunk.pageEnd})`;
+            const chunkLabel = pdfChunkLabel(displayName, pdfChunk.pageStart, pdfChunk.pageEnd);
             const chunkUri = await uploadPdfToGeminiFilesApi(pdfChunk.buffer, chunkLabel, apiKey);
             const docRef = db.collection('importJobs').doc();
             batch.set(docRef, {
