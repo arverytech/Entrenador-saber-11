@@ -21,7 +21,7 @@
 
 import { PDFDocument } from 'pdf-lib';
 
-const MAX_PAGES_PER_CHUNK = 8;
+const MAX_PAGES_PER_CHUNK = 3;
 
 /**
  * Maximum number of extra pages that can be appended to a chunk to align
