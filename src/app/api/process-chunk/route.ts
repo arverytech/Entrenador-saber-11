@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Save questions with deduplication ─────────────────────────────────────
-  const questions = aiResult.questions as Record<string, unknown>[];
+  const questions = (Array.isArray(aiResult.questions) ? aiResult.questions : []) as Record<string, unknown>[];
   let savedCount = 0;
   const timestamp = new Date().toISOString();
 
