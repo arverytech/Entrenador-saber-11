@@ -18,6 +18,16 @@ import { collection, addDoc, deleteDoc, doc, updateDoc, query, orderBy, serverTi
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 
+/** Subject options for the PDF import subject selector. */
+const SUBJECT_OPTIONS = [
+  { value: 'matematicas',    label: 'Matemáticas' },
+  { value: 'lectura',        label: 'Lectura Crítica' },
+  { value: 'naturales',      label: 'Ciencias Naturales' },
+  { value: 'sociales',       label: 'Ciencias Sociales y Ciudadanas' },
+  { value: 'ingles',         label: 'Inglés' },
+  { value: 'socioemocional', label: 'Socioemocional' },
+] as const;
+
 /** Discriminated union of all SSE events emitted by /api/import-questions-stream. */
 type SSEImportEvent =
   | { type: 'start'; totalChunks: number; totalChars: number }
@@ -857,12 +867,9 @@ export default function AdminBrandingPage() {
                     className="h-12 border-2 rounded-md px-3 text-sm font-medium bg-background w-full md:w-52"
                   >
                     <option value="">— Materia (opcional) —</option>
-                    <option value="matematicas">Matemáticas</option>
-                    <option value="lectura">Lectura Crítica</option>
-                    <option value="naturales">Ciencias Naturales</option>
-                    <option value="sociales">Ciencias Sociales y Ciudadanas</option>
-                    <option value="ingles">Inglés</option>
-                    <option value="socioemocional">Socioemocional</option>
+                    {SUBJECT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
                   </select>
                   <Button
                     className="game-button bg-secondary text-white h-12 px-8 shadow-lg whitespace-nowrap"
@@ -911,12 +918,9 @@ export default function AdminBrandingPage() {
                         className="h-12 border-2 rounded-md px-3 text-sm font-medium bg-background w-full md:w-52"
                       >
                         <option value="">— Materia (opcional) —</option>
-                        <option value="matematicas">Matemáticas</option>
-                        <option value="lectura">Lectura Crítica</option>
-                        <option value="naturales">Ciencias Naturales</option>
-                        <option value="sociales">Ciencias Sociales y Ciudadanas</option>
-                        <option value="ingles">Inglés</option>
-                        <option value="socioemocional">Socioemocional</option>
+                        {SUBJECT_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
                       </select>
                     </div>
                   </div>

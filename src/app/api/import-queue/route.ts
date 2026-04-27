@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
       const formData = await req.formData();
       const file = formData.get('file') as File | null;
       const text = formData.get('text') as string | null;
-      subjectId = (formData.get('subjectId') as string | null) || null;
+      subjectId = formData.get('subjectId') as string | null;
 
       if (file && file.size > 0) {
         sourceLabel = file.name;
