@@ -77,17 +77,18 @@ function makePdfFile(name = 'cuadernillo.pdf', size = 1024): File {
   return new File([buf], name, { type: 'application/pdf' });
 }
 
-function fileRequest(file: File): NextRequest {
+function fileRequest(file: File, subjectId?: string): NextRequest {
   const fd = new FormData();
   fd.append('file', file);
+  if (subjectId) fd.append('subjectId', subjectId);
   return new NextRequest('http://localhost/api/import-queue', { method: 'POST', body: fd });
 }
 
-function urlRequest(url: string): NextRequest {
+function urlRequest(url: string, subjectId?: string): NextRequest {
   return new NextRequest('http://localhost/api/import-queue', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, ...(subjectId ? { subjectId } : {}) }),
   });
 }
 
@@ -454,6 +455,61 @@ describe('POST /api/import-queue — escenarios de fallo (multi-chunk PDF)', () 
       expect(setCalls).toHaveLength(3);
       for (const [, jobData] of setCalls) {
         expect(jobData.sessionId).toBe(body.sessionId);
+      }
+    });
+  });
+
+  // ── Escenario 15 — subjectId se guarda en los importJobs ─────────────────
+
+  describe('Escenario 15 — subjectId se guarda en los jobs del importQueue', () => {
+    it('subjectId del FormData se persiste en cada job (multi-chunk PDF file)', async () => {
+      mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+      (uploadPdfToGeminiFilesApi as UploadMock)
+        .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/s1')
+        .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/s2');
+
+      await POST(fileRequest(makePdfFile(), 'naturales'));
+
+      const setCalls = mockBatch.set.mock.calls as [unknown, Record<string, unknown>][];
+      expect(setCalls).toHaveLength(2);
+      for (const [, jobData] of setCalls) {
+        expect(jobData.subjectId).toBe('naturales');
+      }
+    });
+
+    it('sin subjectId en el FormData → los jobs no incluyen el campo', async () => {
+      mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+      (uploadPdfToGeminiFilesApi as UploadMock)
+        .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/n1')
+        .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/n2');
+
+      await POST(fileRequest(makePdfFile()));
+
+      const setCalls = mockBatch.set.mock.calls as [unknown, Record<string, unknown>][];
+      for (const [, jobData] of setCalls) {
+        expect(jobData.subjectId).toBeUndefined();
+      }
+    });
+
+    it('subjectId del JSON body se persiste en cada job (multi-chunk PDF URL)', async () => {
+      mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+      (uploadPdfToGeminiFilesApi as UploadMock)
+        .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/u1')
+        .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/u2');
+
+      const pdfUrl = 'https://example.com/banco.pdf';
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => 'application/pdf' },
+        arrayBuffer: async () => Buffer.alloc(1024).buffer,
+      });
+
+      await POST(urlRequest(pdfUrl, 'sociales'));
+
+      const setCalls = mockBatch.set.mock.calls as [unknown, Record<string, unknown>][];
+      expect(setCalls).toHaveLength(2);
+      for (const [, jobData] of setCalls) {
+        expect(jobData.subjectId).toBe('sociales');
       }
     });
   });

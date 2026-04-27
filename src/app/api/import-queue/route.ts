@@ -30,6 +30,7 @@ import { splitPdfIntoChunks } from '@/lib/pdf-splitter';
  *   contentStoragePath?: string,  // Storage path for text chunk (text mode)
  *   isPdfVision: boolean,         // always false for new jobs; kept for legacy in-flight jobs
  *   sourceLabel: string,
+ *   subjectId?: string,           // subject classification provided at upload time (optional)
  *   status: 'pending' | 'processing' | 'done' | 'failed',
  *   questionsFound: number,
  *   errorMessage?: string,
@@ -193,6 +194,7 @@ export async function POST(req: NextRequest) {
   let sourceLabel = 'contenido';
   let chunks: string[] = [];
   let geminiFileUri: string | null = null;
+  let subjectId: string | null = null;
 
   const contentType = req.headers.get('content-type') ?? '';
 
@@ -202,6 +204,7 @@ export async function POST(req: NextRequest) {
       const formData = await req.formData();
       const file = formData.get('file') as File | null;
       const text = formData.get('text') as string | null;
+      subjectId = formData.get('subjectId') as string | null;
 
       if (file && file.size > 0) {
         sourceLabel = file.name;
@@ -258,6 +261,7 @@ export async function POST(req: NextRequest) {
                 questionsFound: 0,
                 createdAt: now,
                 updatedAt: now,
+                ...(subjectId ? { subjectId } : {}),
               });
             }
             await batch.commit();
@@ -280,8 +284,9 @@ export async function POST(req: NextRequest) {
       }
     } else {
       // JSON body with URL
-      const body = await req.json() as { url?: string };
+      const body = await req.json() as { url?: string; subjectId?: string };
       const { url } = body;
+      subjectId = body.subjectId ?? null;
 
       if (!url || typeof url !== 'string') {
         return NextResponse.json(
@@ -395,6 +400,7 @@ export async function POST(req: NextRequest) {
               questionsFound: 0,
               createdAt: now,
               updatedAt: now,
+              ...(subjectId ? { subjectId } : {}),
             });
           }
           await batch.commit();
@@ -467,6 +473,7 @@ export async function POST(req: NextRequest) {
         questionsFound: 0,
         createdAt: now,
         updatedAt: now,
+        ...(subjectId ? { subjectId } : {}),
       };
 
       if (geminiFileUri) {

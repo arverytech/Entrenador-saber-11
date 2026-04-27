@@ -162,7 +162,13 @@ beforeEach(() => {
   mockJobsQuery.where.mockReturnThis();
   mockJobsQuery.orderBy.mockReturnThis();
   mockJobsQuery.limit.mockReturnThis();
-  mockJobsQuery.get.mockResolvedValue({ empty: false, docs: [mockJobRef1] });
+  // Reset get() implementation to clear any leftover Once queue from previous tests,
+  // then set up the two-call sequence: first get() = stuck-job recovery (empty),
+  // subsequent get() = pending-job query (returns mockJobRef1 by default).
+  mockJobsQuery.get.mockReset();
+  mockJobsQuery.get
+    .mockResolvedValueOnce({ empty: true, docs: [] })
+    .mockResolvedValue({ empty: false, docs: [mockJobRef1] });
 
   mockExistingQuestionsQuery.where.mockReturnThis();
   mockExistingQuestionsQuery.select.mockReturnThis();
@@ -232,7 +238,11 @@ describe('POST /api/process-chunk', () => {
 
   describe('nothing_pending', () => {
     it('responde { status: nothing_pending } cuando no hay jobs pendientes', async () => {
-      mockJobsQuery.get.mockResolvedValueOnce({ empty: true, docs: [] });
+      // Override: both stuck-job query AND pending-job query return empty
+      mockJobsQuery.get.mockReset();
+      mockJobsQuery.get
+        .mockResolvedValueOnce({ empty: true, docs: [] })
+        .mockResolvedValueOnce({ empty: true, docs: [] });
 
       const res = await POST(makeRequest());
       const body = await res.json() as { status: string };
@@ -369,7 +379,11 @@ describe('POST /api/process-chunk', () => {
         updatedAt: '2026-04-01T00:00:00.000Z',
       }, 'gemini-files-job');
 
-      mockJobsQuery.get.mockResolvedValueOnce({ empty: false, docs: [geminiFilesJob] });
+      // Override: stuck-job query → empty; pending-job query → geminiFilesJob
+      mockJobsQuery.get.mockReset();
+      mockJobsQuery.get
+        .mockResolvedValueOnce({ empty: true, docs: [] })
+        .mockResolvedValueOnce({ empty: false, docs: [geminiFilesJob] });
 
       await POST(makeRequest());
 
@@ -401,7 +415,11 @@ describe('POST /api/process-chunk', () => {
         updatedAt: '2026-04-01T00:00:00.000Z',
       }, 'pdf-vision-job');
 
-      mockJobsQuery.get.mockResolvedValueOnce({ empty: false, docs: [pdfVisionJob] });
+      // Override: stuck-job query → empty; pending-job query → pdfVisionJob
+      mockJobsQuery.get.mockReset();
+      mockJobsQuery.get
+        .mockResolvedValueOnce({ empty: true, docs: [] })
+        .mockResolvedValueOnce({ empty: false, docs: [pdfVisionJob] });
 
       await POST(makeRequest());
 
