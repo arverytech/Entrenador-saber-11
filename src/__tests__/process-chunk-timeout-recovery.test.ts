@@ -282,6 +282,42 @@ describe('MEDIDA 2 — Recovery de jobs atascados', () => {
       expect(mockResetBatch.update).not.toHaveBeenCalled();
     });
   });
+
+  describe('Escenario 4b — Job en "processing" reciente (< 5 min) no es reseteado', () => {
+    it('batch.update NO es llamado cuando el job en processing es reciente', async () => {
+      // Firestore filters out recent jobs via the updatedAt < stuckCutoff clause,
+      // so the stuck query returns empty — the mock simulates this behaviour.
+      const recentUpdatedAt = new Date(Date.now() - 2 * 60 * 1000).toISOString(); // 2 min ago
+      // The WHERE clause `updatedAt < cutoff` means Firestore would NOT return this doc.
+      // Our mock mirrors that: stuckSnap is empty (server-side filtering).
+      setupGetSequence([], []);
+
+      // Sanity-check: the recentUpdatedAt IS within the 5-minute window
+      const stuckCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      expect(recentUpdatedAt > stuckCutoff).toBe(true);
+
+      await POST(makeReq());
+
+      expect(mockResetBatch.update).not.toHaveBeenCalled();
+    });
+
+    it('sólo resetea el job viejo y no el reciente cuando ambos existen', async () => {
+      // Firestore's inequality filter ensures only the OLD job appears in stuckSnap;
+      // the RECENT job is excluded at query time.  The mock replicates this.
+      const oldDoc = makeJobDoc(
+        { status: 'processing', updatedAt: '2026-04-01T00:00:00.000Z' },
+        'old-stuck',
+      );
+      // Recent job is excluded from stuckSnap by Firestore's filter — only oldDoc is returned.
+      setupGetSequence([oldDoc], []);
+
+      await POST(makeReq());
+
+      expect(mockResetBatch.update).toHaveBeenCalledTimes(1);
+      const [, updateData] = mockResetBatch.update.mock.calls[0] as [unknown, Record<string, unknown>];
+      expect(updateData.status).toBe('pending');
+    });
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
