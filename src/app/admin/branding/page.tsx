@@ -70,6 +70,7 @@ export default function AdminBrandingPage() {
   const [importUrl, setImportUrl] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importText, setImportText] = useState('');
+  const [importSubjectId, setImportSubjectId] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ count: number; note: string } | null>(null);
   const [importChecklist, setImportChecklist] = useState<ImportChecklist | null>(null);
@@ -317,6 +318,7 @@ export default function AdminBrandingPage() {
           });
           const fd = new FormData();
           fd.append('file', importFile);
+          if (importSubjectId) fd.append('subjectId', importSubjectId);
           queueRes = await fetch('/api/import-queue', {
             method: 'POST',
             body: fd,
@@ -327,7 +329,7 @@ export default function AdminBrandingPage() {
           queueRes = await fetch('/api/import-queue', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: importUrl.trim() }),
+            body: JSON.stringify({ url: importUrl.trim(), ...(importSubjectId ? { subjectId: importSubjectId } : {}) }),
             signal: abort.signal,
           });
         }
@@ -848,6 +850,20 @@ export default function AdminBrandingPage() {
                     className="h-12 border-2 flex-1 font-mono text-sm"
                     disabled={isImporting}
                   />
+                  <select
+                    value={importSubjectId}
+                    onChange={(e) => setImportSubjectId(e.target.value)}
+                    disabled={isImporting}
+                    className="h-12 border-2 rounded-md px-3 text-sm font-medium bg-background w-full md:w-52"
+                  >
+                    <option value="">— Materia (opcional) —</option>
+                    <option value="matematicas">Matemáticas</option>
+                    <option value="lectura">Lectura Crítica</option>
+                    <option value="naturales">Ciencias Naturales</option>
+                    <option value="sociales">Ciencias Sociales y Ciudadanas</option>
+                    <option value="ingles">Inglés</option>
+                    <option value="socioemocional">Socioemocional</option>
+                  </select>
                   <Button
                     className="game-button bg-secondary text-white h-12 px-8 shadow-lg whitespace-nowrap"
                     onClick={() => handleImport('url')}
@@ -882,6 +898,27 @@ export default function AdminBrandingPage() {
                         Seleccionado: {importFile.name} ({(importFile.size / 1024).toFixed(1)} KB)
                       </p>
                     )}
+                  </div>
+                  <div className="flex flex-col gap-2 mt-0 md:mt-6">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">
+                        Materia
+                      </Label>
+                      <select
+                        value={importSubjectId}
+                        onChange={(e) => setImportSubjectId(e.target.value)}
+                        disabled={isImporting}
+                        className="h-12 border-2 rounded-md px-3 text-sm font-medium bg-background w-full md:w-52"
+                      >
+                        <option value="">— Materia (opcional) —</option>
+                        <option value="matematicas">Matemáticas</option>
+                        <option value="lectura">Lectura Crítica</option>
+                        <option value="naturales">Ciencias Naturales</option>
+                        <option value="sociales">Ciencias Sociales y Ciudadanas</option>
+                        <option value="ingles">Inglés</option>
+                        <option value="socioemocional">Socioemocional</option>
+                      </select>
+                    </div>
                   </div>
                   <Button
                     className="game-button bg-secondary text-white h-12 px-8 shadow-lg whitespace-nowrap mt-6"
