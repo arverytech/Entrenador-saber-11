@@ -5,6 +5,13 @@ on:
     - cron: '*/10 * * * *'  # every 10 minutes
   workflow_dispatch:
 
+# Prevent parallel runs: if a run is already in progress, let it finish
+# (cancel-in-progress: false) and block additional runs from starting.
+# This avoids hammering Gemini quota with concurrent requests.
+concurrency:
+  group: process-import-queue
+  cancel-in-progress: false
+
 jobs:
   process:
     runs-on: ubuntu-latest

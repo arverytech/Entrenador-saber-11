@@ -6,9 +6,16 @@ import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFrom
  * POST /api/process-chunk
  *
  * Protected by CRON_SECRET (same as heal-explanations).
- * Picks the oldest "pending" importJob from Firestore, processes it with
- * Gemini AI, saves extracted questions to the "questions" collection, and
- * marks the job as "done" or "failed".
+ * Picks the oldest eligible "pending" importJob from Firestore, processes it
+ * with Gemini AI, saves extracted questions to the "questions" collection, and
+ * marks the job as "done", "failed", or back to "pending" (with backoff).
+ *
+ * Transient errors (Gemini 429 / 503):
+ *   - The job is NOT marked "failed" immediately.
+ *   - attemptCount is incremented and nextAttemptAt is set using exponential
+ *     backoff with ±25 % jitter (base 2 min for 503, base 10 min for 429,
+ *     cap 2 hours).  The job stays "pending" and will be retried automatically.
+ *   - After MAX_ATTEMPT_COUNT attempts the job is marked "failed" permanently.
  *
  * Deduplication: before saving each question, the first 100 characters of its
  * text are compared against questions already saved in the same session.  If
@@ -17,8 +24,42 @@ import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFrom
  * Estimated time per invocation: 20-35 s (within 60 s Hobby limit).
  *
  * Response:
- *   { processed: string, questionsFound: number, status: 'done' | 'failed' | 'nothing_pending' }
+ *   { processed: string, questionsFound: number, status: 'done' | 'failed' | 'retrying' | 'nothing_pending' }
  */
+
+// ── Retry / backoff constants ─────────────────────────────────────────────────
+
+/** Maximum automatic retry attempts before marking the job as permanently failed. */
+export const MAX_ATTEMPT_COUNT = 10;
+
+/**
+ * Returns the transient error code ('429' | '503') when the error is a Gemini
+ * quota or availability failure, or null for any other kind of error.
+ */
+export function getTransientErrorCode(err: unknown): '429' | '503' | null {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg)) return '429';
+  if (/503|UNAVAILABLE/i.test(msg)) return '503';
+  return null;
+}
+
+/**
+ * Calculates exponential backoff (ms) with ±25 % jitter.
+ *
+ * Base delays:
+ *   503 → 2 minutes  (Gemini high demand — usually resolves quickly)
+ *   429 → 10 minutes (quota exhaustion — needs a longer cooldown)
+ * Maximum cap: 2 hours.
+ */
+export function calculateBackoffMs(attemptCount: number, errorCode: '429' | '503'): number {
+  const BASE_MS = errorCode === '429' ? 10 * 60 * 1000 : 2 * 60 * 1000;
+  const MAX_MS  = 2 * 60 * 60 * 1000; // 2 hours
+  const exponential = BASE_MS * Math.pow(2, attemptCount);
+  const capped  = Math.min(exponential, MAX_MS);
+  // ±25 % jitter to avoid thundering-herd on simultaneous retries
+  const jitter  = capped * 0.25 * (Math.random() * 2 - 1);
+  return Math.max(0, Math.round(capped + jitter));
+}
 
 /** Returns a rough similarity ratio between two strings (0..1). */
 function roughSimilarity(a: string, b: string): number {
@@ -64,8 +105,12 @@ export async function POST(req: NextRequest) {
       for (const stuckDoc of stuckSnap.docs) {
         resetBatch.update(stuckDoc.ref, {
           status: 'pending',
+          // Clear any backoff so the job is immediately eligible
+          nextAttemptAt: '',
           updatedAt: new Date().toISOString(),
           errorMessage: 'Reset automático: job atascado en processing por más de 5 minutos',
+          // attemptCount is intentionally NOT updated here — preserved from
+          // the previous attempt so the threshold check stays accurate.
         });
       }
       await resetBatch.commit();
@@ -76,14 +121,18 @@ export async function POST(req: NextRequest) {
     console.warn('[process-chunk] could not reset stuck jobs:', stuckErr);
   }
 
-  // ── Find the oldest pending job ───────────────────────────────────────────
+  // ── Find the oldest eligible pending job ─────────────────────────────────
+  // We fetch the N oldest pending jobs and apply the nextAttemptAt eligibility
+  // check in-memory.  This handles both:
+  //   • legacy jobs that have no nextAttemptAt field (immediately eligible)
+  //   • new jobs whose nextAttemptAt sentinel is "" or a future ISO string
   let jobSnap: FirebaseFirestore.QuerySnapshot;
   try {
     jobSnap = await db
       .collection('importJobs')
       .where('status', '==', 'pending')
       .orderBy('createdAt', 'asc')
-      .limit(1)
+      .limit(20)
       .get();
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Error querying importJobs';
@@ -91,11 +140,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  if (jobSnap.empty) {
+  const nowStr = new Date().toISOString();
+  const eligibleDoc = jobSnap.docs.find((doc) => {
+    const d = doc.data() as { nextAttemptAt?: string };
+    return !d.nextAttemptAt || d.nextAttemptAt <= nowStr;
+  });
+
+  if (!eligibleDoc) {
     return NextResponse.json({ status: 'nothing_pending', processed: '', questionsFound: 0 });
   }
 
-  const jobDoc = jobSnap.docs[0];
+  const jobDoc = eligibleDoc;
   const job = jobDoc.data() as {
     sessionId: string;
     chunkIndex: number;
@@ -111,6 +166,9 @@ export async function POST(req: NextRequest) {
     updatedAt: string;
     errorMessage?: string;
     subjectId?: string;          // subject classification provided at upload time
+    attemptCount?: number;       // total retry attempts so far (default 0)
+    nextAttemptAt?: string;      // ISO timestamp; job not eligible before this time
+    lastErrorCode?: string;      // '429', '503', 'timeout', etc.
   };
 
   // Mark as "processing" to avoid double-processing
@@ -228,11 +286,48 @@ export async function POST(req: NextRequest) {
 
   if (!aiResult) {
     const errMsg = lastErr instanceof Error ? lastErr.message : 'Error procesando fragmento con IA';
-    console.warn(`[process-chunk] chunk ${job.chunkIndex}/${job.totalChunks} failed after retry: ${errMsg}`);
+    const transientCode = getTransientErrorCode(lastErr);
+    const currentAttemptCount = (job.attemptCount ?? 0) + 1;
+
+    console.warn(
+      `[process-chunk] chunk ${job.chunkIndex}/${job.totalChunks} failed after retry: ${errMsg}` +
+      (transientCode ? ` [transient ${transientCode}, attempt ${currentAttemptCount}/${MAX_ATTEMPT_COUNT}]` : '')
+    );
+
+    if (transientCode && currentAttemptCount < MAX_ATTEMPT_COUNT) {
+      // Transient Gemini error (429/503) — schedule automatic retry with backoff
+      const backoffMs = calculateBackoffMs(currentAttemptCount, transientCode);
+      const nextAttemptAt = new Date(Date.now() + backoffMs).toISOString();
+      await jobDoc.ref.update({
+        status: 'pending',
+        errorMessage: errMsg,
+        attemptCount: currentAttemptCount,
+        nextAttemptAt,
+        lastErrorCode: transientCode,
+        updatedAt: new Date().toISOString(),
+      });
+      await deleteStorageFile();
+      console.log(
+        `[process-chunk] scheduled retry for chunk ${job.chunkIndex}/${job.totalChunks}` +
+        ` at ${nextAttemptAt} (backoff ${Math.round(backoffMs / 1000)}s)`
+      );
+      return NextResponse.json({
+        status: 'retrying',
+        processed: jobDoc.id,
+        questionsFound: 0,
+        nextAttemptAt,
+      });
+    }
+
+    // Non-transient error (e.g. auth, bad request, timeout) or max attempts
+    // reached → mark as permanently failed.
     await jobDoc.ref.update({
       status: 'failed',
       errorMessage: errMsg,
       updatedAt: new Date().toISOString(),
+      ...(transientCode
+        ? { lastErrorCode: transientCode, attemptCount: currentAttemptCount }
+        : {}),
     });
     await deleteStorageFile();
     return NextResponse.json({

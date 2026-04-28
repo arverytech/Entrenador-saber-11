@@ -256,7 +256,7 @@ describe('POST /api/process-chunk', () => {
       await POST(makeRequest());
       expect(mockJobsQuery.where).toHaveBeenCalledWith('status', '==', 'pending');
       expect(mockJobsQuery.orderBy).toHaveBeenCalledWith('createdAt', 'asc');
-      expect(mockJobsQuery.limit).toHaveBeenCalledWith(1);
+      expect(mockJobsQuery.limit).toHaveBeenCalledWith(20);
     });
 
     it('marca el job como "processing" ANTES de llamar a la IA', async () => {
