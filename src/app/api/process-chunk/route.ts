@@ -51,11 +51,14 @@ export function getTransientErrorCode(err: unknown): '429' | '503' | null {
  *   429 → 10 minutes (quota exhaustion — needs a longer cooldown)
  * Maximum cap: 2 hours.
  */
+const BASE_503_MS = 2  * 60 * 1000;  //  2 minutes — Gemini high-demand, resolves quickly
+const BASE_429_MS = 10 * 60 * 1000;  // 10 minutes — quota exhaustion, needs longer cooldown
+const MAX_BACKOFF_MS = 2 * 60 * 60 * 1000; // 2 hours hard cap
+
 export function calculateBackoffMs(attemptCount: number, errorCode: '429' | '503'): number {
-  const BASE_MS = errorCode === '429' ? 10 * 60 * 1000 : 2 * 60 * 1000;
-  const MAX_MS  = 2 * 60 * 60 * 1000; // 2 hours
+  const BASE_MS = errorCode === '429' ? BASE_429_MS : BASE_503_MS;
   const exponential = BASE_MS * Math.pow(2, attemptCount);
-  const capped  = Math.min(exponential, MAX_MS);
+  const capped  = Math.min(exponential, MAX_BACKOFF_MS);
   // ±25 % jitter to avoid thundering-herd on simultaneous retries
   const jitter  = capped * 0.25 * (Math.random() * 2 - 1);
   return Math.max(0, Math.round(capped + jitter));

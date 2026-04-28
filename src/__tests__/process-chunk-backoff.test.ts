@@ -440,7 +440,13 @@ describe('Grupo E — Umbral de intentos MAX_ATTEMPT_COUNT', () => {
 describe('Grupo F — Recovery de stuck jobs preserva attemptCount y limpia nextAttemptAt', () => {
   it('F1 — al resetear un stuck job, nextAttemptAt se pone a ""', async () => {
     const stuckDoc = makeJobDoc(
-      { status: 'processing', updatedAt: '2026-01-01T00:00:00.000Z', attemptCount: 3, nextAttemptAt: '2026-05-01T00:00:00.000Z' },
+      {
+        status: 'processing',
+        // A very old updatedAt ensures this job exceeds the 5-minute stuck threshold
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        attemptCount: 3,
+        nextAttemptAt: '2026-05-01T00:00:00.000Z',
+      },
       'stuck-with-backoff',
     );
     setupGetSequence([stuckDoc], []);
@@ -455,7 +461,12 @@ describe('Grupo F — Recovery de stuck jobs preserva attemptCount y limpia next
 
   it('F2 — al resetear un stuck job, attemptCount NO es sobreescrito por el batch update', async () => {
     const stuckDoc = makeJobDoc(
-      { status: 'processing', updatedAt: '2026-01-01T00:00:00.000Z', attemptCount: 5 },
+      {
+        status: 'processing',
+        // A very old updatedAt ensures this job exceeds the 5-minute stuck threshold
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        attemptCount: 5,
+      },
       'stuck-with-count',
     );
     setupGetSequence([stuckDoc], []);
