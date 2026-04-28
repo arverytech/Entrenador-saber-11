@@ -13,8 +13,9 @@ import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFrom
  * Transient errors (Gemini 429 / 503):
  *   - The job is NOT marked "failed" immediately.
  *   - attemptCount is incremented and nextAttemptAt is set using exponential
- *     backoff with ±25 % jitter (base 2 min for 503, base 10 min for 429,
- *     cap 2 hours).  The job stays "pending" and will be retried automatically.
+ *     backoff with ±25 % jitter (base 5 min / cap 60 min for 503; base 30 min /
+ *     cap 24 h for 429 — free-tier friendly).  The job stays "pending" and will
+ *     be retried automatically.
  *   - After MAX_ATTEMPT_COUNT attempts the job is marked "failed" permanently.
  *
  * Deduplication: before saving each question, the first 100 characters of its
@@ -46,19 +47,23 @@ export function getTransientErrorCode(err: unknown): '429' | '503' | null {
 /**
  * Calculates exponential backoff (ms) with ±25 % jitter.
  *
- * Base delays:
- *   503 → 2 minutes  (Gemini high demand — usually resolves quickly)
- *   429 → 10 minutes (quota exhaustion — needs a longer cooldown)
- * Maximum cap: 2 hours.
+ * Base delays (free-tier friendly):
+ *   503 → 5 minutes  (Gemini high demand — usually resolves in a few minutes)
+ *   429 → 30 minutes (quota exhaustion — needs a long cooldown on free tier)
+ * Per-code caps:
+ *   503 → 60 minutes
+ *   429 → 24 hours
  */
-const BASE_503_MS = 2  * 60 * 1000;  //  2 minutes — Gemini high-demand, resolves quickly
-const BASE_429_MS = 10 * 60 * 1000;  // 10 minutes — quota exhaustion, needs longer cooldown
-const MAX_BACKOFF_MS = 2 * 60 * 60 * 1000; // 2 hours hard cap
+const BASE_503_MS        =  5 * 60 * 1000;           //  5 minutes — Gemini high-demand
+const BASE_429_MS        = 30 * 60 * 1000;           // 30 minutes — quota exhaustion
+const MAX_BACKOFF_503_MS = 60 * 60 * 1000;           //  1 hour cap for 503
+const MAX_BACKOFF_429_MS = 24 * 60 * 60 * 1000;      // 24 hours cap for 429 (free-tier quota)
 
 export function calculateBackoffMs(attemptCount: number, errorCode: '429' | '503'): number {
-  const BASE_MS = errorCode === '429' ? BASE_429_MS : BASE_503_MS;
+  const BASE_MS   = errorCode === '429' ? BASE_429_MS        : BASE_503_MS;
+  const CAP_MS    = errorCode === '429' ? MAX_BACKOFF_429_MS : MAX_BACKOFF_503_MS;
   const exponential = BASE_MS * Math.pow(2, attemptCount);
-  const capped  = Math.min(exponential, MAX_BACKOFF_MS);
+  const capped  = Math.min(exponential, CAP_MS);
   // ±25 % jitter to avoid thundering-herd on simultaneous retries
   const jitter  = capped * 0.25 * (Math.random() * 2 - 1);
   return Math.max(0, Math.round(capped + jitter));

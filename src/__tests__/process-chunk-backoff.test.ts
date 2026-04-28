@@ -12,10 +12,10 @@
  *   A4.  Error con texto "quota" → clasificado como transitorio '429'
  *
  * Grupo B — Cálculo de backoff exponencial
- *   B1.  calculateBackoffMs: 503, intentos 0 → ~2 min base
- *   B2.  calculateBackoffMs: 429, intentos 0 → ~10 min base
+ *   B1.  calculateBackoffMs: 503, intentos 0 → ~5 min base
+ *   B2.  calculateBackoffMs: 429, intentos 0 → ~30 min base
  *   B3.  calculateBackoffMs: backoff crece con intentos (exponencial)
- *   B4.  calculateBackoffMs: tope 2 horas
+ *   B4.  calculateBackoffMs: tope 60 min para 503, 24 h para 429
  *
  * Grupo C — Job no elegible antes de nextAttemptAt
  *   C1.  Job con nextAttemptAt en el futuro → devuelve nothing_pending
@@ -215,15 +215,15 @@ describe('Grupo A — Clasificación de errores transitorios', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('Grupo B — Cálculo de backoff exponencial', () => {
-  it('B1 — 503 con 0 intentos previos → cerca de 2 min (dentro de margen ±25%)', () => {
-    const BASE_MS = 2 * 60 * 1000;
+  it('B1 — 503 con 0 intentos previos → cerca de 5 min (dentro de margen ±25%)', () => {
+    const BASE_MS = 5 * 60 * 1000;
     const result  = calculateBackoffMs(0, '503');
     expect(result).toBeGreaterThanOrEqual(BASE_MS * 0.75);
     expect(result).toBeLessThanOrEqual(BASE_MS * 1.25);
   });
 
-  it('B2 — 429 con 0 intentos previos → cerca de 10 min (dentro de margen ±25%)', () => {
-    const BASE_MS = 10 * 60 * 1000;
+  it('B2 — 429 con 0 intentos previos → cerca de 30 min (dentro de margen ±25%)', () => {
+    const BASE_MS = 30 * 60 * 1000;
     const result  = calculateBackoffMs(0, '429');
     expect(result).toBeGreaterThanOrEqual(BASE_MS * 0.75);
     expect(result).toBeLessThanOrEqual(BASE_MS * 1.25);
@@ -239,11 +239,12 @@ describe('Grupo B — Cálculo de backoff exponencial', () => {
     expect(avg('429', 1)).toBeGreaterThan(avg('429', 0));
   });
 
-  it('B4 — el backoff nunca supera las 2 horas', () => {
-    const MAX_MS = 2 * 60 * 60 * 1000;
+  it('B4 — el backoff respeta el cap por código: 503 ≤ 60 min, 429 ≤ 24 h', () => {
+    const CAP_503_MS = 60 * 60 * 1000;       //  1 hour
+    const CAP_429_MS = 24 * 60 * 60 * 1000;  // 24 hours
     for (let i = 0; i <= 20; i++) {
-      expect(calculateBackoffMs(i, '503')).toBeLessThanOrEqual(MAX_MS * 1.25);
-      expect(calculateBackoffMs(i, '429')).toBeLessThanOrEqual(MAX_MS * 1.25);
+      expect(calculateBackoffMs(i, '503')).toBeLessThanOrEqual(CAP_503_MS * 1.25);
+      expect(calculateBackoffMs(i, '429')).toBeLessThanOrEqual(CAP_429_MS * 1.25);
     }
   });
 });
