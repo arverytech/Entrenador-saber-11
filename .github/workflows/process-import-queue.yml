@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Process one pending import chunk
         run: |
-          curl -fv -X POST "${{ secrets.VERCEL_APP_URL }}/api/process-chunk" \
+          curl --fail-with-body -sS -X POST "${{ secrets.VERCEL_APP_URL }}/api/process-chunk" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
             --max-time 55

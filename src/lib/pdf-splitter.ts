@@ -15,7 +15,7 @@
  * returned as a single chunk — no sub-PDF extraction is needed.
  *
  * @param pdfBuffer       - Raw PDF bytes.
- * @param maxPagesPerChunk - Maximum pages per sub-PDF (default: 8).
+ * @param maxPagesPerChunk - Maximum pages per sub-PDF (default: 3).
  * @returns Array of PdfChunk objects (always at least 1 element).
  */
 
