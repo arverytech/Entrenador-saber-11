@@ -73,6 +73,9 @@ interface ImportChecklist {
 /** Maximum duration in milliseconds for queue polling before automatically stopping. */
 const QUEUE_POLL_MAX_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
 
+/** Suffix appended to step2.detail when the auto-poll window expires. */
+const POLLING_STOPPED_SUFFIX = ' (monitoreo automático detenido — recarga la página o usa el botón de reanudar)';
+
 export default function AdminBrandingPage() {
   const { institutionName, institutionLogo, updateBranding } = useBranding();
   const [name, setName] = useState(institutionName);
@@ -128,9 +131,7 @@ export default function AdminBrandingPage() {
                 pollingStopped: true,
                 step2: {
                   ...prev.step2,
-                  detail:
-                    (prev.step2.detail ?? '') +
-                    ' (monitoreo automático detenido — recarga la página o usa el botón de reanudar)',
+                  detail: (prev.step2.detail ?? '') + POLLING_STOPPED_SUFFIX,
                 },
               }
             : prev
@@ -692,10 +693,7 @@ export default function AdminBrandingPage() {
     setImportChecklist((prev) => {
       if (!prev) return prev;
       // Clear the "detenido" suffix from the detail text
-      const cleanDetail = (prev.step2.detail ?? '').replace(
-        / \(monitoreo automático detenido[^)]*\)/,
-        ''
-      );
+      const cleanDetail = (prev.step2.detail ?? '').replace(POLLING_STOPPED_SUFFIX, '');
       return { ...prev, pollingStopped: false, step2: { ...prev.step2, detail: cleanDetail } };
     });
     setPollResumeCount((c) => c + 1);

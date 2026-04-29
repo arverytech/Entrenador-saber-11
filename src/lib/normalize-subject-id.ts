@@ -18,5 +18,6 @@ const SUBJECT_ID_ALIASES: Record<string, string> = {
  *   normalizeSubjectId('fisica')      → 'fisica'   (no alias defined)
  */
 export function normalizeSubjectId(id: string): string {
-  return SUBJECT_ID_ALIASES[id.toLowerCase()] ?? id;
+  const lower = id.toLowerCase();
+  return SUBJECT_ID_ALIASES[lower] ?? lower;
 }
