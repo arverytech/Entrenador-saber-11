@@ -110,6 +110,24 @@ jest.mock('@/lib/firebase-admin', () => ({
 // ─── Imports ──────────────────────────────────────────────────────────────────
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/process-chunk/route';
+import { normalizeSubjectId } from '@/lib/normalize-subject-id';
+
+// ─── Unit tests: normalizeSubjectId ──────────────────────────────────────────
+describe('normalizeSubjectId', () => {
+  it('"social" → "sociales"', () => {
+    expect(normalizeSubjectId('social')).toBe('sociales');
+  });
+
+  it('canonical value is unchanged', () => {
+    expect(normalizeSubjectId('matematicas')).toBe('matematicas');
+    expect(normalizeSubjectId('sociales')).toBe('sociales');
+    expect(normalizeSubjectId('lectura')).toBe('lectura');
+  });
+
+  it('unknown value passes through unchanged', () => {
+    expect(normalizeSubjectId('fisica')).toBe('fisica');
+  });
+});
 
 // ─── ICFES fixtures ───────────────────────────────────────────────────────────
 
@@ -290,7 +308,7 @@ describe('POST /api/process-chunk', () => {
       expect((doneUpdate![0] as UpdateData).questionsFound).toBeGreaterThan(0);
     });
 
-    it('guarda cada pregunta en Firestore con importSessionId', async () => {
+    it('guarda cada pregunta en Firestore con importSessionId y sessionId', async () => {
       await POST(makeRequest());
 
       const addCalls = mockQuestionsCollection.add.mock.calls as [DocData][];
@@ -298,6 +316,7 @@ describe('POST /api/process-chunk', () => {
 
       for (const [questionData] of addCalls) {
         expect(questionData.importSessionId).toBe('session-abc');
+        expect(questionData.sessionId).toBe('session-abc');
         expect(questionData.createdAt).toBeTruthy();
         expect(questionData.updatedAt).toBeTruthy();
       }
@@ -506,6 +525,37 @@ describe('POST /api/process-chunk', () => {
       expect(body.status).toBe('done');
       expect(body.questionsFound).toBe(1);
       expect(mockImportFromContent).toHaveBeenCalledTimes(2);
+    });
+
+    it('normaliza el alias "social" a "sociales" al guardar preguntas', async () => {
+      // Job with legacy subjectId alias "social"
+      const socialJob = makeJobDocRef({
+        sessionId: 'session-social',
+        chunkIndex: 1,
+        totalChunks: 1,
+        contentStoragePath: 'import-chunks/session-social/chunk-1.txt',
+        isPdfVision: false,
+        sourceLabel: 'sociales.pdf',
+        subjectId: 'social',
+        status: 'pending',
+        questionsFound: 0,
+        createdAt: '2026-04-01T00:00:00.000Z',
+        updatedAt: '2026-04-01T00:00:00.000Z',
+      }, 'social-job');
+
+      mockJobsQuery.get.mockReset();
+      mockJobsQuery.get
+        .mockResolvedValueOnce({ empty: true, docs: [] })
+        .mockResolvedValueOnce({ empty: false, docs: [socialJob] });
+      mockQuestionsCollection.add.mockClear();
+
+      await POST(makeRequest());
+
+      const addCalls = mockQuestionsCollection.add.mock.calls as [DocData][];
+      expect(addCalls.length).toBeGreaterThan(0);
+      for (const [q] of addCalls) {
+        expect(q.subjectId).toBe('sociales');
+      }
     });
 
     it('IA falla ambos intentos → status failed', async () => {

@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
 import { uploadPdfToGeminiFilesApi } from '@/ai/gemini-files';
 import { splitPdfIntoChunks } from '@/lib/pdf-splitter';
+import { normalizeSubjectId } from '@/lib/normalize-subject-id';
 
 /**
  * POST /api/import-queue
@@ -261,7 +262,7 @@ export async function POST(req: NextRequest) {
                 questionsFound: 0,
                 createdAt: now,
                 updatedAt: now,
-                ...(subjectId ? { subjectId } : {}),
+                ...(subjectId ? { subjectId: normalizeSubjectId(subjectId) } : {}),
               });
             }
             await batch.commit();
@@ -473,7 +474,7 @@ export async function POST(req: NextRequest) {
         questionsFound: 0,
         createdAt: now,
         updatedAt: now,
-        ...(subjectId ? { subjectId } : {}),
+        ...(subjectId ? { subjectId: normalizeSubjectId(subjectId) } : {}),
       };
 
       if (geminiFileUri) {

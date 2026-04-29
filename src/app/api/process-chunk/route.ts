@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
 import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFromGeminiFileUri } from '@/ai/flows/import-questions-from-url-flow';
+import { normalizeSubjectId } from '@/lib/normalize-subject-id';
 
 /**
  * POST /api/process-chunk
@@ -367,13 +368,13 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // If the job has a subjectId (set at upload time), it takes precedence over
-      // whatever the AI inferred from the content.
-      const subjectId = job.subjectId ?? q.subjectId;
+      const rawSubjectId = job.subjectId ?? q.subjectId;
+      const subjectId = rawSubjectId !== undefined ? normalizeSubjectId(rawSubjectId) : undefined;
       await db.collection('questions').add({
         ...q,
         ...(subjectId !== undefined ? { subjectId } : {}),
         importSessionId: job.sessionId,
+        sessionId: job.sessionId,
         createdAt: timestamp,
         updatedAt: timestamp,
       });

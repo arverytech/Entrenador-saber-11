@@ -66,10 +66,15 @@ interface ImportChecklist {
   totalChunks?: number;
   chunksProcessed?: number;
   totalQuestions?: number;
+  /** True once the 2-hour auto-poll window expires, so the UI can offer a manual resume. */
+  pollingStopped?: boolean;
 }
 
 /** Maximum duration in milliseconds for queue polling before automatically stopping. */
 const QUEUE_POLL_MAX_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+/** Suffix appended to step2.detail when the auto-poll window expires. */
+const POLLING_STOPPED_SUFFIX = ' (monitoreo automático detenido — recarga la página o usa el botón de reanudar)';
 
 export default function AdminBrandingPage() {
   const { institutionName, institutionLogo, updateBranding } = useBranding();
@@ -91,6 +96,7 @@ export default function AdminBrandingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const queuePollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [pollResumeCount, setPollResumeCount] = useState(0);
   const { firestore, user, isUserLoading } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
@@ -117,16 +123,15 @@ export default function AdminBrandingPage() {
     const poll = async () => {
       if (Date.now() > pollStopTime) {
         if (queuePollingRef.current) clearInterval(queuePollingRef.current);
-        // Notify the user that automatic polling has stopped
+        // Notify the user that automatic polling has stopped; offer a resume button
         setImportChecklist((prev) =>
           prev
             ? {
                 ...prev,
+                pollingStopped: true,
                 step2: {
                   ...prev.step2,
-                  detail:
-                    (prev.step2.detail ?? '') +
-                    ' (monitoreo automático detenido — recarga la página para verificar el estado final)',
+                  detail: (prev.step2.detail ?? '') + POLLING_STOPPED_SUFFIX,
                 },
               }
             : prev
@@ -233,9 +238,9 @@ export default function AdminBrandingPage() {
       if (queuePollingRef.current) clearInterval(queuePollingRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    // Intentionally only depend on sessionId and mode to avoid re-registering
-    // the interval every time checklist status fields update.
-  }, [importChecklist?.sessionId, importChecklist?.mode, firestore]);
+    // Intentionally only depend on sessionId, mode, and pollResumeCount to avoid
+    // re-registering the interval every time checklist status fields update.
+  }, [importChecklist?.sessionId, importChecklist?.mode, firestore, pollResumeCount]);
 
   const keysQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -401,6 +406,10 @@ export default function AdminBrandingPage() {
     }
 
     // ── Stream path: HTML URL or plain text ───────────────────────────────
+    // Generate a session identifier for this SSE-stream import so questions can
+    // be traced back to this specific import session (similar to the queue-path
+    // sessionId stored in importJobs, but generated client-side for the stream path).
+    const streamSessionId = crypto.randomUUID();
     try {
       let res: Response;
 
@@ -477,6 +486,7 @@ export default function AdminBrandingPage() {
             case 'start':
               setImportChecklist({
                 mode: 'stream',
+                sessionId: streamSessionId,
                 totalChunks: event.totalChunks,
                 chunksProcessed: 0,
                 totalQuestions: 0,
@@ -492,6 +502,8 @@ export default function AdminBrandingPage() {
                 event.questions.map((q) =>
                   addDoc(collection(firestore, 'questions'), {
                     ...q,
+                    importSessionId: streamSessionId,
+                    sessionId: streamSessionId,
                     createdAt: timestamp,
                     updatedAt: timestamp,
                   })
@@ -675,6 +687,16 @@ export default function AdminBrandingPage() {
   const cancelImport = () => {
     abortControllerRef.current?.abort();
     if (queuePollingRef.current) clearInterval(queuePollingRef.current);
+  };
+
+  const resumePolling = () => {
+    setImportChecklist((prev) => {
+      if (!prev) return prev;
+      // Clear the "detenido" suffix from the detail text
+      const cleanDetail = (prev.step2.detail ?? '').replace(POLLING_STOPPED_SUFFIX, '');
+      return { ...prev, pollingStopped: false, step2: { ...prev.step2, detail: cleanDetail } };
+    });
+    setPollResumeCount((c) => c + 1);
   };
 
   const seedQuestions = async () => {
@@ -1072,7 +1094,17 @@ export default function AdminBrandingPage() {
 
                 {/* Cancel button (only while importing) */}
                 {(isImporting || importChecklist.mode === 'queue') && (
-                  <div className="flex justify-end pt-1">
+                  <div className="flex justify-end gap-2 pt-1">
+                    {importChecklist.pollingStopped && importChecklist.step2.status === 'pending' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={resumePolling}
+                        className="text-xs text-primary border-primary/50 hover:bg-primary/5 h-7"
+                      >
+                        Reanudar monitoreo
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
