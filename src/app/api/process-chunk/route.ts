@@ -69,6 +69,18 @@ export function calculateBackoffMs(attemptCount: number, errorCode: '429' | '503
   return Math.max(0, Math.round(capped + jitter));
 }
 
+/**
+ * Normalises legacy / AI-inferred subjectId aliases to the canonical values
+ * used by the practice page routes (e.g. "social" → "sociales").
+ */
+const SUBJECT_ID_ALIASES: Record<string, string> = {
+  social: 'sociales',
+};
+
+export function normalizeSubjectId(id: string): string {
+  return SUBJECT_ID_ALIASES[id.toLowerCase()] ?? id;
+}
+
 /** Returns a rough similarity ratio between two strings (0..1). */
 function roughSimilarity(a: string, b: string): number {
   if (!a || !b) return 0;
@@ -367,13 +379,13 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // If the job has a subjectId (set at upload time), it takes precedence over
-      // whatever the AI inferred from the content.
-      const subjectId = job.subjectId ?? q.subjectId;
+      const rawSubjectId = job.subjectId ?? q.subjectId;
+      const subjectId = rawSubjectId !== undefined ? normalizeSubjectId(rawSubjectId) : undefined;
       await db.collection('questions').add({
         ...q,
         ...(subjectId !== undefined ? { subjectId } : {}),
         importSessionId: job.sessionId,
+        sessionId: job.sessionId,
         createdAt: timestamp,
         updatedAt: timestamp,
       });

@@ -56,6 +56,18 @@ const CHUNK_SIZE = 8_000;
 const CHUNK_OVERLAP = 1_500;
 
 /**
+ * Normalises legacy / AI-inferred subjectId aliases to the canonical values
+ * used by the practice page routes (e.g. "social" → "sociales").
+ */
+const SUBJECT_ID_ALIASES: Record<string, string> = {
+  social: 'sociales',
+};
+
+function normalizeSubjectId(id: string): string {
+  return SUBJECT_ID_ALIASES[id.toLowerCase()] ?? id;
+}
+
+/**
  * Converts raw HTML to plain text by:
  * 1. Removing all tags and their content for script/style elements.
  * 2. Replacing all remaining HTML tags with spaces.
@@ -261,7 +273,7 @@ export async function POST(req: NextRequest) {
                 questionsFound: 0,
                 createdAt: now,
                 updatedAt: now,
-                ...(subjectId ? { subjectId } : {}),
+                ...(subjectId ? { subjectId: normalizeSubjectId(subjectId) } : {}),
               });
             }
             await batch.commit();
@@ -473,7 +485,7 @@ export async function POST(req: NextRequest) {
         questionsFound: 0,
         createdAt: now,
         updatedAt: now,
-        ...(subjectId ? { subjectId } : {}),
+        ...(subjectId ? { subjectId: normalizeSubjectId(subjectId) } : {}),
       };
 
       if (geminiFileUri) {
