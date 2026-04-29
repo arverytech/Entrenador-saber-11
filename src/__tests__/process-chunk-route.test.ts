@@ -109,7 +109,8 @@ jest.mock('@/lib/firebase-admin', () => ({
 
 // ─── Imports ──────────────────────────────────────────────────────────────────
 import { NextRequest } from 'next/server';
-import { POST, normalizeSubjectId } from '@/app/api/process-chunk/route';
+import { POST } from '@/app/api/process-chunk/route';
+import { normalizeSubjectId } from '@/lib/normalize-subject-id';
 
 // ─── Unit tests: normalizeSubjectId ──────────────────────────────────────────
 describe('normalizeSubjectId', () => {

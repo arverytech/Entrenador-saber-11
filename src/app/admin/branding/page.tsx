@@ -405,7 +405,9 @@ export default function AdminBrandingPage() {
     }
 
     // ── Stream path: HTML URL or plain text ───────────────────────────────
-    // Generate a session identifier so these questions can be traced back to this import.
+    // Generate a session identifier for this SSE-stream import so questions can
+    // be traced back to this specific import session (similar to the queue-path
+    // sessionId stored in importJobs, but generated client-side for the stream path).
     const streamSessionId = crypto.randomUUID();
     try {
       let res: Response;

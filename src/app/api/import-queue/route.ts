@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
 import { uploadPdfToGeminiFilesApi } from '@/ai/gemini-files';
 import { splitPdfIntoChunks } from '@/lib/pdf-splitter';
+import { normalizeSubjectId } from '@/lib/normalize-subject-id';
 
 /**
  * POST /api/import-queue
@@ -54,18 +55,6 @@ const CHUNK_SIZE = 8_000;
  * Worst case (situación with table + 2 questions): ~1400 chars. 1500 provides a safe margin.
  */
 const CHUNK_OVERLAP = 1_500;
-
-/**
- * Normalises legacy / AI-inferred subjectId aliases to the canonical values
- * used by the practice page routes (e.g. "social" → "sociales").
- */
-const SUBJECT_ID_ALIASES: Record<string, string> = {
-  social: 'sociales',
-};
-
-function normalizeSubjectId(id: string): string {
-  return SUBJECT_ID_ALIASES[id.toLowerCase()] ?? id;
-}
 
 /**
  * Converts raw HTML to plain text by:

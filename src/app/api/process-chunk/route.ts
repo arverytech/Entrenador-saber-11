@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
 import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFromGeminiFileUri } from '@/ai/flows/import-questions-from-url-flow';
+import { normalizeSubjectId } from '@/lib/normalize-subject-id';
 
 /**
  * POST /api/process-chunk
@@ -67,18 +68,6 @@ export function calculateBackoffMs(attemptCount: number, errorCode: '429' | '503
   // ±25 % jitter to avoid thundering-herd on simultaneous retries
   const jitter  = capped * 0.25 * (Math.random() * 2 - 1);
   return Math.max(0, Math.round(capped + jitter));
-}
-
-/**
- * Normalises legacy / AI-inferred subjectId aliases to the canonical values
- * used by the practice page routes (e.g. "social" → "sociales").
- */
-const SUBJECT_ID_ALIASES: Record<string, string> = {
-  social: 'sociales',
-};
-
-export function normalizeSubjectId(id: string): string {
-  return SUBJECT_ID_ALIASES[id.toLowerCase()] ?? id;
 }
 
 /** Returns a rough similarity ratio between two strings (0..1). */
