@@ -91,7 +91,9 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
 
       // Save the AI-generated question to Firestore so the bank grows organically.
       if (user && firestore) {
-        const sessionId = `ai_${Date.now()}`;
+        const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `ai_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         addDoc(collection(firestore, 'questions'), {
           text: result.text,
           options: result.options,
