@@ -37,14 +37,17 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     }
   }, [user, isUserLoading, router]);
 
-  // Prefer schemaVersion=2 questions; fall back to all questions for this subject
+  // Prefer schemaVersion=2 questions; fall back to all questions for this subject.
+  // NOTE: Do NOT use `where('deprecated', '!=', true)` – inequality filters on
+  // optional fields require composite indexes and fail when the field is absent,
+  // causing PERMISSION_DENIED errors surfaced by the global FirestorePermissionError
+  // emitter. Deprecated filtering is done client-side below instead.
   const v2QuestionsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
       collection(firestore, 'questions'),
       where('subjectId', '==', currentSubject),
       where('schemaVersion', '==', 2),
-      where('deprecated', '!=', true),
       limit(20),
     );
   }, [firestore, currentSubject]);
@@ -54,7 +57,6 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     return query(
       collection(firestore, 'questions'),
       where('subjectId', '==', currentSubject),
-      where('deprecated', '!=', true),
       limit(20),
     );
   }, [firestore, currentSubject]);
@@ -74,12 +76,16 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
   const [genQuestion, setGenQuestion] = useState<GenerateQuestionOutput | null>(null);
 
   const activeQuestions = useMemo(() => {
+    // Client-side filter: exclude questions explicitly marked as deprecated.
+    // Treat missing `deprecated` field as not-deprecated (safe for legacy docs).
+    const isNotDeprecated = (q: Record<string, unknown>) => q.deprecated !== true;
+
     // Prefer v2 questions when available; fall back to legacy (unversioned) if fewer than 5
-    const v2 = v2Questions ?? [];
+    const v2 = (v2Questions ?? []).filter(isNotDeprecated);
     if (v2.length >= 5) return v2;
     // Merge: v2 first, then legacy ones not already in v2
     const v2Ids = new Set(v2.map((q: Record<string, unknown>) => q.id));
-    const legacy = (legacyQuestions ?? []).filter((q: Record<string, unknown>) => !v2Ids.has(q.id));
+    const legacy = (legacyQuestions ?? []).filter(isNotDeprecated).filter((q: Record<string, unknown>) => !v2Ids.has(q.id));
     return [...v2, ...legacy];
   }, [v2Questions, legacyQuestions]);
 
@@ -141,22 +147,27 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           importSessionId: sessionId,
         });
 
-        // Gradual replacement: mark one older (non-v2) question for the same subject
-        // as deprecated so it gradually disappears from practice.
-        try {
-          const oldQ = await getDocs(
-            query(
-              collection(firestore, 'questions'),
-              where('subjectId', '==', result.subjectId),
-              where('schemaVersion', '!=', 2),
-              limit(1),
-            )
-          );
-          if (!oldQ.empty) {
-            await updateDoc(oldQ.docs[0].ref, { deprecated: true });
+        // NOTE: Gradual-replacement (marking old questions as deprecated) is
+        // intentionally disabled. Re-enable by setting ENABLE_GRADUAL_REPLACEMENT = true
+        // only after confirming all legacy docs have a `deprecated` field, to avoid
+        // schemaVersion != 2 inequality queries that require composite indexes.
+        const ENABLE_GRADUAL_REPLACEMENT = false;
+        if (ENABLE_GRADUAL_REPLACEMENT) {
+          try {
+            const oldQ = await getDocs(
+              query(
+                collection(firestore, 'questions'),
+                where('subjectId', '==', result.subjectId),
+                where('schemaVersion', '!=', 2),
+                limit(1),
+              )
+            );
+            if (!oldQ.empty) {
+              await updateDoc(oldQ.docs[0].ref, { deprecated: true });
+            }
+          } catch {
+            // Non-fatal: best-effort deprecation
           }
-        } catch {
-          // Non-fatal: best-effort deprecation
         }
       }
     } catch (e: unknown) {

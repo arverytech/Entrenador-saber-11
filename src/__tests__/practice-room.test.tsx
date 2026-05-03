@@ -245,4 +245,45 @@ describe('PracticeRoomPage – auto-generation disabled', () => {
     expect(screen.getByText(/no se pudo leer firestore/i)).toBeInTheDocument();
     expect(mockGenerateIcfesQuestion).not.toHaveBeenCalled();
   });
+
+  // ── 9. Questions without `deprecated` field are included ────────────────────
+  it('includes questions that do not have a deprecated field', () => {
+    // Explicitly build an object with no `deprecated` key to simulate legacy docs
+    const questionWithoutDeprecated = {
+      id: 'no_deprecated_field',
+      text: 'Pregunta sin campo deprecated',
+      options: ['A', 'B', 'C', 'D'],
+      correctAnswerIndex: 1,
+      explanation: 'Exp',
+      subjectId: 'sociales',
+      componentId: 'Comp',
+      competencyId: 'Comp',
+      level: 'Básico' as const,
+      pointsAwarded: 50,
+    };
+    expect('deprecated' in questionWithoutDeprecated).toBe(false);
+
+    mockUseCollection.mockReturnValue({ data: [questionWithoutDeprecated], isLoading: false, error: null });
+    renderPage();
+
+    expect(screen.getByText(questionWithoutDeprecated.text)).toBeInTheDocument();
+  });
+
+  // ── 10. Questions with `deprecated: true` are excluded ──────────────────────
+  it('excludes questions with deprecated: true from the active question list', () => {
+    const deprecatedQuestion = { ...DB_QUESTION, id: 'deprecated_q', deprecated: true };
+    const activeQuestion = { ...DB_QUESTION, id: 'active_q', text: 'Pregunta activa no deprecated' };
+
+    mockUseCollection.mockReturnValue({
+      data: [deprecatedQuestion, activeQuestion],
+      isLoading: false,
+      error: null,
+    });
+    renderPage();
+
+    // The deprecated question text must NOT appear
+    expect(screen.queryByText(DB_QUESTION.text)).not.toBeInTheDocument();
+    // The active question text MUST appear
+    expect(screen.getByText(activeQuestion.text)).toBeInTheDocument();
+  });
 });
