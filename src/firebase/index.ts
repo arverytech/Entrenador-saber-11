@@ -29,15 +29,17 @@ function warnIfEnvVarsMissing(): void {
     'NEXT_PUBLIC_FIREBASE_APP_ID',
   ] as const;
 
-  // process.env is inlined at build time by Next.js – check each key explicitly.
-  const presentKeys: string[] = [
-    process.env.NEXT_PUBLIC_FIREBASE_API_KEY ? 'NEXT_PUBLIC_FIREBASE_API_KEY' : '',
-    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ? 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN' : '',
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? 'NEXT_PUBLIC_FIREBASE_PROJECT_ID' : '',
-    process.env.NEXT_PUBLIC_FIREBASE_APP_ID ? 'NEXT_PUBLIC_FIREBASE_APP_ID' : '',
-  ].filter(Boolean);
-
-  const missing = required.filter((v) => !presentKeys.includes(v));
+  // Next.js statically inlines NEXT_PUBLIC_* vars at build time; dynamic bracket
+  // access (e.g. process.env[key]) is NOT substituted.  Each key must be referenced
+  // literally so the bundler can replace it with the actual value.
+  const missing = required.filter((key) => {
+    switch (key) {
+      case 'NEXT_PUBLIC_FIREBASE_API_KEY':      return !process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+      case 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN':  return !process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+      case 'NEXT_PUBLIC_FIREBASE_PROJECT_ID':   return !process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      case 'NEXT_PUBLIC_FIREBASE_APP_ID':       return !process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
+    }
+  });
   if (missing.length > 0) {
     console.warn(
       '[Firebase] Some NEXT_PUBLIC_FIREBASE_* env vars are not set. ' +
