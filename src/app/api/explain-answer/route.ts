@@ -11,6 +11,10 @@ import type { DynamicAnswerExplanationInput } from '@/ai/flows/dynamic-answer-ex
  * that real error messages surface in production (server actions suppress
  * error details for security, resulting in generic "Server Components render"
  * messages on the client).
+ *
+ * 429 / RESOURCE_EXHAUSTED errors are returned with HTTP 429 (not 500) so
+ * the client can surface a helpful "quota exhausted" message rather than a
+ * generic server error.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -27,6 +31,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ explanation: result });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error desconocido';
+    const is429 = /429|RESOURCE_EXHAUSTED|quota/i.test(msg);
+    if (is429) {
+      return NextResponse.json(
+        { error: 'La cuota de la API de IA está agotada. Intenta de nuevo más tarde.' },
+        { status: 429 }
+      );
+    }
     return NextResponse.json(
       { error: `No se pudo generar la explicación. Verifica la API Key de IA (GOOGLE_GENAI_API_KEY). Detalle: ${msg}` },
       { status: 500 }

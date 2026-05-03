@@ -40,7 +40,7 @@ const GenerateQuestionOutputSchema = z.object({
     icfes2026Alignment: z.string().optional().describe('Alineación con marcos de referencia ICFES 2026 (ciudadanía global, pensamiento sistémico, etc.).'),
   }),
   // Representación XML del ítem para trazabilidad y auditoría (compatible con formato DCE)
-  aiXml: z.string().optional().describe('Representación XML del ítem siguiendo la metodología DCE para auditoría.'),
+  aiXml: z.string().describe('Representación XML del ítem siguiendo la metodología DCE para auditoría. OBLIGATORIO.'),
 });
 
 export type GenerateQuestionOutput = z.infer<typeof GenerateQuestionOutputSchema>;
@@ -122,6 +122,45 @@ FORMATO XML PARA EL CAMPO aiXml:
 Responde estrictamente con el esquema JSON proporcionado. El lenguaje del enunciado debe ser idéntico al utilizado en los cuadernillos oficiales del ICFES.`,
 });
 
+/** Minimum thresholds for a non-trivial ICFES question. */
+const MIN_TEXT_LENGTH = 80;       // characters — must have a real stimulus/context
+const MIN_EXPLANATION_LENGTH = 60; // characters — must justify the answer meaningfully
+const MAX_ATTEMPTS = 2;
+
+/**
+ * Validates that a generated question meets the minimum quality criteria
+ * for a Saber 11 ICFES item.  Returns an array of failure reasons (empty
+ * means the question passes).
+ */
+function qualityFailures(output: GenerateQuestionOutput): string[] {
+  const failures: string[] = [];
+
+  if (!output.text || output.text.trim().length < MIN_TEXT_LENGTH) {
+    failures.push(`Enunciado demasiado corto (< ${MIN_TEXT_LENGTH} caracteres)`);
+  }
+
+  const uniqueOptions = new Set((output.options ?? []).map((o) => o.trim().toLowerCase()));
+  if (uniqueOptions.size < 4) {
+    failures.push('Las 4 opciones deben ser únicas y distintas');
+  }
+
+  if (!output.explanation || output.explanation.trim().length < MIN_EXPLANATION_LENGTH) {
+    failures.push(`Justificación demasiado corta (< ${MIN_EXPLANATION_LENGTH} caracteres)`);
+  }
+
+  const evidencePresent = output.metadata?.evidence && output.metadata.evidence.trim().length > 0;
+  const affirmationPresent = output.metadata?.affirmation && output.metadata.affirmation.trim().length > 0;
+  if (!evidencePresent && !affirmationPresent) {
+    failures.push('Falta evidencia y/o afirmación DCE en los metadatos');
+  }
+
+  if (!output.aiXml || output.aiXml.trim().length === 0) {
+    failures.push('Falta aiXml obligatorio');
+  }
+
+  return failures;
+}
+
 const generateQuestionFlow = ai.defineFlow(
   {
     name: 'generateQuestionFlow',
@@ -129,10 +168,28 @@ const generateQuestionFlow = ai.defineFlow(
     outputSchema: GenerateQuestionOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
-    return {
-      ...output!,
-      id: `ai_gen_${Date.now()}`
-    };
+    let lastFailures: string[] = [];
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const { output } = await prompt(input);
+      const candidate = { ...output!, id: `ai_gen_${Date.now()}` };
+
+      lastFailures = qualityFailures(candidate);
+      if (lastFailures.length === 0) {
+        return candidate;
+      }
+
+      if (attempt < MAX_ATTEMPTS - 1) {
+        console.warn(
+          `[generate-question] intento ${attempt + 1} no pasó el quality gate: ${lastFailures.join('; ')} — reintentando…`
+        );
+      }
+    }
+
+    // All attempts exhausted — throw a user-facing error
+    throw new Error(
+      `La IA no pudo generar una pregunta de alta calidad después de ${MAX_ATTEMPTS} intentos. ` +
+      `Criterios no cumplidos: ${lastFailures.join('; ')}.`
+    );
   }
 );

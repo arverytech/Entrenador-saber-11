@@ -1,0 +1,24 @@
+name: Seed Daily Questions
+
+on:
+  schedule:
+    # Run once daily at 06:00 UTC — low Gemini traffic window
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Allow manual trigger from GitHub Actions UI
+
+# Prevent parallel runs to avoid duplicate questions and quota exhaustion
+concurrency:
+  group: seed-daily-questions
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    permissions: {}  # Restrict GITHUB_TOKEN to minimum required permissions
+    steps:
+      - name: Generate up to 4 questions per area
+        run: |
+          curl --fail-with-body -sS -X POST "${{ secrets.VERCEL_APP_URL }}/api/seed-daily-questions" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 300

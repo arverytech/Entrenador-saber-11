@@ -12,7 +12,7 @@ import { AlertCircle, CheckCircle2, BrainCircuit, ArrowRight, Loader2, Wand2, Gr
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, increment, collection, addDoc, serverTimestamp, query, where, limit } from 'firebase/firestore';
+import { doc, increment, collection, addDoc, getDocs, serverTimestamp, query, where, orderBy, limit, updateDoc } from 'firebase/firestore';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
@@ -37,12 +37,32 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     }
   }, [user, isUserLoading, router]);
 
-  const questionsQuery = useMemoFirebase(() => {
+  // Prefer schemaVersion=2 questions; fall back to all questions for this subject
+  const v2QuestionsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'questions'), where('subjectId', '==', currentSubject), limit(20));
+    return query(
+      collection(firestore, 'questions'),
+      where('subjectId', '==', currentSubject),
+      where('schemaVersion', '==', 2),
+      where('deprecated', '!=', true),
+      limit(20),
+    );
   }, [firestore, currentSubject]);
 
-  const { data: dbQuestions, isLoading: isDbLoading, error: dbError } = useCollection(questionsQuery);
+  const legacyQuestionsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(
+      collection(firestore, 'questions'),
+      where('subjectId', '==', currentSubject),
+      where('deprecated', '!=', true),
+      limit(20),
+    );
+  }, [firestore, currentSubject]);
+
+  const { data: v2Questions, isLoading: isV2Loading } = useCollection(v2QuestionsQuery);
+  const { data: legacyQuestions, isLoading: isLegacyLoading, error: dbError } = useCollection(legacyQuestionsQuery);
+
+  const isDbLoading = isV2Loading || isLegacyLoading;
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -54,8 +74,14 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
   const [genQuestion, setGenQuestion] = useState<GenerateQuestionOutput | null>(null);
 
   const activeQuestions = useMemo(() => {
-    return dbQuestions || [];
-  }, [dbQuestions]);
+    // Prefer v2 questions when available; fall back to legacy (unversioned) if fewer than 5
+    const v2 = v2Questions ?? [];
+    if (v2.length >= 5) return v2;
+    // Merge: v2 first, then legacy ones not already in v2
+    const v2Ids = new Set(v2.map((q: Record<string, unknown>) => q.id));
+    const legacy = (legacyQuestions ?? []).filter((q: Record<string, unknown>) => !v2Ids.has(q.id));
+    return [...v2, ...legacy];
+  }, [v2Questions, legacyQuestions]);
 
   const currentQ = useMemo(() => {
     if (genQuestion) return genQuestion;
@@ -94,7 +120,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
         const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
           ? crypto.randomUUID()
           : `ai_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        addDoc(collection(firestore, 'questions'), {
+        await addDoc(collection(firestore, 'questions'), {
           text: result.text,
           options: result.options,
           correctAnswerIndex: result.correctAnswerIndex,
@@ -105,13 +131,33 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           level: result.level,
           pointsAwarded: result.pointsAwarded,
           ...(result.svgData ? { svgData: result.svgData } : {}),
+          ...(result.aiXml ? { aiXml: result.aiXml } : {}),
           metadata: result.metadata,
-          source: 'ai-generated',
+          schemaVersion: 2,
+          source: 'icfes_ai_v2',
           importedAt: serverTimestamp(),
           importedBy: user.uid,
           sessionId,
           importSessionId: sessionId,
         });
+
+        // Gradual replacement: mark one older (non-v2) question for the same subject
+        // as deprecated so it gradually disappears from practice.
+        try {
+          const oldQ = await getDocs(
+            query(
+              collection(firestore, 'questions'),
+              where('subjectId', '==', result.subjectId),
+              where('schemaVersion', '!=', 2),
+              limit(1),
+            )
+          );
+          if (!oldQ.empty) {
+            await updateDoc(oldQ.docs[0].ref, { deprecated: true });
+          }
+        } catch {
+          // Non-fatal: best-effort deprecation
+        }
       }
     } catch (e: unknown) {
       const rawMsg = e instanceof Error ? e.message : 'Error desconocido';
@@ -178,9 +224,14 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           subject: currentSubject,
           component: currentQ.componentId || 'General',
           competency: currentQ.competencyId || 'Razonamiento',
+          ...(currentQ.aiXml ? { aiXml: currentQ.aiXml } : {}),
         }),
       });
       const data = await res.json();
+      if (res.status === 429) {
+        toast({ variant: 'destructive', title: 'Cuota de IA agotada', description: 'La explicación no está disponible ahora. Intenta de nuevo más tarde.' });
+        return;
+      }
       if (!res.ok) {
         throw new Error(data.error || `Error del servidor: ${res.status}`);
       }

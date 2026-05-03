@@ -30,6 +30,8 @@ const ExtractedQuestionSchema = z.object({
   level: z.enum(['Básico', 'Medio', 'Avanzado']).describe('Nivel de dificultad.'),
   pointsAwarded: z.number().default(50),
   svgData: z.string().optional().describe('Código SVG completo (sin etiqueta XML) si la pregunta requiere una figura, gráfica, mapa, tabla o diagrama. Omitir si no aplica.'),
+  // Minimal XML representation — populated by the import pipeline (no extra AI call needed)
+  aiXml: z.string().optional().describe('Representación XML mínima del ítem para trazabilidad.'),
 });
 
 const ImportQuestionsOutputSchema = z.object({

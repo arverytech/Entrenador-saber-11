@@ -18,6 +18,8 @@ const DynamicAnswerExplanationInputSchema = z.object({
   subject: z.string().describe('Asignatura.'),
   component: z.string().describe('Componente evaluado.'),
   competency: z.string().describe('Competencia evaluada.'),
+  // Optional aiXml from the question — used to ground the explanation in DCE metadata
+  aiXml: z.string().optional().describe('Representación XML DCE del ítem (si está disponible).'),
 });
 
 export type DynamicAnswerExplanationInput = z.infer<typeof DynamicAnswerExplanationInputSchema>;
@@ -53,27 +55,35 @@ const prompt = ai.definePrompt({
   name: 'dynamicAnswerExplanationPrompt',
   input: { schema: DynamicAnswerExplanationInputSchema },
   output: { schema: DynamicAnswerExplanationOutputSchema },
-  prompt: `Eres un experto pedagogo del ICFES. Tu misión es generar una explicación maestra dividida en 3 fases para la siguiente pregunta:
+  prompt: `Eres el Maestro IA del entrenador Saber 11. Generas explicaciones pedagógicas profundas, no triviales, con el rigor de un experto evaluador ICFES 2026.
+{{#if aiXml}}
+Tienes acceso al XML DCE del ítem:
+<aiXml>
+{{{aiXml}}}
+</aiXml>
+Usa la <afirmacion>, <evidencia> y <competencia> de ese XML para enriquecer las tres diapositivas.
+{{/if}}
 
 Pregunta: {{{question}}}
-Opciones: {{#each options}}- {{{this}}} {{/each}}
+Opciones: {{#each options}}- {{{this}}}
+{{/each}}
 Respuesta Correcta: {{{correctAnswer}}}
 Respuesta del Estudiante: {{{userAnswer}}}
-Asignatura: {{{subject}}}
-Componente: {{{component}}}
-Competencia: {{{competency}}}
+Asignatura: {{{subject}}} | Componente: {{{component}}} | Competencia: {{{competency}}}
 
-ESTRUCTURA OBLIGATORIA (Sé conciso para evitar timeouts):
+ESTRUCTURA OBLIGATORIA — sé técnico, profundo y conciso (evita frases genéricas):
 
-DIAPOSITIVA 1: PLANTEAMIENTO
-- Define si es "Adaptada del ICFES" o "Original".
-- Resume qué se está evaluando técnicamente.
+DIAPOSITIVA 1 — PLANTEAMIENTO (contextSummary):
+- Clasifica el ítem: "Adaptada del ICFES" u "Original inspirada en el estilo ICFES".
+- Resume en 2–3 oraciones técnicas QUÉ competencia se evalúa y POR QUÉ es relevante en Saber 11.
+- Si hay aiXml disponible, cita la afirmación y la evidencia DCE.
 
-DIAPOSITIVA 2: SOLUCIÓN
-- Explica la respuesta correcta con desarrollo paso a paso.
+DIAPOSITIVA 2 — SOLUCIÓN (stepByStep + pedagogicalConclusion):
+- Desarrolla la solución en pasos numerados (mínimo 3 pasos).  Cada paso debe incluir el razonamiento, no solo el resultado.
+- El campo pedagogicalConclusion debe resumir el principio o ley que sustenta la respuesta correcta.
 
-DIAPOSITIVA 3: ANÁLISIS DE ERRORES
-- Analiza por qué las otras opciones NO son correctas basándote en errores comunes.
+DIAPOSITIVA 3 — ANÁLISIS DE ERRORES (distractors):
+- Para CADA opción incorrecta indica: el errorType (nombre del error cognitivo o conceptual) y la explanation (mínimo 1 oración que explique por qué un estudiante podría elegirla y por qué está mal).
 
 Genera la respuesta siguiendo estrictamente el esquema JSON proporcionado.`,
 });
