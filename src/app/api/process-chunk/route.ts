@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
 import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFromGeminiFileUri } from '@/ai/flows/import-questions-from-url-flow';
 import { normalizeSubjectId } from '@/lib/normalize-subject-id';
+import { generateMinimalAiXml } from '@/lib/minimal-ai-xml';
 
 /**
  * POST /api/process-chunk
@@ -370,9 +371,28 @@ export async function POST(req: NextRequest) {
     try {
       const rawSubjectId = job.subjectId ?? q.subjectId;
       const subjectId = rawSubjectId !== undefined ? normalizeSubjectId(rawSubjectId) : undefined;
+
+      // P2 policy: ensure every imported question has a minimal aiXml representation
+      // (derived from already-extracted fields — no extra AI call required).
+      const aiXml = typeof q.aiXml === 'string' && q.aiXml.trim()
+        ? q.aiXml
+        : generateMinimalAiXml({
+            subjectId: subjectId ?? (typeof q.subjectId === 'string' ? q.subjectId : undefined),
+            componentId: typeof q.componentId === 'string' ? q.componentId : undefined,
+            competencyId: typeof q.competencyId === 'string' ? q.competencyId : undefined,
+            level: typeof q.level === 'string' ? q.level : undefined,
+            text: typeof q.text === 'string' ? q.text : undefined,
+            options: Array.isArray(q.options) ? q.options as string[] : undefined,
+            correctAnswerIndex: typeof q.correctAnswerIndex === 'number' ? q.correctAnswerIndex : undefined,
+            explanation: typeof q.explanation === 'string' ? q.explanation : undefined,
+          });
+
       await db.collection('questions').add({
         ...q,
         ...(subjectId !== undefined ? { subjectId } : {}),
+        aiXml,
+        schemaVersion: 2,
+        source: 'pdf_import_v2',
         importSessionId: job.sessionId,
         sessionId: job.sessionId,
         createdAt: timestamp,
