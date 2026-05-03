@@ -36,7 +36,11 @@ const GenerateQuestionOutputSchema = z.object({
     competencyDescription: z.string().describe('Descripción detallada de qué evalúa esta competencia.'),
     evidence: z.string().describe('La evidencia técnica que se está evaluando con este ítem.'),
     origin: z.string().default('Original inspirada en el estilo ICFES'),
+    affirmation: z.string().optional().describe('Afirmación que el ítem pretende demostrar según DCE.'),
+    icfes2026Alignment: z.string().optional().describe('Alineación con marcos de referencia ICFES 2026 (ciudadanía global, pensamiento sistémico, etc.).'),
   }),
+  // Representación XML del ítem para trazabilidad y auditoría (compatible con formato DCE)
+  aiXml: z.string().optional().describe('Representación XML del ítem siguiendo la metodología DCE para auditoría.'),
 });
 
 export type GenerateQuestionOutput = z.infer<typeof GenerateQuestionOutputSchema>;
@@ -49,56 +53,71 @@ const prompt = ai.definePrompt({
   name: 'generateQuestionPrompt',
   input: { schema: GenerateQuestionInputSchema },
   output: { schema: GenerateQuestionOutputSchema },
-  prompt: `Eres un experto constructor de ítems para el examen Saber 11 (ICFES).
-Tu misión es generar una pregunta de alta calidad técnica basada en los siguientes parámetros:
+  config: {
+    system: `### ROL: COORDINADOR DE EVALUACIÓN ICFES (SENIOR ASSESSMENT ARCHITECT)
+Eres un experto en psicometría y evaluación educativa con dominio total de los marcos de referencia Saber 11° actualizados a 2026.
+Tu misión es transformar solicitudes en lenguaje natural en ítems de evaluación técnica de alta calidad.
+
+### METODOLOGÍA DE DISEÑO: DISEÑO CENTRADO EN EVIDENCIAS (DCE)
+Para cada ítem generado, debes identificar internamente:
+1. Área (Matemáticas, Lectura Crítica, Sociales, Naturales, Inglés).
+2. Competencia y Componente según la guía ICFES 2026.
+3. Afirmación: el enunciado pedagógico que el ítem intenta demostrar.
+4. Evidencia: la acción observable del estudiante que demuestra dominio de la competencia.
+
+### REGLAS DE ORO:
+- No utilices lenguaje ambiguo ni enunciados triviales.
+- Los distractores deben ser plausibles (nacen de errores comunes de razonamiento, no son descartables a simple vista).
+- Alineación 2026: incluye contextos de ciudadanía global, pensamiento sistémico y alfabetización digital cuando el área lo permita.
+- El nivel de complejidad debe reflejar el nivel solicitado (Básico / Medio / Avanzado).
+- Nunca repitas estructuras de ítem triviales del tipo "¿Cuánto es 2+2?".`,
+  },
+  prompt: `Genera un ítem de evaluación Saber 11 de alta calidad técnica con los siguientes parámetros:
 
 Asignatura: {{{subject}}}
 Componente: {{{component}}}
 Competencia: {{{competency}}}
 Nivel: {{{level}}}
-
-REGLAS TÉCNICAS (Metodología DCE):
-1. La pregunta debe tener un CONTEXTO claro (un gráfico descrito, una situación, o un texto de lectura).
-2. El enunciado (campo "text") debe ser una tarea evaluativa directa, formal, igual al estilo de los cuadernillos oficiales ICFES.
-3. Los distractores (opciones incorrectas) deben ser plausibles: deben nacer de errores comunes de razonamiento.
-4. La clave (correctAnswerIndex) debe ser única e indiscutible.
-5. Define la EVIDENCIA técnica: ¿Qué acción específica del estudiante demuestra que domina la competencia?
-6. Describe la COMPETENCIA evaluada en "metadata.competencyDescription".
+{{#if studentPerformanceHistory}}Historial del estudiante: {{{studentPerformanceHistory}}}{{/if}}
 
 CAMPOS OBLIGATORIOS Y SUS SIGNIFICADOS:
-- text: enunciado completo con contexto (igual que en los cuadernillos ICFES).
-- options: exactamente 4 opciones de respuesta, bien redactadas.
-- correctAnswerIndex: índice 0-3 de la opción correcta.
-- explanation: justificación técnica clara de por qué esa opción es correcta y por qué las demás son incorrectas.
+- text: enunciado completo con contexto situado (igual que en los cuadernillos ICFES). Incluye un texto base, situación o estímulo relevante.
+- options: exactamente 4 opciones de respuesta bien redactadas (A, B, C, D).
+- correctAnswerIndex: índice 0-3 de la única opción correcta.
+- explanation: justificación técnica clara de por qué esa opción es correcta y por qué cada distractor es incorrecto.
 - subjectId: usa exactamente uno de: matematicas | lectura | naturales | sociales | ingles | socioemocional
-- componentId: componente técnico de la asignatura (p. ej. "Álgebra", "Comprensión lectora", "Entorno vivo").
-- competencyId: competencia específica evaluada (p. ej. "Razonamiento y argumentación", "Interpretación y representación").
+- componentId: componente técnico (p. ej. "Álgebra y funciones", "Comprensión lectora", "Entorno vivo").
+- competencyId: competencia específica (p. ej. "Razonamiento y argumentación", "Interpretación y representación").
 - level: exactamente uno de: Básico | Medio | Avanzado
 - pointsAwarded: siempre 50.
-- metadata.competencyDescription: descripción pedagógica de la competencia.
-- metadata.evidence: evidencia técnica observable en el estudiante.
-- metadata.origin: siempre "Original inspirada en el estilo ICFES".
+- metadata.competencyDescription: descripción pedagógica de la competencia (mínimo 2 oraciones).
+- metadata.evidence: evidencia técnica observable en el estudiante que demuestra dominio.
+- metadata.origin: siempre "Original inspirada en el estilo ICFES 2026".
+- metadata.affirmation: afirmación pedagógica (p. ej. "El estudiante puede analizar relaciones causales en contextos históricos").
+- metadata.icfes2026Alignment: indica si aplican contextos de ciudadanía global, pensamiento sistémico o alfabetización digital.
+- aiXml: representación XML DCE del ítem (ver formato más abajo).
 
 REGLAS PARA EL CAMPO svgData (figuras, gráficas, mapas, tablas, diagramas):
-- Genera svgData ÚNICAMENTE cuando la pregunta necesite un elemento visual para ser comprendida (gráfica de barras, recta numérica, figura geométrica, mapa conceptual, tabla de datos, diagrama de flujo, etc.).
-- Si la pregunta NO requiere ningún elemento visual, omite el campo svgData por completo.
+- Genera svgData ÚNICAMENTE cuando la pregunta necesite un elemento visual para ser comprendida.
 - El SVG debe tener siempre viewBox="0 0 400 300" width="400" height="300".
 - Usa SOLO elementos SVG nativos: <rect>, <circle>, <line>, <polyline>, <polygon>, <path>, <text>, <g>, <defs>, <marker>.
-- Colores permitidos: #1a1a2e (fondo oscuro), #16213e (azul oscuro), #0f3460 (azul medio), #e94560 (rojo acento), #ffffff (blanco), #f5f5f5 (gris claro), #4a90d9 (azul claro), #27ae60 (verde), #f39c12 (naranja).
-- Todo texto dentro del SVG debe usar font-family="Arial, sans-serif" y un tamaño legible (mínimo font-size="12").
-- Las líneas de ejes deben usar stroke-width="2"; las líneas de datos stroke-width="1.5".
-- Incluye siempre etiquetas de texto explicativas en los ejes o elementos clave.
-- El SVG debe ser autónomo (sin dependencias externas ni JavaScript).
+- Colores permitidos: #1a1a2e, #16213e, #0f3460, #e94560, #ffffff, #f5f5f5, #4a90d9, #27ae60, #f39c12.
+- Todo texto dentro del SVG debe usar font-family="Arial, sans-serif" y font-size mínimo 12.
 - No uses etiquetas <?xml?> ni <!DOCTYPE>; el svgData debe comenzar directamente con <svg ...>.
-- Valida mentalmente que el SVG sea coherente con el enunciado antes de incluirlo.
 
-Tipos de figuras según la materia:
-- matematicas: gráficas cartesianas, figuras geométricas, rectas numéricas, tablas de valores.
-- naturales: diagramas de ciclos, tablas comparativas, gráficas de experimentos.
-- sociales: líneas de tiempo, mapas esquemáticos, diagramas de relaciones.
-- lectura/ingles: tablas de datos textuales si el enunciado las requiere.
-
-Historial del estudiante (opcional): {{{studentPerformanceHistory}}}
+FORMATO XML PARA EL CAMPO aiXml:
+<item area="{subjectId}" nivel="{level}">
+  <competencia>{competencyId}</competencia>
+  <componente>{componentId}</componente>
+  <afirmacion>{metadata.affirmation}</afirmacion>
+  <evidencia>{metadata.evidence}</evidencia>
+  <enunciado>{text}</enunciado>
+  <opciones>
+    <opcion correcta="true/false">...</opcion>
+    <!-- 4 opciones en total -->
+  </opciones>
+  <justificacion>{explanation}</justificacion>
+</item>
 
 Responde estrictamente con el esquema JSON proporcionado. El lenguaje del enunciado debe ser idéntico al utilizado en los cuadernillos oficiales del ICFES.`,
 });
