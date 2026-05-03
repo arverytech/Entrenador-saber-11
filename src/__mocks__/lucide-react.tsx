@@ -40,3 +40,4 @@ export const AlertTriangle = MockIcon;
 export const Ticket = MockIcon;
 export const KeySquare = MockIcon;
 export const LogIn = MockIcon;
+export const BookX = MockIcon;
