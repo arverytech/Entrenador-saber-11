@@ -23,6 +23,22 @@ const MAX_V2_QUESTIONS_PER_SUBJECT = 120;
 /** Questions to generate per area per daily run. */
 const QUESTIONS_PER_AREA = 4;
 
+/**
+ * Returns 'A' for an even UTC day-of-month, 'B' for an odd one.
+ * Exported for testability.
+ *
+ * Day A areas: matematicas, lectura, naturales
+ * Day B areas: sociales, ingles
+ */
+export function getRotationDay(now: Date = new Date()): 'A' | 'B' {
+  return now.getUTCDate() % 2 === 0 ? 'A' : 'B';
+}
+
+const ROTATION: Record<'A' | 'B', string[]> = {
+  A: ['matematicas', 'lectura', 'naturales'],
+  B: ['sociales', 'ingles'],
+};
+
 const AREAS: Array<{
   subjectId: string;
   subject: string;
@@ -82,7 +98,16 @@ export async function POST(req: NextRequest) {
   const results: Record<string, { generated: number; skipped?: boolean; reason?: string }> = {};
   let quotaExhausted = false;
 
+  // Determine today's rotation group and only seed those areas.
+  const todayAreas = new Set(ROTATION[getRotationDay()]);
+
   for (const area of AREAS) {
+    // Skip areas not scheduled for today's rotation slot.
+    if (!todayAreas.has(area.subjectId)) {
+      results[area.subjectId] = { generated: 0, skipped: true, reason: 'rotated_out_today' };
+      continue;
+    }
+
     if (quotaExhausted) {
       results[area.subjectId] = { generated: 0, skipped: true, reason: 'quota_exhausted_earlier' };
       continue;

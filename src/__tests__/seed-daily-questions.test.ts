@@ -49,7 +49,7 @@ jest.mock('@/lib/normalize-subject-id', () => ({
 
 // ─── Imports ──────────────────────────────────────────────────────────────────
 import { NextRequest } from 'next/server';
-import { POST } from '@/app/api/seed-daily-questions/route';
+import { POST, getRotationDay } from '@/app/api/seed-daily-questions/route';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -89,6 +89,9 @@ describe('POST /api/seed-daily-questions', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Pin to Day A: 2026-05-04 UTC (UTC day = 4, even → Day A: matematicas, lectura, naturales)
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-04T12:00:00Z'));
     // Default: count returns 0 (well below 120)
     mockQuestionsCollection.get.mockResolvedValue(makeCountSnap(0));
     mockQuestionsCollection.where.mockReturnThis();
@@ -98,6 +101,7 @@ describe('POST /api/seed-daily-questions', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     if (ORIGINAL_CRON_SECRET === undefined) {
       delete process.env.CRON_SECRET;
     } else {
@@ -141,13 +145,17 @@ describe('POST /api/seed-daily-questions', () => {
     expect(mockGenerateIcfesQuestion).not.toHaveBeenCalled();
     expect(mockQuestionsAdd).not.toHaveBeenCalled();
 
-    // All areas should report skipped with reason limit_reached
-    for (const area of ['matematicas', 'lectura', 'naturales', 'sociales', 'ingles']) {
+    // Day A areas (pinned date) should report limit_reached
+    for (const area of ['matematicas', 'lectura', 'naturales']) {
       expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'limit_reached' });
+    }
+    // Day B areas are not scheduled today
+    for (const area of ['sociales', 'ingles']) {
+      expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'rotated_out_today' });
     }
   });
 
-  it('generates up to 4 questions per area', async () => {
+  it('generates up to 4 questions per area (Day A: matematicas, lectura, naturales)', async () => {
     delete process.env.CRON_SECRET;
 
     const res = await POST(makeRequest());
@@ -155,11 +163,15 @@ describe('POST /api/seed-daily-questions', () => {
     expect(res.status).toBe(200);
     expect(body.status).toBe('done');
 
-    // 5 areas × 4 questions = 20 saves
-    expect(mockQuestionsAdd).toHaveBeenCalledTimes(20);
+    // Day A: 3 areas × 4 questions = 12 saves
+    expect(mockQuestionsAdd).toHaveBeenCalledTimes(12);
 
-    for (const area of ['matematicas', 'lectura', 'naturales', 'sociales', 'ingles']) {
+    for (const area of ['matematicas', 'lectura', 'naturales']) {
       expect(body.results[area]).toMatchObject({ generated: 4 });
+    }
+    // Day B areas are not scheduled today
+    for (const area of ['sociales', 'ingles']) {
+      expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'rotated_out_today' });
     }
   });
 
@@ -208,5 +220,90 @@ describe('POST /api/seed-daily-questions', () => {
 
     // Only 1 question was saved (the first successful call)
     expect(mockQuestionsAdd).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── Rotation unit tests ──────────────────────────────────────────────────────
+
+describe('getRotationDay', () => {
+  it('returns "A" for an even UTC day-of-month', () => {
+    expect(getRotationDay(new Date('2026-05-04T00:00:00Z'))).toBe('A'); // day 4
+    expect(getRotationDay(new Date('2026-05-06T23:59:59Z'))).toBe('A'); // day 6
+  });
+
+  it('returns "B" for an odd UTC day-of-month', () => {
+    expect(getRotationDay(new Date('2026-05-05T00:00:00Z'))).toBe('B'); // day 5
+    expect(getRotationDay(new Date('2026-05-07T12:00:00Z'))).toBe('B'); // day 7
+  });
+});
+
+describe('POST /api/seed-daily-questions – rotation', () => {
+  const ORIGINAL_CRON_SECRET = process.env.CRON_SECRET;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockQuestionsCollection.get.mockResolvedValue(makeCountSnap(0));
+    mockQuestionsCollection.where.mockReturnThis();
+    mockQuestionsCollection.count.mockReturnThis();
+    mockQuestionsAdd.mockResolvedValue({ id: 'q-id' });
+    mockGenerateIcfesQuestion.mockResolvedValue(GOOD_QUESTION);
+    delete process.env.CRON_SECRET;
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    if (ORIGINAL_CRON_SECRET === undefined) {
+      delete process.env.CRON_SECRET;
+    } else {
+      process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
+    }
+  });
+
+  it('Day A (even UTC day): seeds matematicas, lectura, naturales; skips sociales and ingles', async () => {
+    // 2026-05-04: UTC day = 4 (even) → Day A
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-04T06:00:00Z'));
+
+    const res = await POST(makeRequest());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('done');
+
+    // Only Day A areas should have been generated
+    for (const area of ['matematicas', 'lectura', 'naturales']) {
+      expect(body.results[area]).toMatchObject({ generated: 4 });
+    }
+    // Day B areas must be skipped with the rotation reason
+    for (const area of ['sociales', 'ingles']) {
+      expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'rotated_out_today' });
+    }
+
+    // 3 areas × 4 questions = 12 total saves
+    expect(mockQuestionsAdd).toHaveBeenCalledTimes(12);
+  });
+
+  it('Day B (odd UTC day): seeds sociales and ingles; skips matematicas, lectura, naturales', async () => {
+    // 2026-05-05: UTC day = 5 (odd) → Day B
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-05T06:00:00Z'));
+
+    const res = await POST(makeRequest());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.status).toBe('done');
+
+    // Only Day B areas should have been generated
+    for (const area of ['sociales', 'ingles']) {
+      expect(body.results[area]).toMatchObject({ generated: 4 });
+    }
+    // Day A areas must be skipped with the rotation reason
+    for (const area of ['matematicas', 'lectura', 'naturales']) {
+      expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'rotated_out_today' });
+    }
+
+    // 2 areas × 4 questions = 8 total saves
+    expect(mockQuestionsAdd).toHaveBeenCalledTimes(8);
   });
 });
