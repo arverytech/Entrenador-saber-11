@@ -13,6 +13,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { doc, increment, collection, addDoc, getDocs, serverTimestamp, query, where, orderBy, limit, updateDoc } from 'firebase/firestore';
+
+/**
+ * When true, a newly AI-generated v2 question will trigger a best-effort
+ * deprecation write on one older non-v2 question ("gradual replacement").
+ * Kept OFF by default to avoid extra reads/writes and reduce failure modes.
+ */
+const ENABLE_GRADUAL_REPLACEMENT = false;
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
@@ -37,14 +44,15 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     }
   }, [user, isUserLoading, router]);
 
-  // Prefer schemaVersion=2 questions; fall back to all questions for this subject
+  // Prefer schemaVersion=2 questions; fall back to all questions for this subject.
+  // Note: deprecated filtering is done client-side (see activeQuestions below)
+  // to avoid Firestore inequality queries on the deprecated field.
   const v2QuestionsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
       collection(firestore, 'questions'),
       where('subjectId', '==', currentSubject),
       where('schemaVersion', '==', 2),
-      where('deprecated', '!=', true),
       limit(20),
     );
   }, [firestore, currentSubject]);
@@ -54,7 +62,6 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     return query(
       collection(firestore, 'questions'),
       where('subjectId', '==', currentSubject),
-      where('deprecated', '!=', true),
       limit(20),
     );
   }, [firestore, currentSubject]);
@@ -74,12 +81,18 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
   const [genQuestion, setGenQuestion] = useState<GenerateQuestionOutput | null>(null);
 
   const activeQuestions = useMemo(() => {
+    // Client-side deprecated filter: exclude questions where deprecated === true.
+    // Missing/undefined deprecated is treated as not deprecated.
+    const notDeprecated = (q: Record<string, unknown>) => q.deprecated !== true;
+
     // Prefer v2 questions when available; fall back to legacy (unversioned) if fewer than 5
-    const v2 = v2Questions ?? [];
+    const v2 = (v2Questions ?? []).filter(notDeprecated);
     if (v2.length >= 5) return v2;
     // Merge: v2 first, then legacy ones not already in v2
     const v2Ids = new Set(v2.map((q: Record<string, unknown>) => q.id));
-    const legacy = (legacyQuestions ?? []).filter((q: Record<string, unknown>) => !v2Ids.has(q.id));
+    const legacy = (legacyQuestions ?? []).filter(
+      (q: Record<string, unknown>) => !v2Ids.has(q.id) && notDeprecated(q),
+    );
     return [...v2, ...legacy];
   }, [v2Questions, legacyQuestions]);
 
@@ -143,6 +156,9 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
 
         // Gradual replacement: mark one older (non-v2) question for the same subject
         // as deprecated so it gradually disappears from practice.
+        // Disabled by default (ENABLE_GRADUAL_REPLACEMENT = false) to avoid extra
+        // reads/writes and reduce failure modes.
+        if (ENABLE_GRADUAL_REPLACEMENT) {
         try {
           const oldQ = await getDocs(
             query(
@@ -157,6 +173,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           }
         } catch {
           // Non-fatal: best-effort deprecation
+        }
         }
       }
     } catch (e: unknown) {

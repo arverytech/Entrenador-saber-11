@@ -245,4 +245,27 @@ describe('PracticeRoomPage – auto-generation disabled', () => {
     expect(screen.getByText(/no se pudo leer firestore/i)).toBeInTheDocument();
     expect(mockGenerateIcfesQuestion).not.toHaveBeenCalled();
   });
+
+  // ── 9. Deprecated filtering: question without deprecated field is included ──
+  it('shows a question that has no deprecated field (treated as not deprecated)', () => {
+    const nonDeprecatedQ = { ...DB_QUESTION, id: 'non-dep-1' };
+    // No deprecated field at all
+    mockUseCollection.mockReturnValue({ data: [nonDeprecatedQ], isLoading: false, error: null });
+    renderPage();
+
+    expect(screen.getByText(nonDeprecatedQ.text)).toBeInTheDocument();
+    expect(mockGenerateIcfesQuestion).not.toHaveBeenCalled();
+  });
+
+  // ── 10. Deprecated filtering: question with deprecated: true is excluded ────
+  it('excludes a question with deprecated: true and shows the empty state', () => {
+    const deprecatedQ = { ...DB_QUESTION, id: 'dep-1', deprecated: true };
+    mockUseCollection.mockReturnValue({ data: [deprecatedQ], isLoading: false, error: null });
+    renderPage();
+
+    // The deprecated question must not appear
+    expect(screen.queryByText(DB_QUESTION.text)).not.toBeInTheDocument();
+    // Empty state should be shown instead
+    expect(screen.getByText(/banco vacío/i)).toBeInTheDocument();
+  });
 });
