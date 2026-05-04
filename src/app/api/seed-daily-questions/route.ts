@@ -29,6 +29,11 @@ const QUESTIONS_PER_AREA = 4;
  *
  * Day A areas: matematicas, lectura, naturales
  * Day B areas: sociales, ingles
+ *
+ * Note: at month boundaries (e.g. day 30 → day 1 of next month) the parity can
+ * repeat (even → odd or even → even) depending on the month length. This is an
+ * acceptable trade-off for a simple quota-reduction rotation; no subject will
+ * ever be starved for more than two consecutive days.
  */
 export function getRotationDay(now: Date = new Date()): 'A' | 'B' {
   return now.getUTCDate() % 2 === 0 ? 'A' : 'B';
