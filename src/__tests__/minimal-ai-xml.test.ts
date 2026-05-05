@@ -24,16 +24,16 @@ describe('generateMinimalAiXml', () => {
     expect(xml.trim().length).toBeGreaterThan(0);
   });
 
-  it('starts with <item and ends with </item>', () => {
+  it('starts with <item_icfes and ends with </item_icfes>', () => {
     const xml = generateMinimalAiXml(baseQuestion);
-    expect(xml.trim().startsWith('<item')).toBe(true);
-    expect(xml.trim().endsWith('</item>')).toBe(true);
+    expect(xml.trim().startsWith('<item_icfes')).toBe(true);
+    expect(xml.trim().endsWith('</item_icfes>')).toBe(true);
   });
 
-  it('includes area and nivel attributes', () => {
+  it('includes area and dificultad_esperada elements', () => {
     const xml = generateMinimalAiXml(baseQuestion);
-    expect(xml).toContain('area="matematicas"');
-    expect(xml).toContain('nivel="Medio"');
+    expect(xml).toContain('<area>matematicas</area>');
+    expect(xml).toContain('<dificultad_esperada>Medio</dificultad_esperada>');
   });
 
   it('marks only the correct option with correcta="true"', () => {
@@ -43,7 +43,7 @@ describe('generateMinimalAiXml', () => {
     expect(trueMatches).toBe(1);
     expect(falseMatches).toBe(3);
     // The correct option text appears with correcta="true"
-    expect(xml).toContain('<opcion correcta="true">11</opcion>');
+    expect(xml).toContain('correcta="true">11</opcion>');
   });
 
   it('includes all 4 option texts', () => {
@@ -53,12 +53,12 @@ describe('generateMinimalAiXml', () => {
     }
   });
 
-  it('includes enunciado, justificacion, competencia, componente elements', () => {
+  it('includes enunciado, justificacion_pedagogica, competencia, componente elements', () => {
     const xml = generateMinimalAiXml(baseQuestion);
     expect(xml).toContain('<enunciado>');
     expect(xml).toContain('</enunciado>');
-    expect(xml).toContain('<justificacion>');
-    expect(xml).toContain('</justificacion>');
+    expect(xml).toContain('<justificacion_pedagogica>');
+    expect(xml).toContain('</justificacion_pedagogica>');
     expect(xml).toContain('<competencia>Razonamiento</competencia>');
     expect(xml).toContain('<componente>Álgebra</componente>');
   });
@@ -91,8 +91,8 @@ describe('generateMinimalAiXml', () => {
 
   it('handles missing optional fields gracefully', () => {
     const xml = generateMinimalAiXml({});
-    expect(xml.trim().startsWith('<item')).toBe(true);
-    expect(xml.trim().endsWith('</item>')).toBe(true);
+    expect(xml.trim().startsWith('<item_icfes')).toBe(true);
+    expect(xml.trim().endsWith('</item_icfes>')).toBe(true);
     // No options → no <opcion correcta> elements
     expect(xml).not.toContain('correcta=');
   });

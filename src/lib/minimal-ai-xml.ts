@@ -34,6 +34,8 @@ function escapeXml(value: unknown): string {
 
 /**
  * Produces a minimal aiXml string from the given question fields.
+ * The XML follows the AIXML 2.0 structure used by the generate-question-flow
+ * so that downstream consumers (explanations, audit tools) can parse it uniformly.
  * The XML is deterministic: same inputs always produce the same output.
  */
 export function generateMinimalAiXml(q: MinimalQuestionFields): string {
@@ -46,25 +48,40 @@ export function generateMinimalAiXml(q: MinimalQuestionFields): string {
 
   const options = Array.isArray(q.options) ? q.options : [];
   const correctIdx = typeof q.correctAnswerIndex === 'number' ? q.correctAnswerIndex : -1;
+  const optionLetters = ['A', 'B', 'C', 'D'];
 
   const optionLines = options
     .map((opt, i) => {
       const isCorrect = i === correctIdx ? 'true' : 'false';
-      return `    <opcion correcta="${isCorrect}">${escapeXml(opt)}</opcion>`;
+      const letter = optionLetters[i] ?? String(i + 1);
+      return `      <opcion id="${letter}" correcta="${isCorrect}">${escapeXml(opt)}</opcion>`;
     })
     .join('\n');
 
   return [
-    `<item area="${subjectId}" nivel="${level}">`,
-    `  <competencia>${competencyId}</competencia>`,
-    `  <componente>${componentId}</componente>`,
-    `  <afirmacion></afirmacion>`,
-    `  <evidencia></evidencia>`,
-    `  <enunciado>${text}</enunciado>`,
-    `  <opciones>`,
+    `<item_icfes>`,
+    `  <metadatos_psicometricos>`,
+    `    <area>${subjectId}</area>`,
+    `    <dificultad_esperada>${level}</dificultad_esperada>`,
+    `    <origen>Importada de PDF</origen>`,
+    `  </metadatos_psicometricos>`,
+    `  <diseno_centrado_evidencias>`,
+    `    <competencia>${competencyId}</competencia>`,
+    `    <componente>${componentId}</componente>`,
+    `    <afirmacion></afirmacion>`,
+    `    <evidencia></evidencia>`,
+    `  </diseno_centrado_evidencias>`,
+    `  <cuerpo_pregunta>`,
+    `    <enunciado>${text}</enunciado>`,
+    `    <opciones_respuesta>`,
     optionLines,
-    `  </opciones>`,
-    `  <justificacion>${explanation}</justificacion>`,
-    `</item>`,
+    `    </opciones_respuesta>`,
+    `  </cuerpo_pregunta>`,
+    `  <analisis_didactico>`,
+    `    <solucion_paso_a_paso>`,
+    `      <justificacion_pedagogica>${explanation}</justificacion_pedagogica>`,
+    `    </solucion_paso_a_paso>`,
+    `  </analisis_didactico>`,
+    `</item_icfes>`,
   ].join('\n');
 }

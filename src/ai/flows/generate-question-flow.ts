@@ -7,6 +7,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { SUBJECT_GUIDELINES } from '@/ai/constants';
 
 const GenerateQuestionInputSchema = z.object({
   subject: z.string().describe('Asignatura (Matemáticas, Lectura, Naturales, etc.)'),
@@ -14,6 +15,7 @@ const GenerateQuestionInputSchema = z.object({
   competency: z.string().describe('Competencia específica a evaluar'),
   level: z.enum(['Básico', 'Medio', 'Avanzado', 'I', 'II', 'III']).describe('Nivel de dificultad'),
   studentPerformanceHistory: z.string().optional().describe('Historial de rendimiento para ajustar la complejidad'),
+  subjectGuidelines: z.string().optional().describe('Reglas oficiales ICFES para esta materia, inyectadas desde SUBJECT_GUIDELINES'),
 });
 
 export type GenerateQuestionInput = z.infer<typeof GenerateQuestionInputSchema>;
@@ -67,9 +69,13 @@ Para cada ítem generado, debes identificar internamente:
 ### REGLAS DE ORO:
 - No utilices lenguaje ambiguo ni enunciados triviales.
 - Los distractores deben ser plausibles (nacen de errores comunes de razonamiento, no son descartables a simple vista).
-- Alineación 2026: incluye contextos de ciudadanía global, pensamiento sistémico y alfabetización digital cuando el área lo permita.
 - El nivel de complejidad debe reflejar el nivel solicitado (Básico / Medio / Avanzado).
 - Nunca repitas estructuras de ítem triviales del tipo "¿Cuánto es 2+2?".
+
+{{#if subjectGuidelines}}
+### REGLAS ESPECÍFICAS PARA ESTA MATERIA (ICFES OFICIAL):
+{{{subjectGuidelines}}}
+{{/if}}
 
 ---
 
@@ -95,8 +101,8 @@ CAMPOS OBLIGATORIOS Y SUS SIGNIFICADOS:
 - metadata.evidence: evidencia técnica observable en el estudiante que demuestra dominio.
 - metadata.origin: siempre "Original inspirada en el estilo ICFES 2026".
 - metadata.affirmation: afirmación pedagógica (p. ej. "El estudiante puede analizar relaciones causales en contextos históricos").
-- metadata.icfes2026Alignment: indica si aplican contextos de ciudadanía global, pensamiento sistémico o alfabetización digital.
-- aiXml: representación XML DCE del ítem (ver formato más abajo).
+- metadata.icfes2026Alignment: describe qué componente y competencia ICFES 2026 aplican a este ítem.
+- aiXml: representación XML DCE del ítem en formato AIXML 2.0 (ver formato más abajo).
 
 REGLAS PARA EL CAMPO svgData (figuras, gráficas, mapas, tablas, diagramas):
 - Genera svgData ÚNICAMENTE cuando la pregunta necesite un elemento visual para ser comprendida.
@@ -106,19 +112,54 @@ REGLAS PARA EL CAMPO svgData (figuras, gráficas, mapas, tablas, diagramas):
 - Todo texto dentro del SVG debe usar font-family="Arial, sans-serif" y font-size mínimo 12.
 - No uses etiquetas <?xml?> ni <!DOCTYPE>; el svgData debe comenzar directamente con <svg ...>.
 
-FORMATO XML PARA EL CAMPO aiXml:
-<item area="{subjectId}" nivel="{level}">
-  <competencia>{competencyId}</competencia>
-  <componente>{componentId}</componente>
-  <afirmacion>{metadata.affirmation}</afirmacion>
-  <evidencia>{metadata.evidence}</evidencia>
-  <enunciado>{text}</enunciado>
-  <opciones>
-    <opcion correcta="true/false">...</opcion>
-    <!-- 4 opciones en total -->
-  </opciones>
-  <justificacion>{explanation}</justificacion>
-</item>
+FORMATO AIXML 2.0 PARA EL CAMPO aiXml:
+<item_icfes>
+  <metadatos_psicometricos>
+    <area>{subjectId}</area>
+    <tema_especifico>[Tema puntual, ej: Teorema de Pitágoras, Fotosíntesis, Independencia de Colombia]</tema_especifico>
+    <dificultad_esperada>{level}</dificultad_esperada>
+    <discriminacion_esperada>[Alta / Media — el ítem diferencia entre distintos niveles de habilidad]</discriminacion_esperada>
+    <nivel_cognitivo_bloom>[Recordar / Comprender / Aplicar / Analizar / Evaluar]</nivel_cognitivo_bloom>
+    <origen>Original inspirada en el estilo ICFES 2026</origen>
+  </metadatos_psicometricos>
+  <diseno_centrado_evidencias>
+    <competencia>{competencyId}</competencia>
+    <componente>{componentId}</componente>
+    <afirmacion>{metadata.affirmation}</afirmacion>
+    <evidencia>{metadata.evidence}</evidencia>
+  </diseno_centrado_evidencias>
+  <cuerpo_pregunta>
+    <contexto_situacional>
+      <descripcion>[¿De qué trata el escenario? ej: Experimento de física, mapa histórico, balance financiero]</descripcion>
+      <texto_evaluacion>[El texto, caso o situación que presenta la pregunta]</texto_evaluacion>
+    </contexto_situacional>
+    <soporte_visual_prompt>
+      <requiere_visual>[true / false]</requiere_visual>
+      <tipo_grafico>[Plano Cartesiano / Diagrama / Tabla / Mapa / Gráfica de barras / Figura geométrica / Ninguno]</tipo_grafico>
+      <prompt_generacion>[Descripción detallada del visual para reproducción: qué ejes, qué datos, qué elementos geométricos]</prompt_generacion>
+    </soporte_visual_prompt>
+    <enunciado>{text}</enunciado>
+    <opciones_respuesta>
+      <opcion id="A" correcta="true/false">[opción A]</opcion>
+      <opcion id="B" correcta="true/false">[opción B]</opcion>
+      <opcion id="C" correcta="true/false">[opción C]</opcion>
+      <opcion id="D" correcta="true/false">[opción D]</opcion>
+    </opciones_respuesta>
+  </cuerpo_pregunta>
+  <analisis_didactico>
+    <solucion_paso_a_paso>
+      <respuesta_correcta>[Letra correcta]</respuesta_correcta>
+      <justificacion_pedagogica>{explanation}</justificacion_pedagogica>
+    </solucion_paso_a_paso>
+    <analisis_distractores>
+      <distractor id="[Letra incorrecta A/B/C]">
+        <falsa_plausibilidad>[Por qué parece correcta a simple vista]</falsa_plausibilidad>
+        <error_estudiante>[Error cognitivo o conceptual que lleva a elegirla]</error_estudiante>
+      </distractor>
+      <!-- Un <distractor> por cada opción incorrecta -->
+    </analisis_distractores>
+  </analisis_didactico>
+</item_icfes>
 
 Responde estrictamente con el esquema JSON proporcionado. El lenguaje del enunciado debe ser idéntico al utilizado en los cuadernillos oficiales del ICFES.`,
 });
@@ -155,11 +196,37 @@ function qualityFailures(output: GenerateQuestionOutput): string[] {
     failures.push('Falta evidencia y/o afirmación DCE en los metadatos');
   }
 
-  if (!output.aiXml || output.aiXml.trim().length === 0) {
-    failures.push('Falta aiXml obligatorio');
+  if (!output.aiXml || !output.aiXml.includes('<item_icfes>')) {
+    failures.push('aiXml debe seguir el formato AIXML 2.0 con etiqueta <item_icfes>');
   }
 
   return failures;
+}
+
+/** Maps a human-readable subject name to a SUBJECT_GUIDELINES key. */
+function resolveSubjectKey(subject: string): string | undefined {
+  const s = subject.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (s.includes('matem')) return 'matematicas';
+  if (s.includes('lectura') || s.includes('reading critical')) return 'lectura';
+  if (s.includes('natural')) return 'naturales';
+  if (s.includes('social') || s.includes('ciudadan')) return 'sociales';
+  if (s.includes('ingles') || s.includes('english')) return 'ingles';
+  return undefined;
+}
+
+/** Formats a SUBJECT_GUIDELINES entry into a prompt-ready string. */
+function formatSubjectGuidelines(key: string): string | undefined {
+  const g = SUBJECT_GUIDELINES[key];
+  if (!g) return undefined;
+  return [
+    `Para la materia ${g.officialName}, las reglas oficiales ICFES son:`,
+    g.rules.trim(),
+    `Componentes válidos: ${g.components.join(' | ')}`,
+    `Competencias válidas: ${g.competencies.join(' | ')}`,
+    `Contextos recomendados: ${g.contextTypes.join(' | ')}`,
+    `Instrucción SVG: ${g.svgFrequency}`,
+    `Niveles Bloom aplicables: ${g.bloomLevels.join(', ')}`,
+  ].join('\n');
 }
 
 const generateQuestionFlow = ai.defineFlow(
@@ -169,10 +236,19 @@ const generateQuestionFlow = ai.defineFlow(
     outputSchema: GenerateQuestionOutputSchema,
   },
   async (input) => {
+    // Auto-inject subject guidelines if not provided by the caller
+    const enrichedInput = {
+      ...input,
+      subjectGuidelines: input.subjectGuidelines ?? (() => {
+        const key = resolveSubjectKey(input.subject);
+        return key ? formatSubjectGuidelines(key) : undefined;
+      })(),
+    };
+
     let lastFailures: string[] = [];
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const { output } = await prompt(input);
+      const { output } = await prompt(enrichedInput);
       const candidate = { ...output!, id: `ai_gen_${Date.now()}` };
 
       lastFailures = qualityFailures(candidate);
