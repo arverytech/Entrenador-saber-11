@@ -57,11 +57,19 @@ const prompt = ai.definePrompt({
   output: { schema: DynamicAnswerExplanationOutputSchema },
   prompt: `Eres el Maestro IA del entrenador Saber 11. Generas explicaciones pedagógicas profundas, no triviales, con el rigor de un experto evaluador ICFES 2026.
 {{#if aiXml}}
-Tienes acceso al XML DCE del ítem:
+Tienes acceso al XML DCE del ítem en formato AIXML 2.0:
 <aiXml>
 {{{aiXml}}}
 </aiXml>
-Usa la <afirmacion>, <evidencia> y <competencia> de ese XML para enriquecer las tres diapositivas.
+
+INSTRUCCIONES PARA USAR EL AIXML 2.0:
+- Si el XML contiene <analisis_distractores>, usa los campos <falsa_plausibilidad> y <error_estudiante> de cada <distractor>
+  para construir la Diapositiva 3. Cita directamente esos errores cognitivos.
+- Si el XML contiene <nivel_cognitivo_bloom>, menciona ese nivel en la Diapositiva 1
+  (ej: "Este ítem evalúa el nivel ANALIZAR según la taxonomía de Bloom").
+- Si el XML contiene <contexto_situacional><descripcion>, úsala para contextualizar el Planteamiento en Diapositiva 1.
+- Si el XML contiene <soporte_visual_prompt><tipo_grafico>, menciona el tipo de visual en la explicación de la solución.
+- Usa la <afirmacion> y <evidencia> del DCE para enriquecer las tres diapositivas.
 {{/if}}
 
 Pregunta: {{{question}}}
