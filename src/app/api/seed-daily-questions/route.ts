@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '@/lib/firebase-admin';
 import { generateIcfesQuestion } from '@/ai/flows/generate-question-flow';
 import { normalizeSubjectId } from '@/lib/normalize-subject-id';
+import { SUBJECT_GUIDELINES } from '@/ai/constants';
 
 /**
  * POST /api/seed-daily-questions
@@ -39,6 +40,19 @@ export function getRotationDay(now: Date = new Date()): 'A' | 'B' {
   return now.getUTCDate() % 2 === 0 ? 'A' : 'B';
 }
 
+/**
+ * Returns the 0-based day of the year in UTC (0 = Jan 1, 364/365 = Dec 31).
+ * Used to deterministically rotate through the topic catalogue so that the
+ * 4 questions generated each day cover 4 different topics, and the same topic
+ * is never repeated on the same day of the following year.
+ *
+ * Exported for testability.
+ */
+export function getDayOfYear(now: Date = new Date()): number {
+  const startOfYear = Date.UTC(now.getUTCFullYear(), 0, 1);
+  return Math.floor((now.getTime() - startOfYear) / 86400000);
+}
+
 const ROTATION: Record<'A' | 'B', string[]> = {
   A: ['matematicas', 'lectura', 'naturales'],
   B: ['sociales', 'ingles'],
@@ -47,7 +61,9 @@ const ROTATION: Record<'A' | 'B', string[]> = {
 const AREAS: Array<{
   subjectId: string;
   subject: string;
+  /** Fallback component used when the topic catalogue is empty. */
   component: string;
+  /** Fallback competency used when the topic catalogue is empty. */
   competency: string;
 }> = [
   {
@@ -141,15 +157,37 @@ export async function POST(req: NextRequest) {
     let generatedForArea = 0;
     const toGenerate = Math.min(QUESTIONS_PER_AREA, MAX_V2_QUESTIONS_PER_SUBJECT - existingCount);
 
+    // Resolve today's day-of-year once per area (same day for all questions in this area)
+    const dayOfYear = getDayOfYear();
+    const topicCatalogue = SUBJECT_GUIDELINES[area.subjectId]?.topics ?? [];
+
     for (let i = 0; i < toGenerate; i++) {
       if (quotaExhausted) break;
+
+      // Deterministic topic rotation: 4 consecutive topics per day, cycling through
+      // the whole catalogue so the same topic never falls on the same day next year.
+      let component = area.component;
+      let competency = area.competency;
+      let topicName: string | undefined;
+      let svgInstructions: string | undefined;
+
+      if (topicCatalogue.length > 0) {
+        const topicIdx = (dayOfYear * QUESTIONS_PER_AREA + i) % topicCatalogue.length;
+        const topic = topicCatalogue[topicIdx];
+        component = topic.component;
+        competency = topic.competency;
+        topicName = topic.name;
+        svgInstructions = topic.svgInstructions;
+      }
 
       try {
         const question = await generateIcfesQuestion({
           subject: area.subject,
-          component: area.component,
-          competency: area.competency,
+          component,
+          competency,
           level: 'Medio',
+          ...(topicName ? { topicName } : {}),
+          ...(svgInstructions ? { svgInstructions } : {}),
         });
 
         const timestamp = new Date().toISOString();

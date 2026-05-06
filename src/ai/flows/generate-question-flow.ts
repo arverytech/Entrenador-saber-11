@@ -16,6 +16,9 @@ const GenerateQuestionInputSchema = z.object({
   level: z.enum(['Básico', 'Medio', 'Avanzado', 'I', 'II', 'III']).describe('Nivel de dificultad'),
   studentPerformanceHistory: z.string().optional().describe('Historial de rendimiento para ajustar la complejidad'),
   subjectGuidelines: z.string().optional().describe('Reglas oficiales ICFES para esta materia, inyectadas desde SUBJECT_GUIDELINES'),
+  topicName: z.string().optional().describe('Nombre exacto del tema (del catálogo de 92 temas) — restringe el ítem a ese tema específico'),
+  visualType: z.string().optional().describe('Tipo visual del catálogo VisualType (ej. plano_cartesiano, esquema_celula, linea_tiempo)'),
+  svgInstructions: z.string().optional().describe('Instrucciones SVG exactas y específicas para este tema — sigue estas instrucciones al pie de la letra para construir el svgData'),
 });
 
 export type GenerateQuestionInput = z.infer<typeof GenerateQuestionInputSchema>;
@@ -77,6 +80,21 @@ Para cada ítem generado, debes identificar internamente:
 {{{subjectGuidelines}}}
 {{/if}}
 
+{{#if topicName}}
+### TEMA ESPECÍFICO OBLIGATORIO:
+El ítem DEBE tratar EXCLUSIVAMENTE sobre: {{{topicName}}}
+No te desvíes a otros temas. Toda la pregunta, contexto y opciones deben girar alrededor de este tema.
+{{/if}}
+
+{{#if svgInstructions}}
+### INSTRUCCIONES SVG EXACTAS PARA ESTE ÍTEM:
+Construye el campo svgData siguiendo ESTRICTAMENTE estas instrucciones. No improvises ni cambies la estructura:
+{{{svgInstructions}}}
+{{else}}
+### INSTRUCCIONES SVG GENERALES:
+Genera svgData únicamente si la pregunta necesita un visual para ser comprendida. Si el tema no requiere visual, omite svgData.
+{{/if}}
+
 ---
 
 Genera un ítem de evaluación Saber 11 de alta calidad técnica con los siguientes parámetros:
@@ -105,7 +123,8 @@ CAMPOS OBLIGATORIOS Y SUS SIGNIFICADOS:
 - aiXml: representación XML DCE del ítem en formato AIXML 2.0 (ver formato más abajo).
 
 REGLAS PARA EL CAMPO svgData (figuras, gráficas, mapas, tablas, diagramas):
-- Genera svgData ÚNICAMENTE cuando la pregunta necesite un elemento visual para ser comprendida.
+- Si se proporcionaron instrucciones SVG específicas arriba, síguelas AL PIE DE LA LETRA.
+- Si no se proporcionaron instrucciones SVG, genera svgData ÚNICAMENTE cuando la pregunta necesite un elemento visual para ser comprendida.
 - El SVG debe tener siempre viewBox="0 0 400 300" width="400" height="300".
 - Usa SOLO elementos SVG nativos: <rect>, <circle>, <line>, <polyline>, <polygon>, <path>, <text>, <g>, <defs>, <marker>.
 - Colores permitidos: #1a1a2e, #16213e, #0f3460, #e94560, #ffffff, #f5f5f5, #4a90d9, #27ae60, #f39c12.

@@ -49,7 +49,7 @@ jest.mock('@/lib/normalize-subject-id', () => ({
 
 // ─── Imports ──────────────────────────────────────────────────────────────────
 import { NextRequest } from 'next/server';
-import { POST, getRotationDay } from '@/app/api/seed-daily-questions/route';
+import { POST, getRotationDay, getDayOfYear } from '@/app/api/seed-daily-questions/route';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -237,6 +237,34 @@ describe('getRotationDay', () => {
   });
 });
 
+// ─── getDayOfYear unit tests ──────────────────────────────────────────────────
+
+describe('getDayOfYear', () => {
+  it('returns 0 for January 1st', () => {
+    expect(getDayOfYear(new Date('2026-01-01T00:00:00Z'))).toBe(0);
+  });
+
+  it('returns 31 for February 1st (non-leap year)', () => {
+    expect(getDayOfYear(new Date('2026-02-01T00:00:00Z'))).toBe(31);
+  });
+
+  it('returns 364 for December 31st (non-leap year)', () => {
+    expect(getDayOfYear(new Date('2026-12-31T23:59:59Z'))).toBe(364);
+  });
+
+  it('returns a consistent positive integer for any date', () => {
+    const d = getDayOfYear(new Date('2026-05-04T12:00:00Z'));
+    expect(d).toBeGreaterThanOrEqual(0);
+    expect(Number.isInteger(d)).toBe(true);
+  });
+
+  it('returns different values for different days', () => {
+    const d1 = getDayOfYear(new Date('2026-03-01T00:00:00Z'));
+    const d2 = getDayOfYear(new Date('2026-03-02T00:00:00Z'));
+    expect(d2).toBe(d1 + 1);
+  });
+});
+
 describe('POST /api/seed-daily-questions – rotation', () => {
   const ORIGINAL_CRON_SECRET = process.env.CRON_SECRET;
 
@@ -305,5 +333,87 @@ describe('POST /api/seed-daily-questions – rotation', () => {
 
     // 2 areas × 4 questions = 8 total saves
     expect(mockQuestionsAdd).toHaveBeenCalledTimes(8);
+  });
+});
+
+// ─── Topic rotation tests ─────────────────────────────────────────────────────
+
+describe('POST /api/seed-daily-questions – topic rotation', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockQuestionsCollection.get.mockResolvedValue(makeCountSnap(0));
+    mockQuestionsCollection.where.mockReturnThis();
+    mockQuestionsCollection.count.mockReturnThis();
+    mockQuestionsAdd.mockResolvedValue({ id: 'q-id' });
+    mockGenerateIcfesQuestion.mockResolvedValue(GOOD_QUESTION);
+    delete process.env.CRON_SECRET;
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('passes topicName and svgInstructions to generateIcfesQuestion when topics exist', async () => {
+    // Pin to a Day A date so matematicas, lectura, naturales are seeded
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-04T12:00:00Z'));
+
+    await POST(makeRequest());
+
+    // generateIcfesQuestion should have been called with topicName for matematicas
+    const calls = mockGenerateIcfesQuestion.mock.calls as Array<[Record<string, unknown>]>;
+    // At least one call should include topicName
+    const callsWithTopicName = calls.filter((c) => typeof c[0].topicName === 'string' && c[0].topicName.length > 0);
+    expect(callsWithTopicName.length).toBeGreaterThan(0);
+
+    // At least one call should include svgInstructions
+    const callsWithSvgInstructions = calls.filter(
+      (c) => typeof c[0].svgInstructions === 'string' && c[0].svgInstructions.length > 0
+    );
+    expect(callsWithSvgInstructions.length).toBeGreaterThan(0);
+  });
+
+  it('uses different topics for different question indices on the same day', async () => {
+    // Pin to Day A
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-04T12:00:00Z'));
+
+    await POST(makeRequest());
+
+    // Collect all topicNames used for matematicas (first 4 calls)
+    const calls = mockGenerateIcfesQuestion.mock.calls as Array<[Record<string, unknown>]>;
+    const matematicasCalls = calls.slice(0, 4);
+    const topicNames = matematicasCalls.map((c) => c[0].topicName as string);
+
+    // All 4 topics on the same day should be distinct
+    const uniqueTopics = new Set(topicNames.filter(Boolean));
+    expect(uniqueTopics.size).toBe(4);
+  });
+
+  it('uses different topics on different days for the same question index', async () => {
+    // Day 1: 2026-05-04
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-04T12:00:00Z'));
+    await POST(makeRequest());
+    const day1Calls = (mockGenerateIcfesQuestion.mock.calls as Array<[Record<string, unknown>]>)
+      .slice(0, 4)
+      .map((c) => c[0].topicName as string);
+
+    jest.clearAllMocks();
+    mockQuestionsCollection.get.mockResolvedValue(makeCountSnap(0));
+    mockQuestionsCollection.where.mockReturnThis();
+    mockQuestionsCollection.count.mockReturnThis();
+    mockQuestionsAdd.mockResolvedValue({ id: 'q-id' });
+    mockGenerateIcfesQuestion.mockResolvedValue(GOOD_QUESTION);
+
+    // Day 2: 2026-05-06 (next even day → still Day A)
+    jest.setSystemTime(new Date('2026-05-06T12:00:00Z'));
+    await POST(makeRequest());
+    const day2Calls = (mockGenerateIcfesQuestion.mock.calls as Array<[Record<string, unknown>]>)
+      .slice(0, 4)
+      .map((c) => c[0].topicName as string);
+
+    // Topics should differ between the two days
+    expect(day1Calls).not.toEqual(day2Calls);
   });
 });
