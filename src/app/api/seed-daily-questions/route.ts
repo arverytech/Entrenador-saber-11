@@ -186,8 +186,8 @@ export async function POST(req: NextRequest) {
           component,
           competency,
           level: 'Medio',
-          ...(topicName ? { topicName } : {}),
-          ...(svgInstructions ? { svgInstructions } : {}),
+          topicName,
+          svgInstructions,
         });
 
         const timestamp = new Date().toISOString();

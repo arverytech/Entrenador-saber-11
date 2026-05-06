@@ -338,6 +338,16 @@ describe('POST /api/seed-daily-questions – rotation', () => {
 
 // ─── Topic rotation tests ─────────────────────────────────────────────────────
 
+/** Returns true when a generateIcfesQuestion call was made with a non-empty topicName. */
+function hasTopicName(call: [Record<string, unknown>]): boolean {
+  return typeof call[0].topicName === 'string' && (call[0].topicName as string).length > 0;
+}
+
+/** Returns true when a generateIcfesQuestion call was made with non-empty svgInstructions. */
+function hasSvgInstructions(call: [Record<string, unknown>]): boolean {
+  return typeof call[0].svgInstructions === 'string' && (call[0].svgInstructions as string).length > 0;
+}
+
 describe('POST /api/seed-daily-questions – topic rotation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -360,17 +370,9 @@ describe('POST /api/seed-daily-questions – topic rotation', () => {
 
     await POST(makeRequest());
 
-    // generateIcfesQuestion should have been called with topicName for matematicas
     const calls = mockGenerateIcfesQuestion.mock.calls as Array<[Record<string, unknown>]>;
-    // At least one call should include topicName
-    const callsWithTopicName = calls.filter((c) => typeof c[0].topicName === 'string' && c[0].topicName.length > 0);
-    expect(callsWithTopicName.length).toBeGreaterThan(0);
-
-    // At least one call should include svgInstructions
-    const callsWithSvgInstructions = calls.filter(
-      (c) => typeof c[0].svgInstructions === 'string' && c[0].svgInstructions.length > 0
-    );
-    expect(callsWithSvgInstructions.length).toBeGreaterThan(0);
+    expect(calls.filter(hasTopicName).length).toBeGreaterThan(0);
+    expect(calls.filter(hasSvgInstructions).length).toBeGreaterThan(0);
   });
 
   it('uses different topics for different question indices on the same day', async () => {
@@ -382,8 +384,7 @@ describe('POST /api/seed-daily-questions – topic rotation', () => {
 
     // Collect all topicNames used for matematicas (first 4 calls)
     const calls = mockGenerateIcfesQuestion.mock.calls as Array<[Record<string, unknown>]>;
-    const matematicasCalls = calls.slice(0, 4);
-    const topicNames = matematicasCalls.map((c) => c[0].topicName as string);
+    const topicNames = calls.slice(0, 4).map((c) => c[0].topicName as string);
 
     // All 4 topics on the same day should be distinct
     const uniqueTopics = new Set(topicNames.filter(Boolean));
