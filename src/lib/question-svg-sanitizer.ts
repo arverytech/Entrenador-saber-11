@@ -21,7 +21,7 @@ function extractFirstCompleteSvgBlock(text: string): { svgBlock?: string; textWi
   let depth = 0;
   let start = -1;
   let end = -1;
-  const svgTags = text.slice(firstSvgIndex).matchAll(/<\/?svg\b[\s\S]*?>/gi);
+  const svgTags = text.slice(firstSvgIndex).matchAll(/<\/?svg\b[^>]*>/gi);
 
   for (const match of svgTags) {
     const tag = match[0];

@@ -36,6 +36,10 @@ jobs:
             exit 1
           fi
 
-          if jq -e '.status == "nothing_pending"' "$RESPONSE_FILE" > /dev/null 2>&1; then
+          if command -v jq > /dev/null 2>&1; then
+            if jq -e '.status == "nothing_pending"' "$RESPONSE_FILE" > /dev/null; then
+              echo "ℹ️ No hay chunks pendientes por procesar en este ciclo."
+            fi
+          elif echo "$BODY" | grep -q '"status":"nothing_pending"'; then
             echo "ℹ️ No hay chunks pendientes por procesar en este ciclo."
           fi

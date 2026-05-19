@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
         const subjectId = normalizeSubjectId(question.subjectId ?? area.subjectId);
 
         await db.collection('questions').add({
-          text: sanitizedVisuals.text ?? question.text,
+          text: sanitizedVisuals.text as string,
           options: question.options,
           correctAnswerIndex: question.correctAnswerIndex,
           explanation: question.explanation,
