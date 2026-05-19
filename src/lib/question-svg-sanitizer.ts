@@ -18,20 +18,19 @@ function extractFirstCompleteSvgBlock(text: string): { svgBlock?: string; textWi
     return { textWithoutSvg: normalizeTextWhitespace(text) };
   }
 
-  const svgTagRegex = /<\/?svg\b[^>]*>/gi;
-  svgTagRegex.lastIndex = firstSvgIndex;
   let depth = 0;
   let start = -1;
   let end = -1;
-  let match: RegExpExecArray | null;
+  const svgTags = text.slice(firstSvgIndex).matchAll(/<\/?svg\b[^>]*>/gi);
 
-  while ((match = svgTagRegex.exec(text)) !== null) {
+  for (const match of svgTags) {
     const tag = match[0];
+    const tagIndex = firstSvgIndex + (match.index ?? 0);
     const isClosing = /^<\s*\/\s*svg\b/i.test(tag);
     const isSelfClosing = /\/\s*>$/.test(tag);
 
     if (!isClosing) {
-      if (start === -1) start = match.index;
+      if (start === -1) start = tagIndex;
       depth += 1;
       if (isSelfClosing) depth -= 1;
     } else if (depth > 0) {
@@ -39,7 +38,7 @@ function extractFirstCompleteSvgBlock(text: string): { svgBlock?: string; textWi
     }
 
     if (start !== -1 && depth === 0) {
-      end = svgTagRegex.lastIndex;
+      end = tagIndex + tag.length;
       break;
     }
   }
