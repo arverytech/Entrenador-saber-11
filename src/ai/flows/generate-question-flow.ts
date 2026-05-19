@@ -174,7 +174,11 @@ function normalizeSubjectForComparison(value: string): string {
 /** Minimum thresholds for a non-trivial ICFES question. */
 const MIN_TEXT_LENGTH = 80;       // characters — must have a real stimulus/context
 const MIN_EXPLANATION_LENGTH = 60; // characters — must justify the answer meaningfully
-/** Max chars for socioemocional stem (~55-65 Spanish words) to keep ICFES-style concision. */
+/**
+ * Max chars for socioemocional stems. We use chars (not words) because prompt
+ * quality checks are deterministic with char counts; 360 chars is typically
+ * ~55-65 Spanish words, enough for a brief scenario plus question.
+ */
 const MAX_SOCIOEMOCIONAL_TEXT_LENGTH = 360;
 const MAX_ATTEMPTS = 2;
 

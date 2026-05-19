@@ -358,7 +358,11 @@ export async function POST(req: NextRequest) {
       text: q.text,
       svgData: q.svgData,
     });
-    const sanitizedText = typeof sanitizedVisuals.text === 'string' ? sanitizedVisuals.text : '';
+    const sanitizedText = typeof sanitizedVisuals.text === 'string' ? sanitizedVisuals.text : undefined;
+    if (!sanitizedText || !sanitizedText.trim()) {
+      console.warn('[process-chunk] skipped question with empty text after sanitization');
+      continue;
+    }
     const qText = sanitizedText.slice(0, 100);
 
     // Deduplication check: skip if first 100 chars match an existing question in this session

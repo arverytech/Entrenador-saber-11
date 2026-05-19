@@ -21,6 +21,7 @@ function extractFirstCompleteSvgBlock(text: string): { svgBlock?: string; textWi
   let depth = 0;
   let start = -1;
   let end = -1;
+  // Note: tag matching assumes well-formed SVG tags where '>' only closes tags.
   const svgTags = text.slice(firstSvgIndex).matchAll(/<\/?svg\b[^>]*>/gi);
 
   for (const match of svgTags) {
@@ -52,6 +53,8 @@ function extractFirstCompleteSvgBlock(text: string): { svgBlock?: string; textWi
   return { svgBlock, textWithoutSvg };
 }
 
+export function sanitizeQuestionSvgFields(fields: { text: string; svgData?: unknown }): { text: string; svgData?: string };
+export function sanitizeQuestionSvgFields(fields: QuestionVisualFields): SanitizedQuestionVisualFields;
 export function sanitizeQuestionSvgFields(fields: QuestionVisualFields): SanitizedQuestionVisualFields {
   const originalText = typeof fields.text === 'string' ? fields.text : undefined;
   const originalSvgData = typeof fields.svgData === 'string' ? fields.svgData : undefined;

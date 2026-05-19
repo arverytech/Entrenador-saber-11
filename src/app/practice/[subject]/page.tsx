@@ -141,7 +141,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           ? crypto.randomUUID()
           : `ai_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         await addDoc(collection(firestore, 'questions'), {
-          text: sanitizedVisuals.text as string,
+          text: sanitizedVisuals.text,
           options: result.options,
           correctAnswerIndex: result.correctAnswerIndex,
           explanation: result.explanation,
