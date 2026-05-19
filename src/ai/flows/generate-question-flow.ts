@@ -170,6 +170,8 @@ Responde estrictamente con el esquema JSON proporcionado. El lenguaje del enunci
 /** Minimum thresholds for a non-trivial ICFES question. */
 const MIN_TEXT_LENGTH = 80;       // characters — must have a real stimulus/context
 const MIN_EXPLANATION_LENGTH = 60; // characters — must justify the answer meaningfully
+// Socioemocional stems should stay concise and scenario-focused (ICFES style),
+// avoiding long technical paragraphs that reduce readability for students.
 const MAX_SOCIOEMOCIONAL_TEXT_LENGTH = 360;
 const MAX_ATTEMPTS = 2;
 

@@ -8,8 +8,6 @@ type SanitizedQuestionVisualFields = {
   svgData?: string;
 };
 
-const SVG_TAG_REGEX = /<\/?svg\b[^>]*>/gi;
-
 function normalizeTextWhitespace(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
@@ -20,13 +18,14 @@ function extractFirstCompleteSvgBlock(text: string): { svgBlock?: string; textWi
     return { textWithoutSvg: normalizeTextWhitespace(text) };
   }
 
-  SVG_TAG_REGEX.lastIndex = firstSvgIndex;
+  const svgTagRegex = /<\/?svg\b[^>]*>/gi;
+  svgTagRegex.lastIndex = firstSvgIndex;
   let depth = 0;
   let start = -1;
   let end = -1;
   let match: RegExpExecArray | null;
 
-  while ((match = SVG_TAG_REGEX.exec(text)) !== null) {
+  while ((match = svgTagRegex.exec(text)) !== null) {
     const tag = match[0];
     const isClosing = /^<\s*\/\s*svg\b/i.test(tag);
     const isSelfClosing = /\/\s*>$/.test(tag);
@@ -40,7 +39,7 @@ function extractFirstCompleteSvgBlock(text: string): { svgBlock?: string; textWi
     }
 
     if (start !== -1 && depth === 0) {
-      end = SVG_TAG_REGEX.lastIndex;
+      end = svgTagRegex.lastIndex;
       break;
     }
   }
@@ -74,4 +73,3 @@ export function sanitizeQuestionSvgFields(fields: QuestionVisualFields): Sanitiz
         : {}),
   };
 }
-

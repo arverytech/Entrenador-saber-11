@@ -38,5 +38,15 @@ describe('sanitizeQuestionSvgFields', () => {
     expect(result.text).toBe('Texto con svg incompleto <svg viewBox="0 0 10 10">');
     expect(result.svgData).toBeUndefined();
   });
-});
 
+  it('handles nested svg tags and extracts the full outer block', () => {
+    const result = sanitizeQuestionSvgFields({
+      text: 'Inicio <svg viewBox="0 0 400 300"><g><svg viewBox="0 0 10 10"><rect width="5" height="5"/></svg></g></svg> Fin',
+    });
+
+    expect(result.text).toBe('Inicio Fin');
+    expect(result.svgData).toBe(
+      '<svg viewBox="0 0 400 300"><g><svg viewBox="0 0 10 10"><rect width="5" height="5"/></svg></g></svg>',
+    );
+  });
+});
