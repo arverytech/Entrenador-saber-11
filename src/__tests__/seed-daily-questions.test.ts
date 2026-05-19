@@ -205,6 +205,23 @@ describe('POST /api/seed-daily-questions', () => {
     expect(typeof firstCall.aiXml).toBe('string');
   });
 
+  it('sanitizes embedded svg in text before saving icfes_ai_v2 questions', async () => {
+    delete process.env.CRON_SECRET;
+
+    mockGenerateIcfesQuestion.mockResolvedValue({
+      ...GOOD_QUESTION,
+      text: 'Contexto socioemocional <svg viewBox="0 0 400 300"><circle cx="20" cy="20" r="10"/></svg> ¿Qué harías?',
+      svgData: undefined,
+      subjectId: 'socioemocional',
+    });
+
+    await POST(makeRequest());
+
+    const firstCall = mockQuestionsAdd.mock.calls[0][0] as Record<string, unknown>;
+    expect(firstCall.text).toBe('Contexto socioemocional ¿Qué harías?');
+    expect(firstCall.svgData).toBe('<svg viewBox="0 0 400 300"><circle cx="20" cy="20" r="10"/></svg>');
+  });
+
   it('skips remaining questions in area after 429 but processes prior ones', async () => {
     delete process.env.CRON_SECRET;
 

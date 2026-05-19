@@ -221,4 +221,38 @@ MANDATORY RULES FOR ENGLISH (ICFES 2025-2026):
 - Keep language natural and use contexts relevant to Colombian young adults (school, technology, environment, culture).
 `,
   },
+  socioemocional: {
+    officialName: 'Socioemocional',
+    components: [
+      'Autoconocimiento y autorregulación',
+      'Empatía y relación con otros',
+      'Toma de decisiones responsables',
+      'Proyecto de vida y bienestar',
+    ],
+    competencies: [
+      'Reconocimiento de emociones y autocontrol',
+      'Análisis de situaciones de convivencia',
+      'Evaluación de consecuencias y decisiones éticas',
+      'Construcción de estrategias de bienestar personal y colectivo',
+    ],
+    contextTypes: [
+      'situación breve de aula o convivencia escolar',
+      'conflicto interpersonal cotidiano',
+      'dilema de toma de decisiones',
+      'escenario de manejo de emociones',
+      'caso de ciudadanía y respeto',
+    ],
+    svgRequired: false,
+    svgFrequency: 'NO obligatorio. Usa svgData solo si un apoyo visual aporta claridad real; en la mayoría de casos no se necesita.',
+    bloomLevels: ['Comprender', 'Aplicar', 'Analizar'],
+    rules: `
+REGLAS OBLIGATORIAS PARA SOCIOEMOCIONAL (ALINEADAS A LINEAMIENTOS ICFES):
+- El enunciado debe ser BREVE y directo: máximo 2 párrafos cortos.
+- Prioriza situaciones auténticas de adolescentes en contexto escolar, familiar o comunitario colombiano.
+- Evalúa juicio y toma de decisiones (no definiciones memorísticas).
+- Evita tecnicismos y redacción extensa; lenguaje claro y cercano.
+- Distractores plausibles: respuestas impulsivas, sesgos de interpretación o decisiones poco empáticas.
+- Si se requiere visual, ubícalo solo en svgData; nunca insertes marcado técnico en text.
+`,
+  },
 };

@@ -322,6 +322,26 @@ describe('POST /api/process-chunk', () => {
       }
     });
 
+    it('extrae SVG embebido en text y lo guarda en svgData (sin contaminar el enunciado)', async () => {
+      mockImportFromContent.mockResolvedValueOnce({
+        questions: [
+          {
+            ...ICFES_AI_OUTPUT.questions[0],
+            text: 'Analiza la gráfica <svg viewBox="0 0 400 300"><rect x="10" y="10" width="20" height="30"/></svg> y responde.',
+          },
+        ],
+        sourceNote: 'fixture-svg-embedded',
+      });
+
+      await POST(makeRequest());
+
+      const addCalls = mockQuestionsCollection.add.mock.calls as [DocData][];
+      expect(addCalls.length).toBe(1);
+      const [savedQuestion] = addCalls[0];
+      expect(savedQuestion.text).toBe('Analiza la gráfica y responde.');
+      expect(savedQuestion.svgData).toContain('<svg viewBox="0 0 400 300">');
+    });
+
     it('marca como "failed" con errorMessage si la IA falla ambos intentos', async () => {
       mockImportFromContent.mockRejectedValue(new Error('Gemini timeout'));
 

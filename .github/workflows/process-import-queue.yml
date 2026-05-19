@@ -19,7 +19,27 @@ jobs:
     steps:
       - name: Process one pending import chunk
         run: |
-          curl --fail-with-body -sS -X POST "${{ secrets.VERCEL_APP_URL }}/api/process-chunk" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -H "Content-Type: application/json" \
-            --max-time 55
+          RESPONSE_FILE="$(mktemp)"
+          HTTP_CODE="$(
+            curl -sS -o "$RESPONSE_FILE" -w "%{http_code}" -X POST "${{ secrets.VERCEL_APP_URL }}/api/process-chunk" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              -H "Content-Type: application/json" \
+              --max-time 55
+          )"
+          BODY="$(cat "$RESPONSE_FILE")"
+
+          echo "process-chunk HTTP: $HTTP_CODE"
+          echo "process-chunk body: $BODY"
+
+          if [ "$HTTP_CODE" -ge 400 ]; then
+            echo "::error::process-chunk failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+          if command -v jq > /dev/null 2>&1; then
+            if jq -e '.status == "nothing_pending"' "$RESPONSE_FILE" > /dev/null; then
+              echo "ℹ️ No hay chunks pendientes por procesar en este ciclo."
+            fi
+          elif echo "$BODY" | grep -q '"status":"nothing_pending"'; then
+            echo "ℹ️ No hay chunks pendientes por procesar en este ciclo."
+          fi

@@ -3,6 +3,7 @@ import { getAdminFirestore, getAdminStorage } from '@/lib/firebase-admin';
 import { importQuestionsFromContent, importQuestionsFromPdf, importQuestionsFromGeminiFileUri } from '@/ai/flows/import-questions-from-url-flow';
 import { normalizeSubjectId } from '@/lib/normalize-subject-id';
 import { generateMinimalAiXml } from '@/lib/minimal-ai-xml';
+import { sanitizeQuestionSvgFields } from '@/lib/question-svg-sanitizer';
 
 /**
  * POST /api/process-chunk
@@ -353,7 +354,16 @@ export async function POST(req: NextRequest) {
   const timestamp = new Date().toISOString();
 
   for (const q of questions) {
-    const qText = typeof q.text === 'string' ? q.text.slice(0, 100) : '';
+    const sanitizedVisuals = sanitizeQuestionSvgFields({
+      text: q.text,
+      svgData: q.svgData,
+    });
+    const sanitizedText = typeof sanitizedVisuals.text === 'string' ? sanitizedVisuals.text : undefined;
+    if (!sanitizedText || !sanitizedText.trim()) {
+      console.warn('[process-chunk] skipped question with empty text after sanitization');
+      continue;
+    }
+    const qText = sanitizedText.slice(0, 100);
 
     // Deduplication check: skip if first 100 chars match an existing question in this session
     // at >85% character similarity (roughSimilarity score).  The 85% threshold was chosen
@@ -389,6 +399,8 @@ export async function POST(req: NextRequest) {
 
       await db.collection('questions').add({
         ...q,
+        text: sanitizedText,
+        ...(sanitizedVisuals.svgData ? { svgData: sanitizedVisuals.svgData } : {}),
         ...(subjectId !== undefined ? { subjectId } : {}),
         aiXml,
         schemaVersion: 2,

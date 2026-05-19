@@ -66,6 +66,7 @@ jest.mock('firebase/firestore', () => ({
   collection: jest.fn(),
   query: jest.fn(),
   where: jest.fn(),
+  orderBy: jest.fn(),
   limit: jest.fn(),
   increment: jest.fn(),
   addDoc: jest.fn().mockResolvedValue({ id: 'new-doc-id' }),

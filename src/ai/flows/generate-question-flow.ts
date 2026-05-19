@@ -61,7 +61,7 @@ Tu misión es transformar solicitudes en lenguaje natural en ítems de evaluaci�
 
 ### METODOLOGÍA DE DISEÑO: DISEÑO CENTRADO EN EVIDENCIAS (DCE)
 Para cada ítem generado, debes identificar internamente:
-1. Área (Matemáticas, Lectura Crítica, Sociales, Naturales, Inglés).
+1. Área (Matemáticas, Lectura Crítica, Sociales, Naturales, Inglés, Socioemocional).
 2. Competencia y Componente según la guía ICFES 2026.
 3. Afirmación: el enunciado pedagógico que el ítem intenta demostrar.
 4. Evidencia: la acción observable del estudiante que demuestra dominio de la competencia.
@@ -89,6 +89,7 @@ Nivel: {{{level}}}
 
 CAMPOS OBLIGATORIOS Y SUS SIGNIFICADOS:
 - text: enunciado completo con contexto situado (igual que en los cuadernillos ICFES). Incluye un texto base, situación o estímulo relevante.
+- text DEBE contener solo lenguaje natural del enunciado (sin HTML/SVG/XML/CSS ni encabezados técnicos).
 - options: exactamente 4 opciones de respuesta bien redactadas (A, B, C, D).
 - correctAnswerIndex: índice 0-3 de la única opción correcta.
 - explanation: justificación técnica clara de por qué esa opción es correcta y por qué cada distractor es incorrecto.
@@ -106,6 +107,8 @@ CAMPOS OBLIGATORIOS Y SUS SIGNIFICADOS:
 
 REGLAS PARA EL CAMPO svgData (figuras, gráficas, mapas, tablas, diagramas):
 - Genera svgData ÚNICAMENTE cuando la pregunta necesite un elemento visual para ser comprendida.
+- NUNCA pegues el SVG (ni fragmentos como "<svg", "viewBox", "width=", "height=", etiquetas técnicas o metadatos) dentro del campo text.
+- Si hay visual, va EXCLUSIVAMENTE en svgData; text debe quedar limpio y legible para estudiantes.
 - El SVG debe tener siempre viewBox="0 0 400 300" width="400" height="300".
 - Usa SOLO elementos SVG nativos: <rect>, <circle>, <line>, <polyline>, <polygon>, <path>, <text>, <g>, <defs>, <marker>.
 - Colores permitidos: #1a1a2e, #16213e, #0f3460, #e94560, #ffffff, #f5f5f5, #4a90d9, #27ae60, #f39c12.
@@ -164,9 +167,19 @@ FORMATO AIXML 2.0 PARA EL CAMPO aiXml:
 Responde estrictamente con el esquema JSON proporcionado. El lenguaje del enunciado debe ser idéntico al utilizado en los cuadernillos oficiales del ICFES.`,
 });
 
+function normalizeSubjectForComparison(value: string): string {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 /** Minimum thresholds for a non-trivial ICFES question. */
 const MIN_TEXT_LENGTH = 80;       // characters — must have a real stimulus/context
 const MIN_EXPLANATION_LENGTH = 60; // characters — must justify the answer meaningfully
+/**
+ * Max chars for socioemocional stems. We use chars (not words) because prompt
+ * quality checks are deterministic with char counts; 360 chars is typically
+ * ~55-65 Spanish words, enough for a brief scenario plus question.
+ */
+const MAX_SOCIOEMOCIONAL_TEXT_LENGTH = 360;
 const MAX_ATTEMPTS = 2;
 
 /**
@@ -176,9 +189,17 @@ const MAX_ATTEMPTS = 2;
  */
 function qualityFailures(output: GenerateQuestionOutput): string[] {
   const failures: string[] = [];
+  const normalizedSubjectId = normalizeSubjectForComparison(output.subjectId ?? '');
 
   if (!output.text || output.text.trim().length < MIN_TEXT_LENGTH) {
     failures.push(`Enunciado demasiado corto (< ${MIN_TEXT_LENGTH} caracteres)`);
+  }
+  if (
+    normalizedSubjectId === 'socioemocional' &&
+    output.text &&
+    output.text.trim().length > MAX_SOCIOEMOCIONAL_TEXT_LENGTH
+  ) {
+    failures.push(`Enunciado socioemocional demasiado largo (> ${MAX_SOCIOEMOCIONAL_TEXT_LENGTH} caracteres)`);
   }
 
   const uniqueOptions = new Set((output.options ?? []).map((o) => o.trim().toLowerCase()));
@@ -205,12 +226,13 @@ function qualityFailures(output: GenerateQuestionOutput): string[] {
 
 /** Maps a human-readable subject name to a SUBJECT_GUIDELINES key. */
 function resolveSubjectKey(subject: string): string | undefined {
-  const s = subject.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const s = normalizeSubjectForComparison(subject);
   if (s.includes('matem')) return 'matematicas';
   if (s.includes('lectura') || s.includes('reading critical')) return 'lectura';
   if (s.includes('natural')) return 'naturales';
   if (s.includes('social') || s.includes('ciudadan')) return 'sociales';
   if (s.includes('ingles') || s.includes('english')) return 'ingles';
+  if (s.includes('socioemocional') || s.includes('socio emocional')) return 'socioemocional';
   return undefined;
 }
 

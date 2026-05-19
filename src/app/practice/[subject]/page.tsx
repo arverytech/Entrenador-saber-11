@@ -23,6 +23,7 @@ const ENABLE_GRADUAL_REPLACEMENT = false;
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
+import { sanitizeQuestionSvgFields } from '@/lib/question-svg-sanitizer';
 
 export default function PracticeRoomPage({ params }: { params: { subject: string } }) {
   const { user, firestore, isUserLoading } = useFirebase();
@@ -53,7 +54,8 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
       collection(firestore, 'questions'),
       where('subjectId', '==', currentSubject),
       where('schemaVersion', '==', 2),
-      limit(20),
+      orderBy('createdAt', 'desc'),
+      limit(70),
     );
   }, [firestore, currentSubject]);
 
@@ -62,7 +64,8 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     return query(
       collection(firestore, 'questions'),
       where('subjectId', '==', currentSubject),
-      limit(20),
+      orderBy('createdAt', 'desc'),
+      limit(70),
     );
   }, [firestore, currentSubject]);
 
@@ -130,11 +133,15 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
 
       // Save the AI-generated question to Firestore so the bank grows organically.
       if (user && firestore) {
+        const sanitizedVisuals = sanitizeQuestionSvgFields({
+          text: result.text,
+          svgData: result.svgData,
+        });
         const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
           ? crypto.randomUUID()
           : `ai_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         await addDoc(collection(firestore, 'questions'), {
-          text: result.text,
+          text: sanitizedVisuals.text,
           options: result.options,
           correctAnswerIndex: result.correctAnswerIndex,
           explanation: result.explanation,
@@ -143,7 +150,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           competencyId: result.competencyId,
           level: result.level,
           pointsAwarded: result.pointsAwarded,
-          ...(result.svgData ? { svgData: result.svgData } : {}),
+          ...(sanitizedVisuals.svgData ? { svgData: sanitizedVisuals.svgData } : {}),
           ...(result.aiXml ? { aiXml: result.aiXml } : {}),
           metadata: result.metadata,
           schemaVersion: 2,
@@ -392,7 +399,7 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           <div className="grid lg:grid-cols-3 gap-8">
             <Card className="lg:col-span-2 game-card border-primary/20 bg-card">
               <div className="p-10 border-b-2 border-primary/5">
-                <h2 className="text-2xl font-black uppercase italic leading-snug">
+                <h2 className="text-lg md:text-xl font-black uppercase italic leading-snug">
                   {currentQ.text}
                 </h2>
                 {currentQ.svgData && (
