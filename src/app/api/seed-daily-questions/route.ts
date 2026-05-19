@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore } from '@/lib/firebase-admin';
 import { generateIcfesQuestion } from '@/ai/flows/generate-question-flow';
 import { normalizeSubjectId } from '@/lib/normalize-subject-id';
+import { sanitizeQuestionSvgFields } from '@/lib/question-svg-sanitizer';
 
 /**
  * POST /api/seed-daily-questions
@@ -151,12 +152,16 @@ export async function POST(req: NextRequest) {
           competency: area.competency,
           level: 'Medio',
         });
+        const sanitizedVisuals = sanitizeQuestionSvgFields({
+          text: question.text,
+          svgData: question.svgData,
+        });
 
         const timestamp = new Date().toISOString();
         const subjectId = normalizeSubjectId(question.subjectId ?? area.subjectId);
 
         await db.collection('questions').add({
-          text: question.text,
+          text: sanitizedVisuals.text ?? question.text,
           options: question.options,
           correctAnswerIndex: question.correctAnswerIndex,
           explanation: question.explanation,
@@ -165,7 +170,7 @@ export async function POST(req: NextRequest) {
           competencyId: question.competencyId,
           level: question.level,
           pointsAwarded: question.pointsAwarded,
-          ...(question.svgData ? { svgData: question.svgData } : {}),
+          ...(sanitizedVisuals.svgData ? { svgData: sanitizedVisuals.svgData } : {}),
           aiXml: question.aiXml,
           metadata: question.metadata,
           schemaVersion: 2,

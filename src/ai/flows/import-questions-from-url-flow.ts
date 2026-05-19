@@ -70,6 +70,8 @@ REGLAS PARA EL CAMPO svgData (figuras, gráficas, imágenes, tablas, diagramas):
 - Genera svgData para TODA figura geométrica, gráfica cartesiana, mapa, diagrama, imagen o tabla de datos que veas en el PDF junto a una pregunta.
 - El SVG debe reproducir fielmente el elemento visual real que aparece en el PDF (no lo inventes).
 - Si la pregunta NO tiene ningún elemento visual asociado, omite svgData por completo.
+- NUNCA incluyas bloques SVG ni texto técnico (por ejemplo "<svg", "viewBox", "width=", "height=") dentro de text.
+- text debe contener únicamente el enunciado natural de la pregunta.
 - El SVG debe tener viewBox="0 0 400 300" width="400" height="300".
 - Usa SOLO elementos SVG nativos: <rect>, <circle>, <line>, <polyline>, <polygon>, <path>, <text>, <g>, <defs>, <marker>.
 - Todo texto dentro del SVG: font-family="Arial, sans-serif", mínimo font-size="12".
@@ -184,6 +186,8 @@ REGLAS para las preguntas:
 REGLAS PARA EL CAMPO svgData (figuras, gráficas, mapas, tablas, diagramas):
 - Genera svgData ÚNICAMENTE cuando la pregunta necesite un elemento visual para ser comprendida (gráfica de barras, recta numérica, figura geométrica, mapa conceptual, tabla de datos, diagrama de flujo, etc.).
 - Si la pregunta NO requiere ningún elemento visual, omite el campo svgData por completo.
+- NUNCA incluyas SVG/HTML/XML ni encabezados técnicos (por ejemplo "<svg", "viewBox", "width=", "height=") dentro de text.
+- text debe quedar limpio: solo lenguaje natural para estudiantes.
 - El SVG debe tener siempre viewBox="0 0 400 300" width="400" height="300".
 - Usa SOLO elementos SVG nativos: <rect>, <circle>, <line>, <polyline>, <polygon>, <path>, <text>, <g>, <defs>, <marker>.
 - Colores permitidos: #1a1a2e (fondo oscuro), #16213e (azul oscuro), #0f3460 (azul medio), #e94560 (rojo acento), #ffffff (blanco), #f5f5f5 (gris claro), #4a90d9 (azul claro), #27ae60 (verde), #f39c12 (naranja).
