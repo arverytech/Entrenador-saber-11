@@ -395,7 +395,7 @@ export async function POST(req: NextRequest) {
 
       await db.collection('questions').add({
         ...q,
-        ...(sanitizedVisuals.text !== undefined ? { text: sanitizedVisuals.text } : {}),
+        text: sanitizedText,
         ...(sanitizedVisuals.svgData ? { svgData: sanitizedVisuals.svgData } : {}),
         ...(subjectId !== undefined ? { subjectId } : {}),
         aiXml,

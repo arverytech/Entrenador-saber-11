@@ -167,12 +167,18 @@ FORMATO AIXML 2.0 PARA EL CAMPO aiXml:
 Responde estrictamente con el esquema JSON proporcionado. El lenguaje del enunciado debe ser idéntico al utilizado en los cuadernillos oficiales del ICFES.`,
 });
 
+function normalizeSubjectToken(value: string): string {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 /** Minimum thresholds for a non-trivial ICFES question. */
 const MIN_TEXT_LENGTH = 80;       // characters — must have a real stimulus/context
 const MIN_EXPLANATION_LENGTH = 60; // characters — must justify the answer meaningfully
-// Socioemocional stems should stay concise and scenario-focused (ICFES style),
-// avoiding long technical paragraphs that reduce readability for students.
-// 360 chars is ~55-65 Spanish words: enough for a brief context + question.
+/**
+ * Socioemocional stems should stay concise and scenario-focused (ICFES style),
+ * avoiding long technical paragraphs that reduce readability for students.
+ * 360 chars is ~55-65 Spanish words: enough for a brief context + question.
+ */
 const MAX_SOCIOEMOCIONAL_TEXT_LENGTH = 360;
 const MAX_ATTEMPTS = 2;
 
@@ -183,10 +189,7 @@ const MAX_ATTEMPTS = 2;
  */
 function qualityFailures(output: GenerateQuestionOutput): string[] {
   const failures: string[] = [];
-  const normalizedSubjectId = (output.subjectId ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+  const normalizedSubjectId = normalizeSubjectToken(output.subjectId ?? '');
 
   if (!output.text || output.text.trim().length < MIN_TEXT_LENGTH) {
     failures.push(`Enunciado demasiado corto (< ${MIN_TEXT_LENGTH} caracteres)`);
@@ -223,7 +226,7 @@ function qualityFailures(output: GenerateQuestionOutput): string[] {
 
 /** Maps a human-readable subject name to a SUBJECT_GUIDELINES key. */
 function resolveSubjectKey(subject: string): string | undefined {
-  const s = subject.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const s = normalizeSubjectToken(subject);
   if (s.includes('matem')) return 'matematicas';
   if (s.includes('lectura') || s.includes('reading critical')) return 'lectura';
   if (s.includes('natural')) return 'naturales';
