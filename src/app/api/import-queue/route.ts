@@ -191,6 +191,13 @@ function pdfChunkLabel(sourceName: string, pageStart: number, pageEnd: number): 
   return `${sourceName} (páginas ${pageStart}-${pageEnd})`;
 }
 
+const ONE_PAGE_PDF_SUBJECTS = new Set(['matematicas', 'naturales']);
+
+function resolvePdfMaxPagesPerChunk(subjectId: string | null): number | undefined {
+  if (!subjectId) return undefined;
+  return ONE_PAGE_PDF_SUBJECTS.has(normalizeSubjectId(subjectId)) ? 1 : undefined;
+}
+
 export async function POST(req: NextRequest) {
   let sourceLabel = 'contenido';
   let chunks: string[] = [];
@@ -225,7 +232,10 @@ export async function POST(req: NextRequest) {
           const pdfBuffer = Buffer.from(arrayBuffer);
 
           // Split PDF into page-groups, cutting between questions.
-          const pdfChunks = await splitPdfIntoChunks(pdfBuffer);
+          const maxPagesPerChunk = resolvePdfMaxPagesPerChunk(subjectId);
+          const pdfChunks = maxPagesPerChunk
+            ? await splitPdfIntoChunks(pdfBuffer, maxPagesPerChunk)
+            : await splitPdfIntoChunks(pdfBuffer);
 
           if (pdfChunks.length === 1) {
             // Small PDF — single upload, continue with the normal job-creation flow.
@@ -364,7 +374,10 @@ export async function POST(req: NextRequest) {
         const displayName = parsedUrl.pathname.split('/').pop() || 'document.pdf';
 
         // Split PDF into page-groups, cutting between questions.
-        const pdfChunks = await splitPdfIntoChunks(pdfBuffer);
+        const maxPagesPerChunk = resolvePdfMaxPagesPerChunk(subjectId);
+        const pdfChunks = maxPagesPerChunk
+          ? await splitPdfIntoChunks(pdfBuffer, maxPagesPerChunk)
+          : await splitPdfIntoChunks(pdfBuffer);
 
         if (pdfChunks.length === 1) {
           // Small PDF — single upload, continue with the normal job-creation flow.
@@ -401,7 +414,7 @@ export async function POST(req: NextRequest) {
               questionsFound: 0,
               createdAt: now,
               updatedAt: now,
-              ...(subjectId ? { subjectId } : {}),
+              ...(subjectId ? { subjectId: normalizeSubjectId(subjectId) } : {}),
             });
           }
           await batch.commit();

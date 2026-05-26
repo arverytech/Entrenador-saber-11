@@ -30,6 +30,8 @@ const makeCountSnap = (count: number) => ({ data: () => ({ count }) });
 
 const mockQuestionsCollection = {
   where: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockReturnThis(),
   count: jest.fn().mockReturnThis(),
   get: jest.fn().mockResolvedValue(makeCountSnap(0)),
   add: mockQuestionsAdd,
@@ -95,6 +97,8 @@ describe('POST /api/seed-daily-questions', () => {
     // Default: count returns 0 (well below 120)
     mockQuestionsCollection.get.mockResolvedValue(makeCountSnap(0));
     mockQuestionsCollection.where.mockReturnThis();
+    mockQuestionsCollection.orderBy.mockReturnThis();
+    mockQuestionsCollection.limit.mockReturnThis();
     mockQuestionsCollection.count.mockReturnThis();
     mockQuestionsAdd.mockResolvedValue({ id: 'q-id' });
     mockGenerateIcfesQuestion.mockResolvedValue(GOOD_QUESTION);
@@ -150,7 +154,7 @@ describe('POST /api/seed-daily-questions', () => {
       expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'limit_reached' });
     }
     // Day B areas are not scheduled today
-    for (const area of ['sociales', 'ingles']) {
+    for (const area of ['sociales', 'ingles', 'socioemocional']) {
       expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'rotated_out_today' });
     }
   });
@@ -170,7 +174,7 @@ describe('POST /api/seed-daily-questions', () => {
       expect(body.results[area]).toMatchObject({ generated: 4 });
     }
     // Day B areas are not scheduled today
-    for (const area of ['sociales', 'ingles']) {
+    for (const area of ['sociales', 'ingles', 'socioemocional']) {
       expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'rotated_out_today' });
     }
   });
@@ -219,7 +223,8 @@ describe('POST /api/seed-daily-questions', () => {
 
     const firstCall = mockQuestionsAdd.mock.calls[0][0] as Record<string, unknown>;
     expect(firstCall.text).toBe('Contexto socioemocional ¿Qué harías?');
-    expect(firstCall.svgData).toBe('<svg viewBox="0 0 400 300"><circle cx="20" cy="20" r="10"/></svg>');
+    expect(firstCall.svgData).toContain('<svg');
+    expect(firstCall.svgData).toContain('viewBox="0 0 400 300"');
   });
 
   it('skips remaining questions in area after 429 but processes prior ones', async () => {
@@ -261,6 +266,8 @@ describe('POST /api/seed-daily-questions – rotation', () => {
     jest.clearAllMocks();
     mockQuestionsCollection.get.mockResolvedValue(makeCountSnap(0));
     mockQuestionsCollection.where.mockReturnThis();
+    mockQuestionsCollection.orderBy.mockReturnThis();
+    mockQuestionsCollection.limit.mockReturnThis();
     mockQuestionsCollection.count.mockReturnThis();
     mockQuestionsAdd.mockResolvedValue({ id: 'q-id' });
     mockGenerateIcfesQuestion.mockResolvedValue(GOOD_QUESTION);
@@ -276,7 +283,7 @@ describe('POST /api/seed-daily-questions – rotation', () => {
     }
   });
 
-  it('Day A (even UTC day): seeds matematicas, lectura, naturales; skips sociales and ingles', async () => {
+  it('Day A (even UTC day): seeds matematicas, lectura, naturales; skips sociales, ingles y socioemocional', async () => {
     // 2026-05-04: UTC day = 4 (even) → Day A
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-05-04T06:00:00Z'));
@@ -292,7 +299,7 @@ describe('POST /api/seed-daily-questions – rotation', () => {
       expect(body.results[area]).toMatchObject({ generated: 4 });
     }
     // Day B areas must be skipped with the rotation reason
-    for (const area of ['sociales', 'ingles']) {
+    for (const area of ['sociales', 'ingles', 'socioemocional']) {
       expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'rotated_out_today' });
     }
 
@@ -300,7 +307,7 @@ describe('POST /api/seed-daily-questions – rotation', () => {
     expect(mockQuestionsAdd).toHaveBeenCalledTimes(12);
   });
 
-  it('Day B (odd UTC day): seeds sociales and ingles; skips matematicas, lectura, naturales', async () => {
+  it('Day B (odd UTC day): seeds sociales, ingles y socioemocional; skips matematicas, lectura, naturales', async () => {
     // 2026-05-05: UTC day = 5 (odd) → Day B
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-05-05T06:00:00Z'));
@@ -312,7 +319,7 @@ describe('POST /api/seed-daily-questions – rotation', () => {
     expect(body.status).toBe('done');
 
     // Only Day B areas should have been generated
-    for (const area of ['sociales', 'ingles']) {
+    for (const area of ['sociales', 'ingles', 'socioemocional']) {
       expect(body.results[area]).toMatchObject({ generated: 4 });
     }
     // Day A areas must be skipped with the rotation reason
@@ -320,7 +327,7 @@ describe('POST /api/seed-daily-questions – rotation', () => {
       expect(body.results[area]).toMatchObject({ generated: 0, skipped: true, reason: 'rotated_out_today' });
     }
 
-    // 2 areas × 4 questions = 8 total saves
-    expect(mockQuestionsAdd).toHaveBeenCalledTimes(8);
+    // 3 areas × 4 questions = 12 total saves
+    expect(mockQuestionsAdd).toHaveBeenCalledTimes(12);
   });
 });

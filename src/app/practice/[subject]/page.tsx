@@ -24,6 +24,7 @@ import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import type { DynamicAnswerExplanationOutput } from '@/ai/flows/dynamic-answer-explanations-flow';
 import { generateIcfesQuestion, type GenerateQuestionOutput } from '@/ai/flows/generate-question-flow';
 import { sanitizeQuestionSvgFields } from '@/lib/question-svg-sanitizer';
+import { resolveSubjectGenerationConfig } from '@/lib/subject-generation-config';
 
 export default function PracticeRoomPage({ params }: { params: { subject: string } }) {
   const { user, firestore, isUserLoading } = useFirebase();
@@ -99,6 +100,29 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     return [...v2, ...legacy];
   }, [v2Questions, legacyQuestions]);
 
+  const generationConfig = useMemo(
+    () => resolveSubjectGenerationConfig(currentSubject),
+    [currentSubject],
+  );
+
+  const generationPlan = useMemo(() => {
+    if (!generationConfig) return null;
+    const components = generationConfig.components;
+    const competencies = generationConfig.competencies;
+    const lastUsedIdx = activeQuestions
+      .map((q) => typeof q.componentId === 'string' ? components.indexOf(q.componentId) : -1)
+      .find((idx) => idx >= 0) ?? -1;
+    const nextIdx = (lastUsedIdx + 1) % components.length;
+    const component = components[nextIdx];
+    const competency = competencies[nextIdx % competencies.length];
+    const recentQuestionStems = activeQuestions
+      .filter((q) => q.componentId === component && typeof q.text === 'string')
+      .map((q) => (q.text as string).slice(0, 280))
+      .slice(0, 8);
+
+    return { component, competency, recentQuestionStems };
+  }, [activeQuestions, generationConfig]);
+
   const currentQ = useMemo(() => {
     if (genQuestion) return genQuestion;
     if (activeQuestions.length > 0 && currentIdx < activeQuestions.length) {
@@ -123,11 +147,16 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
     setAiGenerationError(null);
     setIsGenerating(true);
     try {
+      if (!generationConfig || !generationPlan) {
+        throw new Error(`No hay configuración de generación para el área "${currentSubject}"`);
+      }
+
       const result = await generateIcfesQuestion({
-        subject: currentSubject,
-        component: "General",
-        competency: "Resolución de problemas",
+        subject: generationConfig.subjectName,
+        component: generationPlan.component,
+        competency: generationPlan.competency,
         level: "Medio",
+        recentQuestionStems: generationPlan.recentQuestionStems,
       });
       setGenQuestion(result);
 
@@ -137,6 +166,14 @@ export default function PracticeRoomPage({ params }: { params: { subject: string
           text: result.text,
           svgData: result.svgData,
         });
+        if (!sanitizedVisuals.text || !sanitizedVisuals.text.trim()) {
+          throw new Error('La IA devolvió una pregunta vacía tras la sanitización.');
+        }
+
+        const resolvedResultSubject = resolveSubjectGenerationConfig(result.subjectId ?? currentSubject);
+        if (!resolvedResultSubject) {
+          throw new Error(`La IA devolvió un subjectId inválido: ${result.subjectId ?? 'vacío'}`);
+        }
         const sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
           ? crypto.randomUUID()
           : `ai_${Date.now()}_${Math.random().toString(36).slice(2)}`;
