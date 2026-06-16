@@ -3,6 +3,7 @@ import { getAdminFirestore } from '@/lib/firebase-admin';
 import { generateIcfesQuestion } from '@/ai/flows/generate-question-flow';
 import { normalizeSubjectId } from '@/lib/normalize-subject-id';
 import { sanitizeQuestionSvgFields } from '@/lib/question-svg-sanitizer';
+import { SUBJECT_GENERATION_CONFIG } from '@/lib/subject-generation-config';
 
 /**
  * POST /api/seed-daily-questions
@@ -29,7 +30,7 @@ const QUESTIONS_PER_AREA = 4;
  * Exported for testability.
  *
  * Day A areas: matematicas, lectura, naturales
- * Day B areas: sociales, ingles
+ * Day B areas: sociales, ingles, socioemocional
  *
  * Note: at month boundaries (e.g. day 30 → day 1 of next month) the parity can
  * repeat (even → odd or even → even) depending on the month length. This is an
@@ -42,44 +43,50 @@ export function getRotationDay(now: Date = new Date()): 'A' | 'B' {
 
 const ROTATION: Record<'A' | 'B', string[]> = {
   A: ['matematicas', 'lectura', 'naturales'],
-  B: ['sociales', 'ingles'],
+  B: ['sociales', 'ingles', 'socioemocional'],
 };
 
 const AREAS: Array<{
   subjectId: string;
   subject: string;
-  component: string;
-  competency: string;
+  components: string[];
+  competencies: string[];
 }> = [
   {
     subjectId: 'matematicas',
-    subject: 'Matemáticas',
-    component: 'Álgebra y funciones',
-    competency: 'Razonamiento y argumentación',
+    subject: SUBJECT_GENERATION_CONFIG.matematicas.subjectName,
+    components: SUBJECT_GENERATION_CONFIG.matematicas.components,
+    competencies: SUBJECT_GENERATION_CONFIG.matematicas.competencies,
   },
   {
     subjectId: 'lectura',
-    subject: 'Lectura Crítica',
-    component: 'Comprensión lectora',
-    competency: 'Interpretación y evaluación',
+    subject: SUBJECT_GENERATION_CONFIG.lectura.subjectName,
+    components: SUBJECT_GENERATION_CONFIG.lectura.components,
+    competencies: SUBJECT_GENERATION_CONFIG.lectura.competencies,
   },
   {
     subjectId: 'naturales',
-    subject: 'Ciencias Naturales',
-    component: 'Entorno vivo',
-    competency: 'Uso comprensivo del conocimiento científico',
+    subject: SUBJECT_GENERATION_CONFIG.naturales.subjectName,
+    components: SUBJECT_GENERATION_CONFIG.naturales.components,
+    competencies: SUBJECT_GENERATION_CONFIG.naturales.competencies,
   },
   {
     subjectId: 'sociales',
-    subject: 'Ciencias Sociales y Ciudadanas',
-    component: 'Historia y geografía',
-    competency: 'Pensamiento sistémico y ciudadanía',
+    subject: SUBJECT_GENERATION_CONFIG.sociales.subjectName,
+    components: SUBJECT_GENERATION_CONFIG.sociales.components,
+    competencies: SUBJECT_GENERATION_CONFIG.sociales.competencies,
   },
   {
     subjectId: 'ingles',
-    subject: 'Inglés',
-    component: 'Reading comprehension',
-    competency: 'Understanding written texts',
+    subject: SUBJECT_GENERATION_CONFIG.ingles.subjectName,
+    components: SUBJECT_GENERATION_CONFIG.ingles.components,
+    competencies: SUBJECT_GENERATION_CONFIG.ingles.competencies,
+  },
+  {
+    subjectId: 'socioemocional',
+    subject: SUBJECT_GENERATION_CONFIG.socioemocional.subjectName,
+    components: SUBJECT_GENERATION_CONFIG.socioemocional.components,
+    competencies: SUBJECT_GENERATION_CONFIG.socioemocional.competencies,
   },
 ];
 
@@ -141,16 +148,42 @@ export async function POST(req: NextRequest) {
 
     let generatedForArea = 0;
     const toGenerate = Math.min(QUESTIONS_PER_AREA, MAX_V2_QUESTIONS_PER_SUBJECT - existingCount);
+    const generatedStems: string[] = [];
 
     for (let i = 0; i < toGenerate; i++) {
       if (quotaExhausted) break;
 
       try {
+        const componentIndex = (existingCount + i) % area.components.length;
+        const component = area.components[componentIndex];
+        const competency = area.competencies[componentIndex % area.competencies.length];
+
+        let recentQuestionStems: string[] = [];
+        try {
+          const recentSnap = await db
+            .collection('questions')
+            .where('subjectId', '==', area.subjectId)
+            .orderBy('createdAt', 'desc')
+            .limit(25)
+            .get();
+          const recentDocs = Array.isArray((recentSnap as { docs?: unknown[] }).docs)
+            ? (recentSnap as { docs: Array<{ data: () => { text?: unknown; componentId?: unknown } }> }).docs
+            : [];
+          recentQuestionStems = recentDocs
+            .map((d) => d.data() as { text?: unknown; componentId?: unknown })
+            .filter((q) => q.componentId === component && typeof q.text === 'string')
+            .map((q) => (q.text as string).slice(0, 280))
+            .slice(0, 8);
+        } catch (recentErr) {
+          console.warn(`[seed-daily] Could not load recent stems for ${area.subjectId}/${component}:`, recentErr);
+        }
+
         const question = await generateIcfesQuestion({
           subject: area.subject,
-          component: area.component,
-          competency: area.competency,
+          component,
+          competency,
           level: 'Medio',
+          recentQuestionStems: [...generatedStems.slice(-4), ...recentQuestionStems].slice(0, 8),
         });
         const sanitizedVisuals = sanitizeQuestionSvgFields({
           text: question.text,
@@ -180,6 +213,7 @@ export async function POST(req: NextRequest) {
         });
 
         generatedForArea++;
+        generatedStems.unshift((sanitizedVisuals.text ?? '').slice(0, 280));
         console.log(`[seed-daily] ${area.subjectId}: saved question ${generatedForArea}/${toGenerate}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -196,7 +230,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    results[area.subjectId] = { generated: generatedForArea };
+    if (generatedForArea === 0 && toGenerate > 0 && !quotaExhausted) {
+      results[area.subjectId] = { generated: 0, skipped: true, reason: 'generation_failed' };
+      console.warn(`[seed-daily] ${area.subjectId}: 0/${toGenerate} generated (no-op prevented)`);
+    } else {
+      results[area.subjectId] = { generated: generatedForArea };
+    }
   }
 
   return NextResponse.json({

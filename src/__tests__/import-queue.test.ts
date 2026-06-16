@@ -144,20 +144,21 @@ function makeTextRequest(text: string): NextRequest {
   });
 }
 
-function makeFileRequest(file: File): NextRequest {
+function makeFileRequest(file: File, subjectId?: string): NextRequest {
   const fd = new FormData();
   fd.append('file', file);
+  if (subjectId) fd.append('subjectId', subjectId);
   return new NextRequest('http://localhost/api/import-queue', {
     method: 'POST',
     body: fd,
   });
 }
 
-function makeUrlRequest(url: string): NextRequest {
+function makeUrlRequest(url: string, subjectId?: string): NextRequest {
   return new NextRequest('http://localhost/api/import-queue', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, ...(subjectId ? { subjectId } : {}) }),
   });
 }
 
@@ -729,6 +730,33 @@ describe('Grupo 5 — PDF grande → múltiples importJobs (integración)', () =
     expect(mockBatch.commit).toHaveBeenCalledTimes(1);
   });
 
+  it('matematicas usa 1 página por chunk al dividir PDF', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+    const pdfFile = makePdfFile('matematicas.pdf', 1024);
+
+    await POST(makeFileRequest(pdfFile, 'matematicas'));
+
+    expect(mockSplitPdfIntoChunks).toHaveBeenCalledWith(expect.any(Buffer), 1);
+  });
+
+  it('naturales usa 1 página por chunk al dividir PDF', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+    const pdfFile = makePdfFile('naturales.pdf', 1024);
+
+    await POST(makeFileRequest(pdfFile, 'naturales'));
+
+    expect(mockSplitPdfIntoChunks).toHaveBeenCalledWith(expect.any(Buffer), 1);
+  });
+
+  it('otras áreas conservan la división actual del PDF', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+    const pdfFile = makePdfFile('sociales.pdf', 1024);
+
+    await POST(makeFileRequest(pdfFile, 'sociales'));
+
+    expect(mockSplitPdfIntoChunks).toHaveBeenCalledWith(expect.any(Buffer));
+  });
+
   it('cada job tiene geminiFileUri diferente (uno por sub-PDF)', async () => {
     mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
     const mockUpload = uploadPdfToGeminiFilesApi as jest.MockedFunction<typeof uploadPdfToGeminiFilesApi>;
@@ -834,5 +862,26 @@ describe('Grupo 5 — PDF grande → múltiples importJobs (integración)', () =
     expect(body.totalChunks).toBe(2);
     expect(mockBatch.set).toHaveBeenCalledTimes(2);
     expect(mockBatch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('normaliza subjectId en jobs creados desde URL PDF', async () => {
+    mockSplitPdfIntoChunks.mockResolvedValueOnce(makeTwoChunks());
+    const mockUpload = uploadPdfToGeminiFilesApi as jest.MockedFunction<typeof uploadPdfToGeminiFilesApi>;
+    mockUpload
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c1')
+      .mockResolvedValueOnce('https://generativelanguage.googleapis.com/v1beta/files/c2');
+
+    const pdfBuffer = makePdfBuffer(1024);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => 'application/pdf' },
+      arrayBuffer: async () => pdfBuffer.buffer,
+      text: async () => '',
+    } as unknown as Response);
+
+    await POST(makeUrlRequest('https://www.icfes.gov.co/cuadernillo.pdf', 'social'));
+
+    const [, job1] = mockBatch.set.mock.calls[0] as [unknown, Record<string, unknown>];
+    expect(job1.subjectId).toBe('sociales');
   });
 });

@@ -16,6 +16,7 @@ const GenerateQuestionInputSchema = z.object({
   level: z.enum(['Básico', 'Medio', 'Avanzado', 'I', 'II', 'III']).describe('Nivel de dificultad'),
   studentPerformanceHistory: z.string().optional().describe('Historial de rendimiento para ajustar la complejidad'),
   subjectGuidelines: z.string().optional().describe('Reglas oficiales ICFES para esta materia, inyectadas desde SUBJECT_GUIDELINES'),
+  recentQuestionStems: z.array(z.string()).max(8).optional().describe('Enunciados recientes del mismo subject/componente para evitar repetición temática'),
 });
 
 export type GenerateQuestionInput = z.infer<typeof GenerateQuestionInputSchema>;
@@ -110,10 +111,20 @@ REGLAS PARA EL CAMPO svgData (figuras, gráficas, mapas, tablas, diagramas):
 - NUNCA pegues el SVG (ni fragmentos como "<svg", "viewBox", "width=", "height=", etiquetas técnicas o metadatos) dentro del campo text.
 - Si hay visual, va EXCLUSIVAMENTE en svgData; text debe quedar limpio y legible para estudiantes.
 - El SVG debe tener siempre viewBox="0 0 400 300" width="400" height="300".
+- Deja márgenes internos: contenido útil dentro de x:[30,370] y y:[25,275] para evitar recortes en bordes.
+- Si hay ejes, dibuja títulos y marcas dentro del viewBox; evita texto fuera de límites.
 - Usa SOLO elementos SVG nativos: <rect>, <circle>, <line>, <polyline>, <polygon>, <path>, <text>, <g>, <defs>, <marker>.
 - Colores permitidos: #1a1a2e, #16213e, #0f3460, #e94560, #ffffff, #f5f5f5, #4a90d9, #27ae60, #f39c12.
 - Todo texto dentro del SVG debe usar font-family="Arial, sans-serif" y font-size mínimo 12.
 - No uses etiquetas <?xml?> ni <!DOCTYPE>; el svgData debe comenzar directamente con <svg ...>.
+{{#if recentQuestionStems}}
+
+REPETICIÓN TEMÁTICA (OBLIGATORIO):
+Evita repetir los mismos temas/escenarios ya usados recientemente para este componente:
+{{#each recentQuestionStems}}- {{{this}}}
+{{/each}}
+Genera un contexto, datos y enfoque diferente frente a esta lista.
+{{/if}}
 
 FORMATO AIXML 2.0 PARA EL CAMPO aiXml:
 <item_icfes>
@@ -171,6 +182,27 @@ function normalizeSubjectForComparison(value: string): string {
   return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+function normalizeStemForComparison(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tokenSimilarity(a: string, b: string): number {
+  const aTokens = new Set(a.split(' ').filter((t) => t.length > 2));
+  const bTokens = new Set(b.split(' ').filter((t) => t.length > 2));
+  if (aTokens.size === 0 || bTokens.size === 0) return 0;
+  let overlap = 0;
+  for (const token of aTokens) {
+    if (bTokens.has(token)) overlap++;
+  }
+  return overlap / Math.max(aTokens.size, bTokens.size);
+}
+
 /** Minimum thresholds for a non-trivial ICFES question. */
 const MIN_TEXT_LENGTH = 80;       // characters — must have a real stimulus/context
 const MIN_EXPLANATION_LENGTH = 60; // characters — must justify the answer meaningfully
@@ -187,7 +219,7 @@ const MAX_ATTEMPTS = 2;
  * for a Saber 11 ICFES item.  Returns an array of failure reasons (empty
  * means the question passes).
  */
-function qualityFailures(output: GenerateQuestionOutput): string[] {
+function qualityFailures(output: GenerateQuestionOutput, input: GenerateQuestionInput): string[] {
   const failures: string[] = [];
   const normalizedSubjectId = normalizeSubjectForComparison(output.subjectId ?? '');
 
@@ -219,6 +251,19 @@ function qualityFailures(output: GenerateQuestionOutput): string[] {
 
   if (!output.aiXml || !output.aiXml.includes('<item_icfes>')) {
     failures.push('aiXml debe seguir el formato AIXML 2.0 con etiqueta <item_icfes>');
+  }
+
+  const recentStems = Array.isArray(input.recentQuestionStems) ? input.recentQuestionStems : [];
+  if (recentStems.length > 0 && output.text) {
+    const candidate = normalizeStemForComparison(output.text);
+    const hasHighSimilarity = recentStems.some((stem) => {
+      const normalizedStem = normalizeStemForComparison(stem);
+      if (!normalizedStem) return false;
+      return tokenSimilarity(candidate, normalizedStem) >= 0.72;
+    });
+    if (hasHighSimilarity) {
+      failures.push('La pregunta es demasiado similar a enunciados recientes del mismo componente');
+    }
   }
 
   return failures;
@@ -269,11 +314,13 @@ const generateQuestionFlow = ai.defineFlow(
 
     let lastFailures: string[] = [];
 
+    let attemptInput = enrichedInput;
+
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const { output } = await prompt(enrichedInput);
+      const { output } = await prompt(attemptInput);
       const candidate = { ...output!, id: `ai_gen_${Date.now()}` };
 
-      lastFailures = qualityFailures(candidate);
+      lastFailures = qualityFailures(candidate, enrichedInput);
       if (lastFailures.length === 0) {
         return candidate;
       }
@@ -282,6 +329,15 @@ const generateQuestionFlow = ai.defineFlow(
         console.warn(
           `[generate-question] intento ${attempt + 1} no pasó el quality gate: ${lastFailures.join('; ')} — reintentando…`
         );
+        attemptInput = {
+          ...enrichedInput,
+          studentPerformanceHistory: [
+            enrichedInput.studentPerformanceHistory,
+            `REINTENTO OBLIGATORIO: corrige estos fallos: ${lastFailures.join('; ')}`,
+          ]
+            .filter(Boolean)
+            .join(' | '),
+        };
       }
     }
 
